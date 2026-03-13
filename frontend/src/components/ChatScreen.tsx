@@ -10,12 +10,24 @@ import { OfflineBanner } from './OfflineBanner'
 import { CatEasterEgg } from './CatEasterEgg'
 import './ChatScreen.css'
 
+function generateId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  // Fallback for non-secure contexts (e.g. HTTP on mobile)
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
 function getSessionId(): string {
   const KEY = 'unspool-session-id'
   const existing = localStorage.getItem(KEY)
   if (existing) return existing
 
-  const id = crypto.randomUUID()
+  const id = generateId()
   localStorage.setItem(KEY, id)
   return id
 }

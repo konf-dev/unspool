@@ -25,13 +25,13 @@
 .message-bubble.user {
   background: var(--glass-user-bg);
   border: 1px solid var(--glass-user-border);
-  max-width: 75%;
+  max-width: 80%;
 }
 
 .message-bubble.assistant {
   background: var(--glass-ai-bg);
   border: 1px solid var(--glass-ai-border);
-  max-width: 85%;
+  max-width: 88%;
 }
 
 .message-bubble.latest {
