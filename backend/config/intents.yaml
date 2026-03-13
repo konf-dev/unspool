@@ -1,0 +1,107 @@
+intents:
+  brain_dump:
+    description: User is dumping tasks, ideas, or things to remember
+    fast_patterns:
+      - "i need to"
+      - "remind me"
+      - "don't forget"
+      - "i have to"
+      - "i should"
+      - "gotta"
+      - "todo"
+      - "pick up"
+      - "buy"
+      - "schedule"
+    pipeline: brain_dump
+
+  query_next:
+    description: User asking what to do next
+    fast_patterns:
+      - "what should i do"
+      - "what's next"
+      - "what do i do"
+      - "i'm bored"
+      - "i have time"
+      - "i'm free"
+      - "what now"
+    pipeline: query_next
+
+  query_search:
+    description: User searching for something specific they told you about
+    fast_patterns:
+      - "did i mention"
+      - "what was that thing"
+      - "do i have anything about"
+      - "find"
+      - "search"
+    pipeline: query_search
+
+  query_upcoming:
+    description: User asking about upcoming deadlines or schedule
+    fast_patterns:
+      - "what's coming up"
+      - "upcoming"
+      - "deadlines"
+      - "what's due"
+      - "this week"
+      - "tomorrow"
+    pipeline: query_upcoming
+
+  status_done:
+    description: User marking something as done
+    fast_patterns:
+      - "done"
+      - "finished"
+      - "completed"
+      - "did it"
+      - "checked off"
+      - "took care of"
+    pipeline: status_done
+
+  status_cant:
+    description: User skipping or postponing something
+    fast_patterns:
+      - "skip"
+      - "not now"
+      - "later"
+      - "postpone"
+      - "snooze"
+      - "can't right now"
+      - "can't do"
+    pipeline: status_cant
+
+  emotional:
+    description: User expressing feelings or venting
+    fast_patterns:
+      - "i feel"
+      - "i'm stressed"
+      - "overwhelmed"
+      - "anxious"
+      - "i can't"
+      - "too much"
+      - "ugh"
+      - "frustrated"
+    pipeline: emotional
+
+  onboarding:
+    description: First message from a new user
+    fast_patterns: []
+    pipeline: onboarding
+
+  meta:
+    description: User asking about the system itself
+    fast_patterns:
+      - "how do you work"
+      - "what can you do"
+      - "help"
+      - "settings"
+      - "how many"
+    pipeline: meta
+
+  conversation:
+    description: General conversation or unclear intent
+    fast_patterns: []
+    pipeline: conversation
+
+fallback_intent: conversation
+classification_model: null  # uses LLM_MODEL_FAST

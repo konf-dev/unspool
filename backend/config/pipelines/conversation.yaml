@@ -1,0 +1,29 @@
+name: conversation
+description: General conversation
+
+steps:
+  - id: extract_implicit
+    type: llm_call
+    prompt: conversation_extract.md
+    model: null
+    input:
+      message: "${user_message}"
+      recent_messages: "${context.recent_messages}"
+    output_schema: ImplicitItems
+
+  - id: save_if_any
+    type: tool_call
+    tool: save_items
+    input:
+      items: "${steps.extract_implicit.output}"
+      user_id: "${context.user_id}"
+
+  - id: respond
+    type: llm_call
+    prompt: conversation_respond.md
+    model: null
+    stream: true
+    input:
+      message: "${user_message}"
+      extracted: "${steps.extract_implicit.output}"
+      user_profile: "${context.profile}"

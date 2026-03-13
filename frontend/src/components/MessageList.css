@@ -1,0 +1,56 @@
+.message-list-container {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.message-list-container [data-virtuoso-scroller] {
+  overscroll-behavior: none;
+}
+
+.message-list-spacer {
+  height: var(--spacing-md);
+}
+
+.jump-to-bottom {
+  position: absolute;
+  bottom: var(--spacing-lg);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: var(--spacing-xs) var(--spacing-lg);
+  background: var(--glass-ai-bg);
+  border: 1px solid var(--glass-ai-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--radius-bubble);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.jump-to-bottom.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.jump-to-bottom:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text-primary);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .jump-to-bottom {
+    background: rgba(30, 30, 40, 0.95);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jump-to-bottom {
+    transition: none;
+  }
+}

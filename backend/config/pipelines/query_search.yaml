@@ -1,0 +1,27 @@
+name: query_search
+description: User searches for something specific
+
+steps:
+  - id: embed_query
+    type: tool_call
+    tool: generate_embedding
+    input:
+      text: "${user_message}"
+
+  - id: search
+    type: tool_call
+    tool: search_hybrid
+    input:
+      user_id: "${context.user_id}"
+      embedding: "${steps.embed_query.output}"
+      query_text: "${user_message}"
+
+  - id: respond
+    type: llm_call
+    prompt: query_search_format.md
+    model: null
+    stream: true
+    input:
+      results: "${steps.search.output}"
+      query: "${user_message}"
+      user_profile: "${context.profile}"

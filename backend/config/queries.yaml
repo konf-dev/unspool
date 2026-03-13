@@ -1,0 +1,3 @@
+# Query definitions — placeholder for Phase 4
+# Will define parameterized SQL queries that the query_executor can run
+# based on config-driven pipeline steps.

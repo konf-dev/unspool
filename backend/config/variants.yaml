@@ -1,0 +1,10 @@
+# Experiment variants — empty for now
+# Example structure:
+# brain_dump:
+#   control:
+#     weight: 0.5
+#     overrides: {}
+#   concise:
+#     weight: 0.5
+#     overrides:
+#       model: claude-haiku-4-20250414

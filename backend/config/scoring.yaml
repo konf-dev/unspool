@@ -1,0 +1,22 @@
+urgency_weights:
+  deadline: 0.4
+  explicit: 0.3
+  recency: 0.2
+  dependency: 0.1
+
+decay:
+  interval_hours: 6
+  decay_rate: 0.05
+  min_score: 0.0
+  expire_after_days: 30
+
+energy_levels:
+  low:
+    max_duration_minutes: 15
+    examples: ["text someone", "check email", "look something up"]
+  medium:
+    max_duration_minutes: 45
+    examples: ["grocery shopping", "cook dinner", "respond to messages"]
+  high:
+    max_duration_minutes: null
+    examples: ["write report", "clean apartment", "build project"]
