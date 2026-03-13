@@ -6,8 +6,8 @@ from typing import Any
 
 from src.config import get_settings
 from src.llm.registry import get_llm_provider
-from src.orchestrator.config_loader import load_config, load_pipeline, resolve_variable
-from src.orchestrator.prompt_renderer import render_prompt
+from src.orchestrator.config_loader import get_config_hash, load_config, load_pipeline, resolve_variable
+from src.orchestrator.prompt_renderer import get_prompt_hash, render_prompt
 from src.orchestrator.query_executor import execute_operation, execute_query
 from src.orchestrator.types import Context, Step, StepResult
 from src.orchestrator.variant_selector import select_variant
@@ -15,6 +15,7 @@ from src.telemetry.events import (
     log_llm_usage,
     log_message_completed,
     log_step_completed,
+    log_step_error,
     log_step_started,
     log_variant_selected,
 )
@@ -106,9 +107,12 @@ async def _execute_llm_step(
         collected = []
         input_tokens = 0
         output_tokens = 0
+        ttft: float | None = None
 
         async for chunk in provider.stream(messages, model=model):
             if chunk.token:
+                if ttft is None:
+                    ttft = time.perf_counter() - start
                 collected.append(chunk.token)
                 yield chunk.token, None
             if chunk.done:
@@ -129,6 +133,7 @@ async def _execute_llm_step(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             latency_ms=latency_ms,
+            ttft_ms=round(ttft * 1000, 2) if ttft else None,
         )
 
         yield None, StepResult(
@@ -251,6 +256,16 @@ async def execute_pipeline(
     llm_calls = 0
     pipeline_start = time.perf_counter()
 
+    config_snapshot: dict[str, str] = {}
+    pipeline_hash = get_config_hash(f"pipeline:{pipeline_name}")
+    if pipeline_hash:
+        config_snapshot[f"pipeline:{pipeline_name}"] = pipeline_hash
+    for step in pipeline.steps:
+        if step.prompt:
+            h = get_prompt_hash(step.prompt)
+            if h:
+                config_snapshot[f"prompt:{step.prompt}"] = h
+
     step_index = 0
     steps = pipeline.steps
 
@@ -273,43 +288,76 @@ async def execute_pipeline(
                     )
 
         elif step.type == "tool_call":
-            result = await _execute_tool_step(
-                step, context, step_results, tool_registry,
-            )
-            step_results[step.id] = result
-            log_step_completed(context.trace_id, step.id, result.latency_ms)
+            try:
+                result = await _execute_tool_step(
+                    step, context, step_results, tool_registry,
+                )
+                step_results[step.id] = result
+                log_step_completed(context.trace_id, step.id, result.latency_ms)
+            except Exception as exc:
+                log_step_error(
+                    trace_id=context.trace_id,
+                    step_id=step.id,
+                    step_type=step.type,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                    pipeline=pipeline_name,
+                )
+                raise
 
         elif step.type == "query":
-            start = time.perf_counter()
             try:
-                resolved_inputs = _resolve_inputs(step.input, context, step_results)
-                output = await execute_query(step.query or step.id, resolved_inputs)
-            except NotImplementedError:
-                _log.warning("query.not_implemented", query=step.query or step.id)
-                output = []
-            latency_ms = round((time.perf_counter() - start) * 1000, 2)
-            step_results[step.id] = StepResult(
-                step_id=step.id, output=output, latency_ms=latency_ms,
-            )
-            log_step_completed(context.trace_id, step.id, latency_ms)
+                start = time.perf_counter()
+                try:
+                    resolved_inputs = _resolve_inputs(step.input, context, step_results)
+                    output = await execute_query(step.query or step.id, resolved_inputs)
+                except NotImplementedError:
+                    _log.warning("query.not_implemented", query=step.query or step.id)
+                    output = []
+                latency_ms = round((time.perf_counter() - start) * 1000, 2)
+                step_results[step.id] = StepResult(
+                    step_id=step.id, output=output, latency_ms=latency_ms,
+                )
+                log_step_completed(context.trace_id, step.id, latency_ms)
+            except Exception as exc:
+                log_step_error(
+                    trace_id=context.trace_id,
+                    step_id=step.id,
+                    step_type=step.type,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                    pipeline=pipeline_name,
+                )
+                raise
 
         elif step.type == "operation":
-            start = time.perf_counter()
             try:
-                resolved_inputs = _resolve_inputs(step.input, context, step_results)
-                op_name = step.operation or step.id
-                output = await execute_operation(op_name, resolved_inputs)
-            except NotImplementedError:
-                _log.warning(
-                    "operation.not_implemented",
-                    operation=step.operation or step.id,
+                start = time.perf_counter()
+                try:
+                    resolved_inputs = _resolve_inputs(step.input, context, step_results)
+                    op_name = step.operation or step.id
+                    output = await execute_operation(op_name, resolved_inputs)
+                except NotImplementedError:
+                    _log.warning(
+                        "operation.not_implemented",
+                        operation=step.operation or step.id,
+                    )
+                    output = {}
+                latency_ms = round((time.perf_counter() - start) * 1000, 2)
+                step_results[step.id] = StepResult(
+                    step_id=step.id, output=output, latency_ms=latency_ms,
                 )
-                output = {}
-            latency_ms = round((time.perf_counter() - start) * 1000, 2)
-            step_results[step.id] = StepResult(
-                step_id=step.id, output=output, latency_ms=latency_ms,
-            )
-            log_step_completed(context.trace_id, step.id, latency_ms)
+                log_step_completed(context.trace_id, step.id, latency_ms)
+            except Exception as exc:
+                log_step_error(
+                    trace_id=context.trace_id,
+                    step_id=step.id,
+                    step_type=step.type,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                    pipeline=pipeline_name,
+                )
+                raise
 
         elif step.type == "branch":
             start = time.perf_counter()
@@ -370,4 +418,5 @@ async def execute_pipeline(
         llm_calls=llm_calls,
         pipeline=pipeline_name,
         variant=variant,
+        config_snapshot=config_snapshot,
     )

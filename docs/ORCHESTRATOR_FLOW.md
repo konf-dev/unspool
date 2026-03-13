@@ -121,7 +121,7 @@ Intents:
   QUERY_NEXT      — "what should I do?"
   QUERY_UPCOMING  — "what's coming up?"
   QUERY_SEARCH    — "did I ever think about X?"
-  QUERY_OVERVIEW  — "what's on my plate?"
+  QUERY_OVERVIEW  — "what's on my plate?" (v0.2)
   STATUS_DONE     — "done with X"
   STATUS_CANT     — "can't do this" / "skip"
   EMOTIONAL       — "bad day" / "overwhelmed"
@@ -140,6 +140,8 @@ Intents:
 - "bad day" / "overwhelmed" / "can't today" → EMOTIONAL
 - "cancel" / "unsubscribe" → META_CANCEL
 - First ever message from user → ONBOARDING
+
+**v0.1 note:** Intent classification is LLM-only — the rule-based fast path described above is not implemented. All messages go through the `classify_intent` prompt. This avoids misclassification on ambiguous inputs at the cost of one extra LLM call.
 
 **LLM needed for:**
 - "I emailed my supervisor and also need to book flights next week" → MIXED
@@ -313,6 +315,8 @@ Search ALL items (including done/expired)
 ```
 
 #### QUERY_OVERVIEW — "What's on my plate?"
+
+> **Note:** QUERY_OVERVIEW is planned for v0.2. Not implemented in v0.1.
 
 ```
 NOT a full list. A narrative summary:

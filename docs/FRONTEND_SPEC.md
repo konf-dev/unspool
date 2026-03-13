@@ -15,7 +15,7 @@ Think: iMessage with one contact, fullscreen, dark theme, nothing else.
 
 ---
 
-## Screens (there are only 3)
+## Screens (there are only 5)
 
 ### 1. Login Screen
 - Clean, centered layout on dark background
@@ -28,6 +28,8 @@ Think: iMessage with one contact, fullscreen, dark theme, nothing else.
 - Google consent screen will say: "Unspool wants to: view your email address, sign you in, and view your calendar events." User taps Allow once, never asked again.
 - If user signs in via magic link (no Google), calendar is not connected. The AI will offer to connect it later via in-chat prompt after a few days of use.
 - This screen should feel like a door, not a gate. Minimal, calm, two paths but the choice is obvious.
+
+**Routing:** Browser visitors see LandingPage first → click CTA → LoginScreen. Installed PWA (standalone mode) skips LandingPage, goes directly to LoginScreen or ChatScreen if already authenticated.
 
 ### 2. Chat Screen (the main and only screen)
 - Fullscreen chat interface
@@ -43,6 +45,17 @@ Think: iMessage with one contact, fullscreen, dark theme, nothing else.
 - The message contains a button/link to Stripe checkout
 - After payment, a confirmation message appears in chat
 - No separate pricing page, billing page, or plan selection screen
+
+### 4. Landing Page
+- Pre-login marketing page at the root URL for non-authenticated users in a browser
+- Shows the gradient sky background with hills silhouette and cat (same as login screen)
+- "unspool" heading, tagline, feature highlights, and CTA button to login
+- Skipped entirely when app is opened as installed PWA (standalone mode)
+
+### 5. Legal Pages (Privacy Policy / Terms of Service)
+- Accessible via links on the landing page and login screen
+- Same dark theme styling, scrollable content
+- Routes: `/privacy` and `/terms`
 
 ---
 
@@ -341,13 +354,19 @@ unspool/
 │   │   ├── InputBar.tsx      # Text input + mic + send
 │   │   ├── VoiceInput.tsx    # Microphone recording logic
 │   │   ├── TypingIndicator.tsx
-│   │   └── StreamingText.tsx # Handles token-by-token rendering
+│   │   ├── StreamingText.tsx # Handles token-by-token rendering
+│   │   ├── LandingPage.tsx  # Pre-login marketing page
+│   │   ├── LegalPage.tsx    # Privacy policy + terms of service
+│   │   ├── CatEasterEgg.tsx # Tiny cat silhouette easter egg
+│   │   ├── OfflineBanner.tsx# Offline status indicator
+│   │   └── ActionButtons.tsx # Inline action buttons on AI messages
 │   ├── hooks/
 │   │   ├── useChat.ts        # Send message, handle streaming
 │   │   ├── useAuth.ts        # Supabase auth (Google OAuth + magic link)
 │   │   ├── useVoice.ts       # Speech recognition (swappable provider)
-│   │   ├── useCalendar.ts    # Fetch Google Calendar events via backend
-│   │   └── usePush.ts       # Push notification setup
+│   │   ├── usePush.ts        # Push notification setup
+│   │   ├── useCatEasterEgg.ts # Controls cat easter egg timing
+│   │   └── useOffline.ts     # Online/offline detection
 │   ├── lib/
 │   │   ├── supabase.ts       # Supabase client init
 │   │   └── api.ts            # Backend API calls

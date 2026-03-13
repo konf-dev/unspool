@@ -33,6 +33,8 @@ Core data operations used in pipeline steps.
 | `search_text` | `(user_id, query_text, limit=5)` | `list[dict]` — items by full-text match |
 | `mark_item_done` | `(item, user_id)` | `dict` — updated item |
 
+`search_hybrid` uses `COALESCE` to handle items without embeddings — items with only text matches are still returned with a text-only score, rather than being excluded.
+
 `save_items` accepts either a list of item dicts or a dict with an `items` key. Each item dict can contain: `raw_text`, `interpreted_action`, `deadline_type`, `deadline_at`, `urgency_score`, `energy_estimate`, `entity_ids`.
 
 ## Scoring Tools (`scoring_tools.py`)
