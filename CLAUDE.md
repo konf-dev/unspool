@@ -303,6 +303,8 @@ Read these before making architectural decisions:
 - `docs/PRODUCT_SPEC.md` — Full product specification, pricing, tech stack
 - `docs/ORCHESTRATOR_FLOW.md` — Every message processing path
 - `docs/FRONTEND_SPEC.md` — Detailed UI/UX spec with platform compatibility notes
+- `docs/DEPLOY.md` — Infrastructure setup and deployment procedures
+- `docs/DEPLOYMENT_LOG.md` — Exact steps followed, issues hit, and current production state
 
 ## Quick Commands
 

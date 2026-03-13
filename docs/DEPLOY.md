@@ -268,7 +268,7 @@ Monorepo-aware CI using `dorny/paths-filter`:
 
 1. **detect-changes** — determines which directories changed
 2. **test-backend** — Python 3.11, `pip install`, `pytest -x --timeout=30` (only if `backend/` changed)
-3. **check-frontend** — Node 20, `npm ci`, `tsc --noEmit`, `npm run build` (only if `frontend/` changed)
+3. **check-frontend** — Node 22, `npm ci`, `npm run build` (only if `frontend/` changed)
 
 ### Auto-deploy
 
@@ -337,12 +337,13 @@ Migration files live in `backend/supabase/migrations/` and are numbered sequenti
 
 | Service | Plan | Monthly Cost |
 |---------|------|-------------|
-| Railway | Usage-based | ~$3–5 |
-| Vercel | Pro (GitHub Student Pack) | $0 |
+| Railway | Developer ($5/mo) | ~$5 |
+| Vercel | Pro (14-day trial, then paid) | $0–20 |
 | Supabase | Free tier | $0 |
 | Upstash Redis | Free tier | $0 |
 | Upstash QStash | Free tier | $0 |
 | Domain (unspool.life) | GoDaddy | ~$1 (pre-paid) |
 | Anthropic API | Pay-per-token | Variable (usage-dependent) |
 | OpenAI API | Pay-per-token (embeddings) | Variable (minimal) |
-| **Total (infra)** | | **~$3–6/mo + LLM costs** |
+| Cloudflare | Free tier | $0 |
+| **Total (infra)** | | **~$5–25/mo + LLM costs** |
