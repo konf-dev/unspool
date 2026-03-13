@@ -38,5 +38,8 @@ ALTER TABLE subscriptions ADD COLUMN updated_at TIMESTAMPTZ DEFAULT now();
 ALTER TABLE oauth_tokens DROP CONSTRAINT IF EXISTS oauth_tokens_user_id_key;
 ALTER TABLE oauth_tokens ADD CONSTRAINT oauth_tokens_user_provider_unique UNIQUE(user_id, provider);
 
+-- Add updated_at to entities (referenced in save_entity upsert)
+ALTER TABLE entities ADD COLUMN updated_at TIMESTAMPTZ DEFAULT now();
+
 -- Add unique constraint on entities for upsert in save_entity
 ALTER TABLE entities ADD CONSTRAINT entities_user_name_type_unique UNIQUE(user_id, name, type);

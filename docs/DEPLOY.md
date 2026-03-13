@@ -50,8 +50,9 @@ From Settings → API:
 From Settings → API → JWT Settings:
 - **JWT Secret** (current active key) → `SUPABASE_JWT_SIGNING_SECRET`
 
-From Settings → Database → Connection string (URI):
-- → `DATABASE_URL` (use the one with your password)
+From Settings → Database → Connection string:
+- Use the **connection pooler** URI (port 6543, Transaction mode) → `DATABASE_URL`
+- The direct connection (port 5432) may fail if your network lacks IPv6
 
 ---
 
@@ -203,6 +204,31 @@ pytest -v
 ```
 
 Set `VITE_USE_MOCKS=true` in `frontend/.env.development` to run the frontend without a backend.
+
+---
+
+## API Endpoints
+
+### User-facing (`/api/*` — requires Supabase JWT)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/chat` | Send message, receive SSE streaming response |
+| GET | `/api/messages` | Chat history (cursor pagination: `?limit=50&before=<id>`) |
+| POST | `/api/auth/store-token` | Store Google OAuth refresh token for calendar sync |
+| POST | `/api/subscribe` | Create Stripe checkout session |
+| POST | `/api/push/subscribe` | Save Web Push subscription |
+| DELETE | `/api/account` | Delete all user data (irreversible, cascade across all tables) |
+
+### Background jobs (`/jobs/*` — requires QStash signature)
+
+| Method | Path | Schedule |
+|--------|------|----------|
+| POST | `/jobs/check-deadlines` | Hourly |
+| POST | `/jobs/decay-urgency` | Every 6h |
+| POST | `/jobs/sync-calendar` | Every 4h |
+| POST | `/jobs/detect-patterns` | Daily |
+| POST | `/jobs/process-conversation` | Per-request (delayed 10s via QStash) |
 
 ---
 
