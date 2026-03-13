@@ -240,3 +240,109 @@ Set `VITE_USE_MOCKS=true` in `frontend/.env.development` to run the frontend wit
 - **Health:** `GET /health` returns `{"status": "ok"}`
 - **Logs:** Structured JSON via structlog — Railway captures stdout automatically
 - **Errors:** Each request gets a `trace_id` in the `X-Trace-Id` response header
+
+---
+
+## Branching Strategy
+
+We use **GitHub Flow** — short-lived feature branches off `main`, merged via PR.
+
+- `main` is always deployable. Railway and Vercel auto-deploy on push to `main`.
+- Create feature branches named `<topic>` (e.g., `fix-deadline-scanner`, `add-voice-input`).
+- Every PR must pass CI checks before merging.
+- Squash-merge PRs to keep `main` history clean.
+
+### Branch protection (GitHub → Settings → Branches → `main`)
+
+- Require status checks to pass: `test-backend`, `check-frontend`
+- Require branches to be up to date before merging
+- No direct pushes to `main` (after initial deployment)
+
+---
+
+## CI/CD
+
+### GitHub Actions (`.github/workflows/ci.yml`)
+
+Monorepo-aware CI using `dorny/paths-filter`:
+
+1. **detect-changes** — determines which directories changed
+2. **test-backend** — Python 3.11, `pip install`, `pytest -x --timeout=30` (only if `backend/` changed)
+3. **check-frontend** — Node 20, `npm ci`, `tsc --noEmit`, `npm run build` (only if `frontend/` changed)
+
+### Auto-deploy
+
+- **Railway** deploys `backend/` on every push to `main` (configured in Railway dashboard)
+- **Vercel** deploys `frontend/` on every push to `main` (configured in Vercel dashboard)
+
+Both platforms also create preview deployments for PRs.
+
+---
+
+## Day-to-Day Development Workflow
+
+```
+1. git checkout -b my-feature
+2. Make changes, test locally
+3. git push -u origin my-feature
+4. Open PR → CI runs automatically
+5. Review, iterate
+6. Squash-merge to main → Railway + Vercel auto-deploy
+7. Delete the feature branch
+```
+
+---
+
+## Rollback Procedure
+
+### Backend (Railway)
+
+Railway keeps previous deployments. To rollback:
+
+1. Railway dashboard → Deployments → click the previous successful deployment → Rollback
+2. Or: `git revert <commit>` and push to `main` to trigger a new deploy with the fix
+
+### Frontend (Vercel)
+
+1. Vercel dashboard → Deployments → find the previous successful deployment → Promote to Production
+2. Or: same `git revert` approach
+
+### Emergency
+
+If both need rolling back simultaneously, do Railway first (backend), then Vercel (frontend).
+
+---
+
+## Database Migration Procedure
+
+Migrations are **not** run automatically by CI or deploys. Run them manually before deploying code that depends on new schema.
+
+```bash
+# Option A: Supabase CLI
+cd backend
+npx supabase db push
+
+# Option B: Manual SQL
+# Copy the migration SQL from backend/supabase/migrations/ into
+# Supabase Dashboard → SQL Editor → Run
+```
+
+**Order matters:** always run migrations *before* deploying backend code that references new tables/columns.
+
+Migration files live in `backend/supabase/migrations/` and are numbered sequentially (`00001_`, `00002_`, etc.).
+
+---
+
+## Cost Summary
+
+| Service | Plan | Monthly Cost |
+|---------|------|-------------|
+| Railway | Usage-based | ~$3–5 |
+| Vercel | Pro (GitHub Student Pack) | $0 |
+| Supabase | Free tier | $0 |
+| Upstash Redis | Free tier | $0 |
+| Upstash QStash | Free tier | $0 |
+| Domain (unspool.life) | GoDaddy | ~$1 (pre-paid) |
+| Anthropic API | Pay-per-token | Variable (usage-dependent) |
+| OpenAI API | Pay-per-token (embeddings) | Variable (minimal) |
+| **Total (infra)** | | **~$3–6/mo + LLM costs** |
