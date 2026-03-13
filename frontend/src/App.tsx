@@ -73,8 +73,8 @@ export function App() {
     if (isLoading) return
 
     if (isAuthenticated) {
-      // Authenticated: go to chat from login or direct /chat visit
-      if (route === 'login' || route === 'chat') {
+      // Authenticated: go to chat (unless on a legal page)
+      if (route !== 'privacy' && route !== 'terms') {
         setRoute('chat')
         window.history.replaceState(null, '', '/chat')
       }
