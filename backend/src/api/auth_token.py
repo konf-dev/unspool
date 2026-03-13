@@ -12,8 +12,8 @@ router = APIRouter()
 
 
 class StoreTokenRequest(BaseModel):
-    refresh_token: str
-    scopes: list[str]
+    provider_refresh_token: str
+    scopes: list[str] = []
 
 
 @router.post("/auth/store-token")
@@ -24,7 +24,7 @@ async def store_token(
     await db.save_oauth_token(
         user_id=user_id,
         provider="google",
-        refresh_token=request.refresh_token,
+        refresh_token=request.provider_refresh_token,
         scopes=request.scopes,
     )
 
