@@ -4,19 +4,74 @@ urgency_weights:
   recency: 0.2
   dependency: 0.1
 
+# Urgency calculation breakpoints (used by calculate_urgency tool)
+urgency_breakpoints:
+  overdue:
+    threshold_hours: 0
+    score: 1.0
+  imminent:
+    threshold_hours: 24
+    score: 0.8
+  approaching:
+    threshold_hours: 48
+    score: 0.5
+  distant:
+    score: 0.2
+
+# Hard deadline type bonus
+deadline_type_scores:
+  hard: 0.8
+  soft: 0.4
+
 decay:
-  interval_hours: 6
-  decay_rate: 0.05
-  min_score: 0.0
-  expire_after_days: 30
+  soft_decay_factor: 0.95
+  auto_expire_days: 30
+  auto_expire_threshold: 0.1
+  # Hard deadline urgency ramp (used by decay_urgency job)
+  hard_ramp:
+    overdue: 1.0
+    within_24h_base: 0.7
+    within_24h_divisor: 80
+    within_72h_base: 0.5
+    within_72h_divisor: 96
 
 energy_levels:
   low:
     max_duration_minutes: 15
-    examples: ["text someone", "check email", "look something up"]
+    patterns: ["text", "email", "call", "reply", "check", "read", "look up", "remind", "renew", "book"]
   medium:
     max_duration_minutes: 45
-    examples: ["grocery shopping", "cook dinner", "respond to messages"]
+    patterns: ["grocery", "cook", "shop", "respond", "review", "schedule", "prepare"]
   high:
     max_duration_minutes: null
-    examples: ["write report", "clean apartment", "build project"]
+    patterns: ["write", "build", "create", "design", "plan", "organize", "move", "clean", "exercise", "study"]
+
+momentum:
+  lookback_hours: 24
+  on_a_roll_threshold: 3
+
+pick_next:
+  boost_hard_deadline: 0.3
+  boost_soft_deadline: 0.1
+  boost_low_energy: 0.15
+  boost_medium_energy: 0.05
+  boost_never_surfaced: 0.1
+
+reschedule:
+  urgency_decay_factor: 0.7
+  nudge_delay:
+    hard_hours: 4
+    soft_days: 2
+    none_days: 7
+
+matching:
+  min_similarity: 0.1
+  substring_boost: 0.7
+
+notifications:
+  quiet_hours_start: 1
+  quiet_hours_end: 7
+  deadline_window_hours: 24
+  title: "unspool"
+  body_single: "Deadline approaching: {action}"
+  body_multiple: "You have {count} items with deadlines in the next {hours} hours"

@@ -47,8 +47,8 @@ Single FastAPI server (Railway)
 ### Backend (this repo: /backend)
 - **Stack:** Python 3.11+ / FastAPI / async
 - **Deployed to:** Railway (auto-deploy from main branch)
-- **Orchestrator:** Plain FastAPI for v0.1 (NOT Sutra yet — migrate later)
-- **Memory:** Smrti adapters pointing at Supabase (Postgres/pgvector) + Upstash (Redis)
+- **Orchestrator:** Config-driven engine — YAML pipelines + Jinja2 prompts + registered tools
+- **Storage:** Direct async calls to Supabase (Postgres/pgvector) + Upstash (Redis). No abstraction layer.
 - **Background jobs:** FastAPI endpoints called by Upstash QStash on schedule
 
 ### Shared infra (external services, not in this repo)
@@ -65,79 +65,62 @@ unspool/
 ├── docs/
 │   ├── PRODUCT_SPEC.md    # Full product specification
 │   ├── ORCHESTRATOR_FLOW.md # Message processing pipeline
-│   └── FRONTEND_SPEC.md   # Detailed frontend specification
+│   ├── ORCHESTRATOR_FLOW.md # Message processing pipeline
+│   ├── FRONTEND_SPEC.md   # Detailed frontend specification
+│   ├── SCHEMA.md          # Database schema reference
+│   ├── PIPELINE_FORMAT.md # Pipeline YAML format spec
+│   ├── DEPLOY.md          # Deployment guide
+│   └── TOOLS.md           # Tool registry reference
 ├── frontend/              # React + Vite PWA
 │   ├── public/
-│   │   ├── manifest.json
-│   │   ├── sw.js
-│   │   └── icons/
+│   │   ├── fonts/         # Satoshi Variable (self-hosted woff2)
+│   │   └── icons/         # PWA icons (SVG)
 │   ├── src/
 │   │   ├── main.tsx
 │   │   ├── App.tsx
-│   │   ├── components/
-│   │   │   ├── LoginScreen.tsx
-│   │   │   ├── ChatScreen.tsx
-│   │   │   ├── MessageList.tsx
-│   │   │   ├── MessageBubble.tsx
-│   │   │   ├── InputBar.tsx
-│   │   │   ├── VoiceInput.tsx
-│   │   │   ├── TypingIndicator.tsx
-│   │   │   └── StreamingText.tsx
-│   │   ├── hooks/
-│   │   │   ├── useChat.ts
-│   │   │   ├── useAuth.ts
-│   │   │   ├── useVoice.ts
-│   │   │   ├── useCalendar.ts
-│   │   │   └── usePush.ts
-│   │   ├── lib/
-│   │   │   ├── supabase.ts
-│   │   │   └── api.ts
-│   │   ├── styles/
-│   │   │   └── globals.css
-│   │   └── types/
-│   │       └── index.ts
+│   │   ├── components/    # LoginScreen, ChatScreen, MessageList,
+│   │   │                  # MessageBubble, ActionButtons, InputBar,
+│   │   │                  # VoiceInput, TypingIndicator, StreamingText,
+│   │   │                  # PaymentPrompt, CatEasterEgg, OfflineBanner
+│   │   ├── hooks/         # useAuth, useVoice, usePush, useOffline,
+│   │   │                  # useCatEasterEgg
+│   │   ├── lib/           # api.ts, mock.ts, supabase.ts, constants.ts
+│   │   ├── styles/        # globals.css, stars.css
+│   │   └── types/         # index.ts
 │   ├── index.html
 │   ├── vite.config.ts
 │   ├── tsconfig.json
 │   └── package.json
 ├── backend/
+│   ├── config/
+│   │   ├── pipelines/     # 10 YAML pipeline definitions
+│   │   ├── intents.yaml   # Intent taxonomy + pipeline routing
+│   │   ├── context_rules.yaml  # Per-intent data loading rules
+│   │   ├── scoring.yaml   # All thresholds: urgency, decay, energy,
+│   │   │                  # momentum, pick_next, reschedule, matching,
+│   │   │                  # notifications
+│   │   ├── proactive.yaml # Proactive message trigger rules
+│   │   ├── gate.yaml      # Rate limits (free/paid)
+│   │   └── variants.yaml  # A/B test definitions
+│   ├── prompts/           # 21 Jinja2 prompt templates (.md)
+│   ├── supabase/
+│   │   └── migrations/    # SQL schema migrations
 │   ├── src/
-│   │   ├── main.py            # FastAPI app entry
-│   │   ├── api/               # User-facing endpoints
-│   │   │   ├── chat.py        # POST /api/chat (SSE streaming)
-│   │   │   ├── messages.py    # GET /api/messages (history)
-│   │   │   └── subscribe.py   # POST /api/subscribe (Stripe)
-│   │   ├── jobs/              # Background job endpoints (QStash calls these)
-│   │   │   ├── check_deadlines.py
-│   │   │   ├── decay_urgency.py
-│   │   │   ├── process_conversation.py
-│   │   │   ├── sync_calendar.py
-│   │   │   └── detect_patterns.py
-│   │   ├── orchestrator/      # Message processing logic
-│   │   │   ├── intent.py      # Intent classification
-│   │   │   ├── pipelines/     # One file per pipeline
-│   │   │   │   ├── brain_dump.py
-│   │   │   │   ├── query.py
-│   │   │   │   ├── status.py
-│   │   │   │   ├── emotional.py
-│   │   │   │   ├── meta.py
-│   │   │   │   ├── onboarding.py
-│   │   │   │   └── conversation.py
-│   │   │   ├── context.py     # Context assembly
-│   │   │   ├── personalization.py
-│   │   │   └── scoring.py     # Urgency/energy scoring
-│   │   ├── memory/            # Smrti adapters
-│   │   │   ├── supabase_adapter.py
-│   │   │   ├── pgvector_adapter.py
-│   │   │   ├── upstash_adapter.py
-│   │   │   └── interface.py   # Common protocol
-│   │   ├── integrations/
-│   │   │   ├── google_calendar.py
-│   │   │   └── stripe.py
-│   │   ├── auth/
-│   │   │   ├── supabase_auth.py  # Verify JWT from frontend
-│   │   │   └── qstash_auth.py   # Verify QStash signatures
-│   │   └── config.py         # Settings from env vars
+│   │   ├── main.py        # FastAPI app entry
+│   │   ├── config.py      # Settings from env vars
+│   │   ├── api/           # chat.py, messages.py, subscribe.py, auth_token.py
+│   │   ├── jobs/          # check_deadlines, decay_urgency, process_conversation,
+│   │   │                  # sync_calendar, detect_patterns
+│   │   ├── orchestrator/  # engine.py, intent.py, context.py, config_loader.py,
+│   │   │                  # prompt_renderer.py, variant_selector.py, types.py
+│   │   ├── tools/         # registry.py, db_tools.py, scoring_tools.py,
+│   │   │                  # context_tools.py, item_matching.py, momentum_tools.py
+│   │   ├── llm/           # protocol.py, anthropic_provider.py, openai_provider.py,
+│   │   │                  # embedding.py, registry.py
+│   │   ├── db/            # supabase.py (asyncpg), redis.py (Upstash)
+│   │   ├── integrations/  # google_calendar.py, stripe.py, push.py
+│   │   ├── auth/          # supabase_auth.py, qstash_auth.py
+│   │   └── telemetry/     # logger.py, events.py, middleware.py
 │   ├── tests/
 │   ├── requirements.txt
 │   ├── Dockerfile
@@ -160,8 +143,8 @@ unspool/
 
 ### Backend
 - **v0.1 is a monolith.** One FastAPI process handles /api/* and /jobs/*. Split later if needed.
-- **Orchestrator is plain Python.** Not Sutra in v0.1. Migrate to Sutra pipelines when the monolithic LLM call needs decomposition.
-- **Intent classification uses rule-based fast path first.** "done" → STATUS_DONE, "what should I do" → QUERY_NEXT. LLM only for ambiguous/mixed intents.
+- **Orchestrator is config-driven.** Three layers: config (YAML pipelines, prompts, scoring) / engine (~400 lines, never changes) / tools (Python functions). Adding new behavior = config change.
+- **Intent classification is LLM-only.** Every message goes through the classify_intent prompt. No hardcoded regex patterns — avoids misclassification on ambiguous inputs.
 - **Target: 1-2 LLM calls per user message.** Classification + extraction + response can often be one structured call.
 - **All /jobs/* endpoints verify Upstash-Signature header.** Prevents external triggering.
 - **All /api/* endpoints verify Supabase JWT.** Extract user_id from token.

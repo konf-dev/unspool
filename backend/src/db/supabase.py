@@ -449,6 +449,23 @@ async def get_proactive_items(user_id: str, hours: int = 24) -> list[dict[str, A
     return [dict(r) for r in rows]
 
 
+async def get_slipped_items(user_id: str) -> list[dict[str, Any]]:
+    pool = _get_pool()
+    rows = await pool.fetch(
+        """
+        SELECT * FROM items
+        WHERE user_id = $1
+          AND status = 'open'
+          AND deadline_type = 'soft'
+          AND deadline_at IS NOT NULL
+          AND deadline_at < now()
+        ORDER BY deadline_at ASC
+        """,
+        user_id,
+    )
+    return [dict(r) for r in rows]
+
+
 async def get_last_interaction(user_id: str) -> str | None:
     pool = _get_pool()
     row = await pool.fetchrow(

@@ -6,15 +6,13 @@ from src.db.supabase import (
     update_profile,
 )
 from src.integrations.push import send_push_notification
+from src.orchestrator.config_loader import load_config
 from src.telemetry.logger import get_logger
 
 _log = get_logger("jobs.check_deadlines")
 
-_QUIET_HOUR_START = 1
-_QUIET_HOUR_END = 7
 
-
-def _in_quiet_hours(tz_name: str | None) -> bool:
+def _in_quiet_hours(tz_name: str | None, start: int, end: int) -> bool:
     try:
         from zoneinfo import ZoneInfo
 
@@ -23,11 +21,24 @@ def _in_quiet_hours(tz_name: str | None) -> bool:
         tz = timezone.utc
 
     local_hour = datetime.now(tz).hour
-    return _QUIET_HOUR_START <= local_hour < _QUIET_HOUR_END
+    return start <= local_hour < end
 
 
 async def run_check_deadlines() -> dict:
-    users = await get_users_with_urgent_deadlines(hours=24)
+    try:
+        config = load_config("scoring")
+    except FileNotFoundError:
+        config = {}
+
+    notif_config = config.get("notifications", {})
+    quiet_start = notif_config.get("quiet_hours_start", 1)
+    quiet_end = notif_config.get("quiet_hours_end", 7)
+    deadline_hours = notif_config.get("deadline_window_hours", 24)
+    title = notif_config.get("title", "unspool")
+    body_single_template = notif_config.get("body_single", "Deadline approaching: {action}")
+    body_multiple_template = notif_config.get("body_multiple", "You have {count} items with deadlines in the next {hours} hours")
+
+    users = await get_users_with_urgent_deadlines(hours=deadline_hours)
     _log.info("check_deadlines.start", user_count=len(users))
 
     notified = 0
@@ -44,11 +55,10 @@ async def run_check_deadlines() -> dict:
             skipped += 1
             continue
 
-        if _in_quiet_hours(tz_name):
+        if _in_quiet_hours(tz_name, quiet_start, quiet_end):
             skipped += 1
             continue
 
-        # Atomic: claim notification slot before sending
         try:
             await update_profile(user_id, notification_sent_today=True)
         except ValueError:
@@ -60,14 +70,14 @@ async def run_check_deadlines() -> dict:
             continue
 
         if len(items) == 1:
-            body = f"Deadline approaching: {items[0]['interpreted_action']}"
+            body = body_single_template.format(action=items[0]["interpreted_action"])
         else:
-            body = f"You have {len(items)} items with deadlines in the next 24 hours"
+            body = body_multiple_template.format(count=len(items), hours=deadline_hours)
 
         for sub in subscriptions:
             await send_push_notification(
                 subscription=sub,
-                title="Unspool — Deadline Alert",
+                title=title,
                 body=body,
                 user_id=user_id,
             )

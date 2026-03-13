@@ -5,6 +5,9 @@ from fastapi import APIRouter, Depends, Query
 
 from src.auth.supabase_auth import get_current_user
 from src.db import supabase as db
+from src.llm.registry import get_llm_provider
+from src.orchestrator.config_loader import load_config
+from src.orchestrator.prompt_renderer import render_prompt
 from src.telemetry.logger import get_logger
 
 _log = get_logger("api.messages")
@@ -22,46 +25,122 @@ def _serialize_message(msg: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+async def _evaluate_trigger(
+    trigger_name: str,
+    trigger_config: dict[str, Any],
+    user_id: str,
+    profile: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Evaluate a single proactive trigger. Returns template variables if triggered, None otherwise."""
+    condition = trigger_config.get("condition")
+    params = trigger_config.get("params", {})
+
+    if condition == "urgent_items":
+        hours = params.get("hours", 24)
+        items = await db.get_proactive_items(user_id, hours=hours)
+        if items:
+            return {"items": items, "profile": profile or {}}
+
+    elif condition == "days_absent":
+        min_days = params.get("min_days", 3)
+        last_interaction = await db.get_last_interaction(user_id)
+        if last_interaction:
+            try:
+                last_dt = datetime.fromisoformat(last_interaction)
+                days_absent = (datetime.now(timezone.utc) - last_dt).days
+                if days_absent >= min_days:
+                    return {"days_absent": days_absent, "profile": profile or {}}
+            except (ValueError, TypeError):
+                pass
+
+    elif condition == "recent_completions":
+        min_completions = params.get("min_completions", 3)
+        lookback = params.get("lookback_hours", 24)
+        count = await db.get_recently_done_count(user_id, hours=lookback)
+        if count >= min_completions:
+            return {"completion_count": count, "profile": profile or {}}
+
+    elif condition == "slipped_items":
+        min_absent = params.get("min_absent_days", 3)
+        last_interaction = await db.get_last_interaction(user_id)
+        if last_interaction:
+            try:
+                last_dt = datetime.fromisoformat(last_interaction)
+                days_absent = (datetime.now(timezone.utc) - last_dt).days
+                if days_absent >= min_absent:
+                    items = await db.get_slipped_items(user_id)
+                    if items:
+                        return {
+                            "items": items,
+                            "days_absent": days_absent,
+                            "profile": profile or {},
+                        }
+            except (ValueError, TypeError):
+                pass
+
+    return None
+
+
 async def _check_proactive(user_id: str) -> dict[str, Any] | None:
-    deadline_items = await db.get_proactive_items(user_id, hours=24)
-    if deadline_items:
-        count = len(deadline_items)
-        soonest = deadline_items[0]
-        action = soonest.get("interpreted_action", "something")
-        content = (
-            f"Hey — heads up, you've got {action} coming up soon."
-            if count == 1
-            else f"Hey — you've got {count} things with deadlines in the next 24 hours. "
-            f"The most urgent is {action}."
-        )
+    try:
+        proactive_config = load_config("proactive")
+    except FileNotFoundError:
+        return None
+
+    triggers = proactive_config.get("triggers", {})
+    metadata_type = proactive_config.get("metadata_type", "proactive")
+
+    # Sort triggers by priority
+    sorted_triggers = sorted(
+        triggers.items(),
+        key=lambda t: t[1].get("priority", 99),
+    )
+
+    profile = None
+    try:
+        profile = await db.get_profile(user_id)
+    except Exception:
+        pass
+
+    for trigger_name, trigger_config in sorted_triggers:
+        if not trigger_config.get("enabled", True):
+            continue
+
+        template_vars = await _evaluate_trigger(trigger_name, trigger_config, user_id, profile)
+        if template_vars is None:
+            continue
+
+        prompt_file = trigger_config.get("prompt")
+        if not prompt_file:
+            continue
+
+        try:
+            rendered = render_prompt(prompt_file, template_vars)
+            provider = get_llm_provider()
+            result = await provider.generate(
+                messages=[
+                    {"role": "system", "content": rendered},
+                    {"role": "user", "content": "Generate the proactive message."},
+                ],
+            )
+            content = result.content.strip()
+        except Exception:
+            _log.warning(
+                "proactive.render_failed",
+                trigger=trigger_name,
+                user_id=user_id,
+                exc_info=True,
+            )
+            continue
+
         msg = await db.save_message(
             user_id=user_id,
             role="assistant",
             content=content,
-            metadata={"type": "proactive", "trigger": "deadline"},
+            metadata={"type": metadata_type, "trigger": trigger_name},
         )
+        _log.info("proactive.sent", trigger=trigger_name, user_id=user_id)
         return msg
-
-    last_interaction = await db.get_last_interaction(user_id)
-    if last_interaction:
-        try:
-            last_dt = datetime.fromisoformat(last_interaction)
-            now = datetime.now(timezone.utc)
-            days_absent = (now - last_dt).days
-            if days_absent >= 3:
-                content = (
-                    "Hey, welcome back! Everything's still here, "
-                    "nothing to catch up on. What's on your mind?"
-                )
-                msg = await db.save_message(
-                    user_id=user_id,
-                    role="assistant",
-                    content=content,
-                    metadata={"type": "proactive", "trigger": "absence"},
-                )
-                return msg
-        except (ValueError, TypeError):
-            pass
 
     return None
 
