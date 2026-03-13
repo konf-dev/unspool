@@ -38,6 +38,27 @@ def log_step_completed(
     )
 
 
+def log_step_error(
+    trace_id: str,
+    step_id: str,
+    step_type: str,
+    error_type: str,
+    error_message: str,
+    pipeline: str,
+    **kwargs: Any,
+) -> None:
+    _log.error(
+        "step.error",
+        trace_id=trace_id,
+        step_id=step_id,
+        step_type=step_type,
+        error_type=error_type,
+        error_message=error_message,
+        pipeline=pipeline,
+        **kwargs,
+    )
+
+
 async def log_llm_usage(
     trace_id: str,
     user_id: str,
@@ -49,6 +70,8 @@ async def log_llm_usage(
     input_tokens: int,
     output_tokens: int,
     latency_ms: float,
+    ttft_ms: float | None = None,
+    config_hash: str | None = None,
 ) -> None:
     _log.info(
         "llm.usage",
@@ -62,6 +85,8 @@ async def log_llm_usage(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         latency_ms=latency_ms,
+        ttft_ms=ttft_ms,
+        config_hash=config_hash,
     )
     try:
         from src.db.supabase import save_llm_usage
@@ -76,6 +101,8 @@ async def log_llm_usage(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             latency_ms=int(latency_ms),
+            ttft_ms=round(ttft_ms) if ttft_ms is not None else None,
+            config_hash=config_hash,
         )
     except Exception:
         _log.warning("llm.usage_persist_failed", trace_id=trace_id, exc_info=True)
@@ -110,7 +137,14 @@ def log_message_completed(
     llm_calls: int,
     pipeline: str,
     variant: str,
+    config_snapshot: dict[str, str] | None = None,
 ) -> None:
+    combined_hash: str | None = None
+    if config_snapshot:
+        import hashlib
+        joined = "|".join(f"{k}={v}" for k, v in sorted(config_snapshot.items()))
+        combined_hash = hashlib.sha256(joined.encode()).hexdigest()[:12]
+
     _log.info(
         "message.completed",
         trace_id=trace_id,
@@ -120,4 +154,5 @@ def log_message_completed(
         llm_calls=llm_calls,
         pipeline=pipeline,
         variant=variant,
+        config_hash=combined_hash,
     )

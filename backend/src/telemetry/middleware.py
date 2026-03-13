@@ -1,3 +1,5 @@
+import os
+import subprocess
 import time
 import uuid
 
@@ -11,6 +13,22 @@ from src.telemetry.logger import get_logger
 _log = get_logger("http")
 
 
+def _get_git_sha() -> str:
+    sha = os.environ.get("GIT_SHA")
+    if sha:
+        return sha[:8]
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except Exception:
+        return "unknown"
+
+
+GIT_SHA = _get_git_sha()
+
+
 class TraceMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint,
@@ -19,7 +37,7 @@ class TraceMiddleware(BaseHTTPMiddleware):
         request.state.trace_id = trace_id
 
         structlog.contextvars.clear_contextvars()
-        structlog.contextvars.bind_contextvars(trace_id=trace_id)
+        structlog.contextvars.bind_contextvars(trace_id=trace_id, git_sha=GIT_SHA)
 
         _log.info("request.start", method=request.method, path=request.url.path)
 

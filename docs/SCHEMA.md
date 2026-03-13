@@ -121,6 +121,7 @@ People, places, projects mentioned by the user.
 | emotional_valence | TEXT | Optional sentiment about this entity |
 | last_mentioned_at | TIMESTAMPTZ | |
 | created_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | Updated on re-mention |
 
 **Constraints:** `UNIQUE(user_id, name, type)`
 
@@ -209,7 +210,28 @@ Token usage tracking. **No RLS** — written by service role only.
 | input_tokens | INT | |
 | output_tokens | INT | |
 | latency_ms | INT | |
+| ttft_ms | INT | Time to first token (streaming steps only) |
+| config_hash | TEXT | Combined hash of pipeline + prompt versions used |
 | created_at | TIMESTAMPTZ | |
+
+### trace_summary (view)
+
+Aggregated view of `llm_usage` for per-request observability.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| trace_id | UUID | |
+| user_id | UUID | |
+| pipeline | TEXT | |
+| variant | TEXT | |
+| config_hash | TEXT | |
+| total_input_tokens | INT | Sum across all LLM calls |
+| total_output_tokens | INT | |
+| total_latency_ms | INT | |
+| first_token_ms | INT | Minimum TTFT across calls |
+| llm_calls | INT | Count of LLM calls |
+| started_at | TIMESTAMPTZ | |
+| steps | TEXT[] | Ordered step IDs |
 
 ### experiment_assignments
 

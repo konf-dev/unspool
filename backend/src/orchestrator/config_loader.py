@@ -1,3 +1,4 @@
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,7 @@ _CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
 
 _pipeline_cache: dict[str, tuple[Pipeline, float]] = {}
 _config_cache: dict[str, tuple[dict[str, Any], float]] = {}
+_config_hashes: dict[str, str] = {}
 
 
 def _file_mtime(path: Path) -> float:
@@ -43,6 +45,10 @@ def load_pipeline(name: str) -> Pipeline:
 
     with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
+
+    raw_bytes = path.read_bytes()
+    file_hash = hashlib.sha256(raw_bytes).hexdigest()[:12]
+    _config_hashes[f"pipeline:{name}"] = file_hash
 
     steps = []
     for step_raw in raw.get("steps", []):
@@ -96,6 +102,10 @@ def load_config(name: str) -> dict[str, Any]:
     with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f) or {}
 
+    raw_bytes = path.read_bytes()
+    file_hash = hashlib.sha256(raw_bytes).hexdigest()[:12]
+    _config_hashes[f"config:{name}"] = file_hash
+
     _config_cache[name] = (raw, _file_mtime(path))
     return raw
 
@@ -136,3 +146,11 @@ def resolve_variable(
         return getattr(result, field, None)
 
     return template
+
+
+def get_config_hash(key: str) -> str | None:
+    return _config_hashes.get(key)
+
+
+def get_all_config_hashes() -> dict[str, str]:
+    return dict(_config_hashes)

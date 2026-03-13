@@ -393,15 +393,18 @@ async def save_llm_usage(
     input_tokens: int,
     output_tokens: int,
     latency_ms: int,
+    ttft_ms: int | None = None,
+    config_hash: str | None = None,
 ) -> None:
     pool = _get_pool()
     await pool.execute(
         """
         INSERT INTO llm_usage (
             trace_id, user_id, step_id, pipeline, variant,
-            model, provider, input_tokens, output_tokens, latency_ms
+            model, provider, input_tokens, output_tokens, latency_ms,
+            ttft_ms, config_hash
         )
-        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         """,
         trace_id,
         user_id,
@@ -413,6 +416,8 @@ async def save_llm_usage(
         input_tokens,
         output_tokens,
         latency_ms,
+        ttft_ms,
+        config_hash,
     )
 
 

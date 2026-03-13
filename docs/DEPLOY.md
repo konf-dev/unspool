@@ -132,6 +132,8 @@ GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET
 ```
 
+**Note:** Railway automatically sets `RAILWAY_GIT_COMMIT_SHA`. The backend reads `GIT_SHA` from the environment for telemetry. Set `GIT_SHA=$RAILWAY_GIT_COMMIT_SHA` in Railway's env vars, or the backend will fall back to running `git rev-parse --short HEAD`.
+
 ### Verify
 ```bash
 curl https://your-api.railway.app/health
