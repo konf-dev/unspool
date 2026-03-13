@@ -1,16 +1,30 @@
 from datetime import datetime, timezone
 
 from src.db.supabase import batch_update_items, get_all_open_items_for_decay
+from src.orchestrator.config_loader import load_config
 from src.telemetry.logger import get_logger
 
 _log = get_logger("jobs.decay_urgency")
 
-_SOFT_DECAY_FACTOR = 0.95
-_AUTO_EXPIRE_DAYS = 30
-_AUTO_EXPIRE_THRESHOLD = 0.1
-
 
 async def run_decay_urgency() -> dict:
+    try:
+        config = load_config("scoring")
+    except FileNotFoundError:
+        config = {}
+
+    decay_config = config.get("decay", {})
+    soft_decay_factor = decay_config.get("soft_decay_factor", 0.95)
+    auto_expire_days = decay_config.get("auto_expire_days", 30)
+    auto_expire_threshold = decay_config.get("auto_expire_threshold", 0.1)
+
+    hard_ramp = decay_config.get("hard_ramp", {})
+    ramp_overdue = hard_ramp.get("overdue", 1.0)
+    ramp_24h_base = hard_ramp.get("within_24h_base", 0.7)
+    ramp_24h_divisor = hard_ramp.get("within_24h_divisor", 80)
+    ramp_72h_base = hard_ramp.get("within_72h_base", 0.5)
+    ramp_72h_divisor = hard_ramp.get("within_72h_divisor", 96)
+
     items = await get_all_open_items_for_decay()
     _log.info("decay_urgency.start", item_count=len(items))
 
@@ -28,11 +42,11 @@ async def run_decay_urgency() -> dict:
         if deadline_type == "hard" and deadline_at:
             hours_until = (deadline_at - now).total_seconds() / 3600
             if hours_until <= 0:
-                new_urgency = 1.0
+                new_urgency = ramp_overdue
             elif hours_until <= 24:
-                new_urgency = min(1.0, 0.7 + (24 - hours_until) / 80)
+                new_urgency = min(1.0, ramp_24h_base + (24 - hours_until) / ramp_24h_divisor)
             elif hours_until <= 72:
-                new_urgency = max(urgency, 0.5 + (72 - hours_until) / 96)
+                new_urgency = max(urgency, ramp_72h_base + (72 - hours_until) / ramp_72h_divisor)
             else:
                 new_urgency = urgency
             if abs(new_urgency - urgency) > 0.01:
@@ -40,13 +54,13 @@ async def run_decay_urgency() -> dict:
 
         elif deadline_type == "soft" and deadline_at:
             if deadline_at < now:
-                new_urgency = urgency * _SOFT_DECAY_FACTOR
+                new_urgency = urgency * soft_decay_factor
                 updates.append({"id": item_id, "urgency_score": new_urgency})
 
         else:
             if created_at:
                 age_days = (now - created_at).days
-                if age_days > _AUTO_EXPIRE_DAYS and urgency < _AUTO_EXPIRE_THRESHOLD:
+                if age_days > auto_expire_days and urgency < auto_expire_threshold:
                     updates.append({"id": item_id, "status": "expired"})
                     expired += 1
 

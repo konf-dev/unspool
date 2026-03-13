@@ -1,0 +1,51 @@
+# Proactive message triggers — evaluated in priority order on initial message load.
+# Only the first matching trigger fires per session.
+
+triggers:
+  deadline_imminent:
+    enabled: true
+    description: Hard deadlines approaching
+    condition: urgent_items
+    params:
+      hours: 24
+    prompt: proactive_deadline.md
+    priority: 1
+
+  long_absence:
+    enabled: true
+    description: User hasn't interacted in 7+ days
+    condition: days_absent
+    params:
+      min_days: 7
+    prompt: proactive_long_absence.md
+    priority: 2
+
+  something_slipped:
+    enabled: true
+    description: Soft deadlines passed during absence
+    condition: slipped_items
+    params:
+      min_absent_days: 3
+    prompt: proactive_slipped.md
+    priority: 3
+
+  momentum:
+    enabled: true
+    description: User completed 3+ items last session
+    condition: recent_completions
+    params:
+      min_completions: 3
+      lookback_hours: 24
+    prompt: proactive_momentum.md
+    priority: 4
+
+  welcome_back:
+    enabled: true
+    description: User returns after 3+ days
+    condition: days_absent
+    params:
+      min_days: 3
+    prompt: proactive_welcome_back.md
+    priority: 5
+
+metadata_type: proactive

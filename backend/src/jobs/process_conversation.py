@@ -10,6 +10,7 @@ from src.db.supabase import (
 )
 from src.llm.embedding import OpenAIEmbedding
 from src.llm.registry import get_llm_provider
+from src.orchestrator.prompt_renderer import render_prompt
 from src.telemetry.logger import get_logger
 
 _log = get_logger("jobs.process_conversation")
@@ -65,18 +66,13 @@ async def run_process_conversation(user_id: str, message_ids: list[str]) -> dict
     user_texts = [m["content"] for m in relevant if m["role"] == "user"]
     memory_count = 0
     if user_texts:
-        combined = "\n".join(user_texts[-5:])
         try:
+            rendered = render_prompt("extract_memories.md", {"user_messages": user_texts[-5:]})
             provider = get_llm_provider()
-            prompt = (
-                "Extract any facts about the user from these messages. "
-                "Return each fact on its own line. If no facts, return NONE.\n\n"
-                f"Messages:\n{combined}"
-            )
             result = await provider.generate(
                 messages=[
-                    {"role": "system", "content": "You extract factual information about users from their messages."},
-                    {"role": "user", "content": prompt},
+                    {"role": "system", "content": rendered},
+                    {"role": "user", "content": "Extract facts from the messages above."},
                 ],
             )
             facts_text = result.content
