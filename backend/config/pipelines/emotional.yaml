@@ -1,0 +1,21 @@
+name: emotional
+description: User expressing emotions
+
+steps:
+  - id: detect_level
+    type: llm_call
+    prompt: emotional_detect.md
+    model: null
+    input:
+      message: "${user_message}"
+    output_schema: EmotionalLevel
+
+  - id: respond
+    type: llm_call
+    prompt: emotional_respond.md
+    model: null
+    stream: true
+    input:
+      level: "${steps.detect_level.output}"
+      user_profile: "${context.profile}"
+      open_items: "${context.open_items}"

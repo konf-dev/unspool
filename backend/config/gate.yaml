@@ -1,0 +1,6 @@
+rate_limits:
+  free:
+    daily_messages: 10
+    message: "You've used your 10 free messages today. Upgrade to unlimited for $8/month."
+  paid:
+    daily_messages: -1  # unlimited

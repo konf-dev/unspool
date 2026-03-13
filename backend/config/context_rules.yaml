@@ -1,0 +1,67 @@
+rules:
+  brain_dump:
+    load:
+      - profile
+      - recent_messages
+    optional:
+      - entities
+
+  query_next:
+    load:
+      - profile
+      - open_items
+      - urgent_items
+      - recent_messages
+    optional:
+      - calendar_events
+      - memories
+
+  query_search:
+    load:
+      - profile
+      - recent_messages
+
+  query_upcoming:
+    load:
+      - profile
+      - urgent_items
+
+  status_done:
+    load:
+      - profile
+      - open_items
+      - recent_messages
+
+  status_cant:
+    load:
+      - profile
+      - open_items
+      - recent_messages
+
+  emotional:
+    load:
+      - profile
+      - recent_messages
+    optional:
+      - memories
+
+  onboarding:
+    load:
+      - profile
+
+  meta:
+    load:
+      - profile
+
+  conversation:
+    load:
+      - profile
+      - recent_messages
+    optional:
+      - memories
+      - entities
+
+defaults:
+  recent_messages_limit: 20
+  open_items_limit: 50
+  memories_limit: 5

@@ -1,0 +1,18 @@
+name: query_upcoming
+description: User asks about upcoming deadlines
+
+steps:
+  - id: fetch_urgent
+    type: tool_call
+    tool: fetch_urgent_items
+    input:
+      user_id: "${context.user_id}"
+
+  - id: respond
+    type: llm_call
+    prompt: query_upcoming_format.md
+    model: null
+    stream: true
+    input:
+      items: "${steps.fetch_urgent.output}"
+      user_profile: "${context.profile}"

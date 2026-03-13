@@ -1,0 +1,208 @@
+.login-screen {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+@supports not (height: 100dvh) {
+  .login-screen {
+    height: 100vh;
+  }
+}
+
+.login-hills {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 35%;
+  pointer-events: none;
+}
+
+.login-content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-lg);
+  padding: 0 var(--spacing-lg);
+  max-width: 360px;
+  width: 100%;
+}
+
+.login-title {
+  font-size: 2rem;
+  letter-spacing: 0.15em;
+  color: var(--color-text-muted);
+  font-weight: 300;
+  margin: 0;
+}
+
+.login-tagline {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  margin: 0;
+  margin-top: calc(-1 * var(--spacing-md));
+}
+
+.login-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  width: 100%;
+  max-width: 320px;
+  margin-top: var(--spacing-lg);
+}
+
+.login-btn-google {
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--glass-ai-bg);
+  border: 1px solid var(--glass-ai-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--radius-bubble);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.login-btn-google:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.login-btn-google:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.login-email-toggle {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  transition: color 0.15s ease;
+}
+
+.login-email-toggle:hover {
+  color: var(--color-text-primary);
+}
+
+.login-email-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  width: 100%;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.3s ease, opacity 0.25s ease;
+}
+
+.login-email-form.expanded {
+  max-height: 200px;
+  opacity: 1;
+}
+
+.login-email-input {
+  width: 100%;
+  padding: var(--spacing-md);
+  background: var(--glass-ai-bg);
+  border: 1px solid var(--glass-ai-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--radius-bubble);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.login-email-input:focus {
+  border-color: var(--color-accent);
+}
+
+.login-email-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.login-btn-magic {
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--color-accent);
+  border: none;
+  border-radius: var(--radius-bubble);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.login-btn-magic:hover {
+  opacity: 0.9;
+}
+
+.login-btn-magic:active {
+  opacity: 0.8;
+}
+
+.login-email-sent {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-accent);
+  text-align: center;
+}
+
+.login-cooldown {
+  color: var(--color-text-secondary);
+}
+
+.login-error {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: rgba(196, 115, 109, 0.1);
+  border: 1px solid rgba(196, 115, 109, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--radius-bubble);
+  color: var(--color-error);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.login-btn-magic:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .login-btn-google,
+  .login-email-input {
+    background: rgba(30, 30, 40, 0.9);
+  }
+
+  .login-error {
+    background: rgba(60, 30, 28, 0.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-email-form {
+    transition: none;
+  }
+}

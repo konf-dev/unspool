@@ -1,0 +1,143 @@
+@font-face {
+  font-family: 'Satoshi Variable';
+  src: url('/fonts/Satoshi-Variable.woff2') format('woff2');
+  font-weight: 400 700;
+  font-display: swap;
+  font-style: normal;
+}
+
+:root {
+  --color-sky-top: #1a1040;
+  --color-sky-mid: #0e0b24;
+  --color-sky-bottom: #0a0a12;
+
+  --glass-ai-bg: rgba(255, 255, 255, 0.06);
+  --glass-ai-border: rgba(255, 255, 255, 0.08);
+  --glass-user-bg: rgba(93, 202, 165, 0.12);
+  --glass-user-border: rgba(93, 202, 165, 0.15);
+  --glass-blur: blur(10px);
+
+  --color-text-primary: #e0e0e0;
+  --color-text-secondary: #888;
+  --color-text-muted: #555;
+  --color-accent: #5dcaa5;
+  --color-error: #c4736d;
+
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-message-gap: 14px;
+
+  --radius-bubble: 18px;
+  --radius-input: 22px;
+  --max-chat-width: 640px;
+
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+@supports not (height: 100dvh) {
+  html,
+  body,
+  #root {
+    height: 100vh;
+  }
+}
+
+body {
+  font-family: 'Satoshi Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: linear-gradient(
+    180deg,
+    var(--color-sky-top) 0%,
+    var(--color-sky-mid) 40%,
+    var(--color-sky-bottom) 100%
+  );
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  :root {
+    --glass-ai-bg: rgba(30, 30, 40, 0.9);
+    --glass-user-bg: rgba(40, 80, 65, 0.9);
+  }
+}
+
+.app-screen {
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.app-screen.visible {
+  opacity: 1;
+}
+
+.loading-screen {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+@supports not (height: 100dvh) {
+  .loading-screen {
+    height: 100vh;
+  }
+}
+
+/* Mobile polish */
+button, a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Hide scrollbar on message container */
+.message-list-container::-webkit-scrollbar {
+  display: none;
+}
+.message-list-container {
+  scrollbar-width: none;
+}
+
+/* Prevent pull-to-refresh in chat */
+body.in-chat {
+  overscroll-behavior-y: none;
+}
+
+/* User select */
+button, .input-bar {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.message-bubble-content {
+  user-select: text;
+  -webkit-user-select: text;
+}

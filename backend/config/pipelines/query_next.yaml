@@ -1,0 +1,25 @@
+name: query_next
+description: User asks what to do next
+
+steps:
+  - id: fetch_items
+    type: tool_call
+    tool: fetch_items
+    input:
+      user_id: "${context.user_id}"
+
+  - id: score_and_pick
+    type: tool_call
+    tool: pick_next_item
+    input:
+      items: "${steps.fetch_items.output}"
+      user_id: "${context.user_id}"
+
+  - id: respond
+    type: llm_call
+    prompt: query_format.md
+    model: null
+    stream: true
+    input:
+      item: "${steps.score_and_pick.output}"
+      user_profile: "${context.profile}"

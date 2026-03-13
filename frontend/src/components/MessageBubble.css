@@ -1,0 +1,149 @@
+.message-row {
+  display: flex;
+  padding: 0 var(--spacing-md);
+}
+
+.message-row.user {
+  justify-content: flex-end;
+}
+
+.message-row.assistant {
+  justify-content: flex-start;
+}
+
+.message-bubble {
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-bubble);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  line-height: 1.5;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  position: relative;
+}
+
+.message-bubble.user {
+  background: var(--glass-user-bg);
+  border: 1px solid var(--glass-user-border);
+  max-width: 75%;
+}
+
+.message-bubble.assistant {
+  background: var(--glass-ai-bg);
+  border: 1px solid var(--glass-ai-border);
+  max-width: 85%;
+}
+
+.message-bubble.latest {
+  animation: fadeSlideIn 150ms ease-out;
+}
+
+.message-timestamp {
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  margin-top: var(--spacing-xs);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  user-select: none;
+}
+
+.message-row:hover .message-timestamp,
+.message-timestamp.visible {
+  opacity: 1;
+}
+
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+}
+
+.action-btn {
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--glass-ai-bg);
+  border: 1px solid var(--glass-ai-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--radius-bubble);
+  color: var(--color-accent);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.action-btn:hover {
+  background: rgba(93, 202, 165, 0.1);
+  border-color: rgba(93, 202, 165, 0.2);
+}
+
+.action-btn:active {
+  background: rgba(93, 202, 165, 0.15);
+}
+
+.done-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  margin-left: var(--spacing-sm);
+  vertical-align: middle;
+  animation: doneDotAppear 1s ease-out forwards;
+}
+
+@keyframes doneDotAppear {
+  0% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .message-bubble.user {
+    background: rgba(40, 80, 65, 0.9);
+  }
+  .message-bubble.assistant {
+    background: rgba(30, 30, 40, 0.9);
+  }
+  .action-btn {
+    background: rgba(30, 30, 40, 0.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-bubble.latest {
+    animation: none;
+  }
+  .message-timestamp {
+    transition: none;
+  }
+  .action-btn {
+    transition: none;
+  }
+  .done-dot {
+    animation: none;
+    opacity: 1;
+    transform: scale(1);
+  }
+}

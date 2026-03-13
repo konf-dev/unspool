@@ -1,0 +1,73 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from src.api.auth_token import router as auth_token_router
+from src.api.chat import router as chat_router
+from src.api.messages import router as messages_router
+from src.api.subscribe import router as subscribe_router
+from src.jobs.router import router as jobs_router
+from src.config import get_settings
+from src.telemetry.logger import configure_logging, get_logger
+from src.telemetry.middleware import TraceMiddleware
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    configure_logging()
+    log = get_logger("lifespan")
+    settings = get_settings()
+    log.info("app.starting", environment=settings.ENVIRONMENT)
+
+    if settings.DATABASE_URL:
+        from src.db.supabase import init_pool
+        await init_pool()
+        log.info("db.pool_initialized")
+
+    # Import tool modules to trigger registration
+    import src.tools.db_tools  # noqa: F401
+    import src.tools.scoring_tools  # noqa: F401
+    import src.tools.context_tools  # noqa: F401
+    import src.tools.item_matching  # noqa: F401
+    import src.tools.momentum_tools  # noqa: F401
+
+    yield
+
+    if settings.DATABASE_URL:
+        from src.db.supabase import close_pool
+        await close_pool()
+
+    log.info("app.shutdown")
+
+
+app = FastAPI(
+    title="Unspool",
+    description="AI personal assistant for ADHD",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+settings = get_settings()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[settings.FRONTEND_URL],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.add_middleware(TraceMiddleware)
+
+app.include_router(chat_router, prefix="/api")
+app.include_router(messages_router, prefix="/api")
+app.include_router(auth_token_router, prefix="/api")
+app.include_router(subscribe_router, prefix="/api")
+app.include_router(jobs_router, prefix="/jobs")
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
