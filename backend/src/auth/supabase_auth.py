@@ -2,9 +2,11 @@ from fastapi import HTTPException, Request
 from jose import JWTError, jwt
 
 from src.config import get_settings
+from src.telemetry.logger import get_logger
 
 
 def verify_jwt(token: str) -> str:
+    log = get_logger("auth")
     settings = get_settings()
     try:
         payload = jwt.decode(
@@ -14,6 +16,7 @@ def verify_jwt(token: str) -> str:
             options={"require_exp": True},
         )
     except JWTError as exc:
+        log.warning("jwt.verify_failed", error=str(exc), token_prefix=token[:20] if token else "empty")
         raise HTTPException(status_code=401, detail="Invalid or expired token") from exc
 
     user_id: str | None = payload.get("sub")
