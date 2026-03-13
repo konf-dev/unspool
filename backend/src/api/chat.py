@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.auth.supabase_auth import get_current_user
 from src.db import redis, supabase as db
@@ -22,8 +22,8 @@ router = APIRouter()
 
 
 class ChatRequest(BaseModel):
-    message: str
-    session_id: str
+    message: str = Field(..., min_length=1, max_length=10000)
+    session_id: str = Field(..., min_length=1, max_length=100)
 
 
 async def _check_gate(user_id: str) -> None:

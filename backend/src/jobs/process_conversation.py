@@ -39,7 +39,7 @@ async def run_process_conversation(user_id: str, message_ids: list[str]) -> dict
     for item in items:
         text = f"{item['interpreted_action']} {item['raw_text']}"
         embedding = await embedder.embed(text)
-        await update_item_embedding(str(item["id"]), embedding)
+        await update_item_embedding(str(item["id"]), user_id, embedding)
         await save_item_event(
             item_id=str(item["id"]),
             user_id=user_id,

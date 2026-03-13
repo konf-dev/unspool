@@ -202,7 +202,7 @@ def _validate_columns(fields: dict[str, Any], allowed: frozenset[str], context: 
         raise ValueError(f"Disallowed columns in {context}: {invalid}")
 
 
-async def update_item(item_id: str, **fields: Any) -> dict[str, Any]:
+async def update_item(item_id: str, user_id: str, **fields: Any) -> dict[str, Any]:
     if not fields:
         raise ValueError("No fields to update")
 
@@ -216,9 +216,10 @@ async def update_item(item_id: str, **fields: Any) -> dict[str, Any]:
         params.append(value)
 
     params.append(item_id)
+    params.append(user_id)
     query = f"""
         UPDATE items SET {', '.join(set_clauses)}
-        WHERE id = ${len(params)}::uuid
+        WHERE id = ${len(params) - 1}::uuid AND user_id = ${len(params)}
         RETURNING *
     """
     row = await pool.fetchrow(query, *params)
@@ -622,6 +623,7 @@ async def batch_update_items(updates: list[dict[str, Any]]) -> None:
         async with conn.transaction():
             for upd in updates:
                 item_id = upd.pop("id")
+                user_id = upd.pop("user_id")
                 if not upd:
                     continue
                 _validate_columns(upd, _ITEM_ALLOWED_COLUMNS, "batch_update_items")
@@ -631,9 +633,10 @@ async def batch_update_items(updates: list[dict[str, Any]]) -> None:
                     set_clauses.append(f"{key} = ${i}")
                     params.append(value)
                 params.append(item_id)
+                params.append(user_id)
                 query = f"""
                     UPDATE items SET {', '.join(set_clauses)}
-                    WHERE id = ${len(params)}::uuid
+                    WHERE id = ${len(params) - 1}::uuid AND user_id = ${len(params)}
                 """
                 await conn.execute(query, *params)
 
@@ -650,11 +653,12 @@ async def get_items_without_embeddings(user_id: str) -> list[dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
-async def update_item_embedding(item_id: str, embedding: list[float]) -> None:
+async def update_item_embedding(item_id: str, user_id: str, embedding: list[float]) -> None:
     pool = _get_pool()
     await pool.execute(
-        "UPDATE items SET embedding = $2::vector WHERE id = $1::uuid",
+        "UPDATE items SET embedding = $3::vector WHERE id = $1::uuid AND user_id = $2",
         item_id,
+        user_id,
         embedding,
     )
 
