@@ -5,8 +5,9 @@ input_vars: [user_message, message, extracted, user_profile]
 ---
 Continue the conversation naturally. The user is just chatting.
 
-{% if extracted is mapping and extracted.items is defined and extracted.items | length > 0 %}
-You silently extracted {{ extracted.items | length }} implicit task(s) from their message. Acknowledge subtly — something like "noted that" or weave it in naturally. Do NOT make the response about task management.
+{% set item_list = extracted['items'] if extracted is mapping and 'items' in extracted else [] %}
+{% if item_list | length > 0 %}
+You silently extracted {{ item_list | length }} implicit task(s) from their message. Acknowledge subtly — something like "noted that" or weave it in naturally. Do NOT make the response about task management.
 {% elif extracted is sequence and extracted | length > 0 %}
 You silently extracted some implicit tasks. Acknowledge subtly.
 {% endif %}

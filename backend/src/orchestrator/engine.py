@@ -118,7 +118,7 @@ async def _execute_llm_step(
         latency_ms = round((time.perf_counter() - start) * 1000, 2)
         content = "".join(collected)
 
-        log_llm_usage(
+        await log_llm_usage(
             trace_id=context.trace_id,
             user_id=context.user_id,
             step_id=step.id,
@@ -141,7 +141,7 @@ async def _execute_llm_step(
         result = await provider.generate(messages, model=model)
         latency_ms = round((time.perf_counter() - start) * 1000, 2)
 
-        log_llm_usage(
+        await log_llm_usage(
             trace_id=context.trace_id,
             user_id=context.user_id,
             step_id=step.id,

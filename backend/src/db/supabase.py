@@ -1,3 +1,4 @@
+import uuid
 from typing import Any
 
 import asyncpg
@@ -13,13 +14,20 @@ _pool: asyncpg.Pool | None = None
 async def init_pool() -> None:
     global _pool
     settings = get_settings()
-    _pool = await asyncpg.create_pool(
-        dsn=settings.DATABASE_URL,
-        min_size=2,
-        max_size=10,
-        init=_init_connection,
-    )
-    _log.info("db.pool_created")
+    try:
+        _pool = await asyncpg.create_pool(
+            dsn=settings.DATABASE_URL,
+            min_size=2,
+            max_size=10,
+            init=_init_connection,
+            statement_cache_size=0,
+        )
+        _log.info("db.pool_created")
+    except Exception as e:
+        _log.error("db.pool_failed", error=str(e))
+        if settings.ENVIRONMENT != "development":
+            raise
+        _log.warning("db.running_without_pool")
 
 
 async def _init_connection(conn: asyncpg.Connection) -> None:
@@ -252,7 +260,7 @@ async def search_items_hybrid(
     rows = await pool.fetch(
         """
         SELECT *,
-            ($5 * (1.0 - (embedding <=> $2::vector))) +
+            ($5 * COALESCE(1.0 - (embedding <=> $2::vector), 0)) +
             ($6 * COALESCE(ts_rank(search_text, plainto_tsquery('english', $3)), 0))
             AS hybrid_score
         FROM items
@@ -522,7 +530,7 @@ async def get_recently_done_count(user_id: str, hours: int = 24) -> int:
 async def get_user_tier(user_id: str) -> str:
     pool = _get_pool()
     row = await pool.fetchrow(
-        "SELECT tier FROM user_profiles WHERE id = $1::uuid",
+        "SELECT tier FROM subscriptions WHERE user_id = $1",
         user_id,
     )
     if row and row.get("tier"):
@@ -841,6 +849,43 @@ async def get_subscription(user_id: str) -> dict[str, Any] | None:
         user_id,
     )
     return dict(row) if row else None
+
+
+async def delete_user_data(user_id: str) -> dict[str, int]:
+    """Delete all user data across all tables. Returns count of deleted rows per table."""
+    pool = _get_pool()
+    uid = uuid.UUID(user_id)
+    counts: dict[str, int] = {}
+
+    # Order matters: delete from child tables first to respect FK constraints
+    tables_with_user_id = [
+        "item_events",
+        "items",
+        "memories",
+        "entities",
+        "recurrences",
+        "calendar_events",
+        "messages",
+        "push_subscriptions",
+        "experiment_assignments",
+        "oauth_tokens",
+        "subscriptions",
+        "llm_usage",
+        "user_profiles",
+    ]
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            for table in tables_with_user_id:
+                result = await conn.execute(
+                    f"DELETE FROM {table} WHERE user_id = $1", uid,
+                )
+                # result is like "DELETE 5"
+                count = int(result.split()[-1])
+                counts[table] = count
+
+    _log.info("user.data_deleted", user_id=user_id, counts=counts)
+    return counts
 
 
 async def get_subscription_by_customer(customer_id: str) -> dict[str, Any] | None:

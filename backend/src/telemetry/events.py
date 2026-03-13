@@ -38,7 +38,7 @@ def log_step_completed(
     )
 
 
-def log_llm_usage(
+async def log_llm_usage(
     trace_id: str,
     user_id: str,
     step_id: str,
@@ -63,6 +63,22 @@ def log_llm_usage(
         output_tokens=output_tokens,
         latency_ms=latency_ms,
     )
+    try:
+        from src.db.supabase import save_llm_usage
+        await save_llm_usage(
+            trace_id=trace_id,
+            user_id=user_id,
+            step_id=step_id,
+            pipeline=pipeline,
+            variant=variant or "default",
+            model=model,
+            provider=provider,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            latency_ms=int(latency_ms),
+        )
+    except Exception:
+        _log.warning("llm.usage_persist_failed", trace_id=trace_id, exc_info=True)
 
 
 def log_intent_classified(

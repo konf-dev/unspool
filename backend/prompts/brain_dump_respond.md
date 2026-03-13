@@ -17,9 +17,10 @@ Rules:
 What they said: {{ user_message }}
 
 {% if extracted_items %}
-You extracted {{ extracted_items.items | length if extracted_items.items is defined else 0 }} actionable item(s).
-{% if extracted_items.non_actionable_notes is defined and extracted_items.non_actionable_notes %}
-They also mentioned: {{ extracted_items.non_actionable_notes | join(", ") }}
+{% set item_list = extracted_items['items'] if 'items' in extracted_items else [] %}
+You extracted {{ item_list | length }} actionable item(s).
+{% if extracted_items.get('non_actionable_notes') %}
+They also mentioned: {{ extracted_items['non_actionable_notes'] | join(", ") }}
 {% endif %}
 {% endif %}
 
