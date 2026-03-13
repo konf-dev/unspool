@@ -84,7 +84,7 @@ async def mark_item_done(
         item_id = str(item["id"])
     else:
         item_id = item
-    result = await db.update_item(item_id, status="done")
+    result = await db.update_item(item_id, user_id, status="done")
     await db.save_item_event(
         item_id=item_id,
         user_id=user_id,

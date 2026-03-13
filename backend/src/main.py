@@ -43,14 +43,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     log.info("app.shutdown")
 
 
+settings = get_settings()
+_is_prod = settings.ENVIRONMENT != "development"
+
 app = FastAPI(
     title="Unspool",
     description="AI personal assistant for ADHD",
     version="0.1.0",
     lifespan=lifespan,
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
+    openapi_url=None if _is_prod else "/openapi.json",
 )
-
-settings = get_settings()
 
 cors_origins = [settings.FRONTEND_URL]
 if settings.CORS_EXTRA_ORIGINS:
@@ -60,8 +64,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.add_middleware(TraceMiddleware)

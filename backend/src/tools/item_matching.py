@@ -100,6 +100,7 @@ async def reschedule_item(
 
     result = await db.update_item(
         item_id,
+        user_id,
         urgency_score=new_urgency,
         nudge_after=nudge_after,
     )

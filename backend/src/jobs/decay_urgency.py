@@ -34,6 +34,7 @@ async def run_decay_urgency() -> dict:
 
     for item in items:
         item_id = str(item["id"])
+        item_user_id = str(item["user_id"])
         urgency = float(item.get("urgency_score", 0.0))
         deadline_type = item.get("deadline_type")
         deadline_at = item.get("deadline_at")
@@ -50,18 +51,18 @@ async def run_decay_urgency() -> dict:
             else:
                 new_urgency = urgency
             if abs(new_urgency - urgency) > 0.01:
-                updates.append({"id": item_id, "urgency_score": new_urgency})
+                updates.append({"id": item_id, "user_id": item_user_id, "urgency_score": new_urgency})
 
         elif deadline_type == "soft" and deadline_at:
             if deadline_at < now:
                 new_urgency = urgency * soft_decay_factor
-                updates.append({"id": item_id, "urgency_score": new_urgency})
+                updates.append({"id": item_id, "user_id": item_user_id, "urgency_score": new_urgency})
 
         else:
             if created_at:
                 age_days = (now - created_at).days
                 if age_days > auto_expire_days and urgency < auto_expire_threshold:
-                    updates.append({"id": item_id, "status": "expired"})
+                    updates.append({"id": item_id, "user_id": item_user_id, "status": "expired"})
                     expired += 1
 
     if updates:
