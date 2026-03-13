@@ -1,19 +1,21 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import basicSsl from '@vitejs/plugin-basic-ssl'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
 export default defineConfig({
   plugins: [
     react(),
+    basicSsl(),
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
         name: 'Unspool',
         short_name: 'Unspool',
         description: 'An AI that remembers everything so you don\'t have to.',
-        theme_color: '#0a0a12',
-        background_color: '#0a0a12',
+        theme_color: '#0c0a1f',
+        background_color: '#0c0a1f',
         display: 'standalone',
         start_url: '/',
         icons: [

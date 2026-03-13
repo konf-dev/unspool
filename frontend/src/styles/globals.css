@@ -8,8 +8,8 @@
 
 :root {
   --color-sky-top: #1a1040;
-  --color-sky-mid: #0e0b24;
-  --color-sky-bottom: #0a0a12;
+  --color-sky-mid: #110d2e;
+  --color-sky-bottom: #0c0a1f;
 
   --glass-ai-bg: rgba(255, 255, 255, 0.06);
   --glass-ai-border: rgba(255, 255, 255, 0.08);
@@ -46,17 +46,16 @@
 html,
 body,
 #root {
-  height: 100dvh;
+  min-height: 100dvh;
   margin: 0;
   padding: 0;
-  overflow: hidden;
 }
 
-@supports not (height: 100dvh) {
+@supports not (min-height: 100dvh) {
   html,
   body,
   #root {
-    height: 100vh;
+    min-height: 100vh;
   }
 }
 
@@ -65,7 +64,7 @@ body {
   background: linear-gradient(
     180deg,
     var(--color-sky-top) 0%,
-    var(--color-sky-mid) 40%,
+    var(--color-sky-mid) 45%,
     var(--color-sky-bottom) 100%
   );
   color: var(--color-text-primary);

@@ -1,9 +1,32 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { Message } from './types'
 import { fetchMessages } from './lib/api'
 import { useAuth } from './hooks/useAuth'
+import { LandingPage } from './components/LandingPage'
 import { LoginScreen } from './components/LoginScreen'
 import { ChatScreen } from './components/ChatScreen'
+import { PrivacyPage, TermsPage } from './components/LegalPage'
+
+type Route = 'landing' | 'login' | 'chat' | 'privacy' | 'terms'
+
+function isStandalone(): boolean {
+  const nav = navigator as Navigator & { standalone?: boolean }
+  return (
+    nav.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches
+  )
+}
+
+function getInitialRoute(): Route {
+  const path = window.location.pathname
+  if (path === '/privacy') return 'privacy'
+  if (path === '/terms') return 'terms'
+  if (path === '/login') return 'login'
+  if (path === '/chat') return 'chat'
+  // PWA standalone mode: skip landing, go straight to login/chat
+  if (isStandalone()) return 'login'
+  return 'landing'
+}
 
 const WELCOME_MESSAGE: Message = {
   id: 'welcome',
@@ -21,50 +44,92 @@ export function App() {
   const { isAuthenticated, isLoading, userId, token, signInWithGoogle, signInWithEmail, signOut } =
     useAuth()
   const [messages, setMessages] = useState<Message[]>([])
+  const [route, setRoute] = useState<Route>(getInitialRoute)
   const [fadeClass, setFadeClass] = useState('app-screen')
-  const [prevAuth, setPrevAuth] = useState<boolean | null>(null)
+  const [prevScreen, setPrevScreen] = useState<string | null>(null)
 
+  // Navigate helper — updates URL and state
+  const navigate = useCallback((to: Route) => {
+    const path = to === 'landing' ? '/' : `/${to}`
+    window.history.pushState(null, '', path)
+    setRoute(to)
+  }, [])
+
+  // Handle browser back/forward
   useEffect(() => {
-    if (isLoading) return
-
-    if (isAuthenticated && token) {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 10000)
-
-      void fetchMessages(token, 50)
-        .then((fetched) => {
-          setMessages(fetched.length > 0 ? fetched : [WELCOME_MESSAGE])
-        })
-        .catch(() => {
-          setMessages([WELCOME_MESSAGE])
-        })
-        .finally(() => clearTimeout(timeout))
-
-      return () => {
-        clearTimeout(timeout)
-        controller.abort()
-      }
+    const handlePop = () => {
+      const path = window.location.pathname
+      if (path === '/privacy') setRoute('privacy')
+      else if (path === '/terms') setRoute('terms')
+      else if (path === '/login') setRoute('login')
+      else setRoute(isAuthenticated ? 'chat' : 'landing')
     }
-  }, [isAuthenticated, isLoading, token])
+    window.addEventListener('popstate', handlePop)
+    return () => window.removeEventListener('popstate', handlePop)
+  }, [isAuthenticated])
 
+  // When auth resolves, redirect to chat if authenticated
   useEffect(() => {
     if (isLoading) return
 
-    if (prevAuth === null) {
+    if (isAuthenticated) {
+      // Authenticated: go to chat from login or direct /chat visit
+      if (route === 'login' || route === 'chat') {
+        setRoute('chat')
+        window.history.replaceState(null, '', '/chat')
+      }
+    } else if (route === 'chat') {
+      // Not authenticated but on chat: go to login
+      setRoute('login')
+      window.history.replaceState(null, '', '/login')
+    }
+  }, [isAuthenticated, isLoading, route])
+
+  // Fetch messages when entering chat
+  useEffect(() => {
+    if (isLoading || !isAuthenticated || !token || route !== 'chat') return
+
+    void fetchMessages(token, 50)
+      .then((fetched) => {
+        setMessages(fetched.length > 0 ? fetched : [WELCOME_MESSAGE])
+      })
+      .catch(() => {
+        setMessages([WELCOME_MESSAGE])
+      })
+  }, [isAuthenticated, isLoading, token, route])
+
+  // Fade transition on screen changes
+  const currentScreen = `${route}-${isAuthenticated}`
+  useEffect(() => {
+    if (isLoading) return
+
+    if (prevScreen === null) {
       setFadeClass('app-screen visible')
-      setPrevAuth(isAuthenticated)
+      setPrevScreen(currentScreen)
       return
     }
 
-    if (prevAuth !== isAuthenticated) {
+    if (prevScreen !== currentScreen) {
       setFadeClass('app-screen')
       const timer = setTimeout(() => {
-        setPrevAuth(isAuthenticated)
+        setPrevScreen(currentScreen)
         setFadeClass('app-screen visible')
       }, 300)
       return () => clearTimeout(timer)
     }
-  }, [isAuthenticated, isLoading, prevAuth])
+  }, [currentScreen, isLoading, prevScreen])
+
+  const handleGetStarted = useCallback(() => {
+    navigate('login')
+  }, [navigate])
+
+  const handleBackToLanding = useCallback(() => {
+    if (window.history.length > 1) {
+      window.history.back()
+    } else {
+      navigate('landing')
+    }
+  }, [navigate])
 
   if (isLoading) {
     return (
@@ -82,12 +147,22 @@ export function App() {
 
   return (
     <div className={fadeClass}>
-      {!isAuthenticated ? (
+      {route === 'privacy' && (
+        <PrivacyPage onBack={handleBackToLanding} />
+      )}
+      {route === 'terms' && (
+        <TermsPage onBack={handleBackToLanding} />
+      )}
+      {route === 'landing' && (
+        <LandingPage onGetStarted={handleGetStarted} />
+      )}
+      {route === 'login' && (
         <LoginScreen
           onSignInWithGoogle={signInWithGoogle}
           onSignInWithEmail={signInWithEmail}
         />
-      ) : (
+      )}
+      {route === 'chat' && (
         <ChatScreen
           initialMessages={messages}
           token={token ?? ''}
