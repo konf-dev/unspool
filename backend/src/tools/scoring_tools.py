@@ -14,6 +14,13 @@ async def enrich_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     provides defaults when the LLM returned null — it does NOT override
     LLM decisions with heuristics.
     """
+    if not items:
+        return []
+    if isinstance(items, dict):
+        items = items.get("items", [])
+    if not isinstance(items, list):
+        _log.warning("enrich_items.invalid_input", type=type(items).__name__)
+        return []
     for item in items:
         if not item.get("energy_estimate"):
             item["energy_estimate"] = "medium"
