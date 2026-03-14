@@ -1,3 +1,4 @@
+import { ChatDemo } from './ChatDemo'
 import './LandingPage.css'
 
 interface LandingPageProps {
@@ -16,47 +17,34 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
       <div className="landing-content">
         <header className="landing-hero">
           <h1 className="landing-title">unspool</h1>
-          <p className="landing-subtitle">
-            an AI that remembers everything so you don't have to
-          </p>
+          <p className="landing-subtitle">you don't organize anything. you just talk.</p>
         </header>
 
-        <div className="landing-pitch">
-          <p className="landing-line">no lists. no dashboards. no organizing.</p>
-          <p className="landing-line">just tell me what's on your mind.</p>
+        <div className="landing-demo-section">
+          <ChatDemo onSignIn={onGetStarted} />
         </div>
 
-        <div className="landing-features">
-          <div className="landing-feature">
-            <span className="landing-feature-label">dump everything</span>
-            <span className="landing-feature-desc">tasks, ideas, deadlines, random thoughts — just type</span>
-          </div>
-          <div className="landing-feature">
-            <span className="landing-feature-label">ask what's next</span>
-            <span className="landing-feature-desc">one thing at a time, when you're ready</span>
-          </div>
-          <div className="landing-feature">
-            <span className="landing-feature-label">nothing falls through</span>
-            <span className="landing-feature-desc">it all fades in and out at the right moment</span>
-          </div>
-        </div>
-
-        <button
-          className="landing-cta"
-          type="button"
-          onClick={onGetStarted}
-        >
-          get started — it's free
-        </button>
-
-        <p className="landing-pricing">
-          free up to 10 messages a day. unlimited for $8/mo.
+        <p className="landing-signin-link">
+          already have an account?{' '}
+          <button className="landing-signin-btn" type="button" onClick={onGetStarted}>
+            sign in
+          </button>
         </p>
 
+        <div className="landing-taglines">
+          <p className="landing-tagline">no lists. no dashboards. nothing to maintain. ever.</p>
+        </div>
+
+        <p className="landing-pricing">free · $8/mo unlimited</p>
+
         <footer className="landing-footer">
-          <a href="/privacy" className="landing-footer-link">privacy</a>
+          <a href="/privacy" className="landing-footer-link">
+            privacy
+          </a>
           <span className="landing-footer-sep">·</span>
-          <a href="/terms" className="landing-footer-link">terms</a>
+          <a href="/terms" className="landing-footer-link">
+            terms
+          </a>
         </footer>
       </div>
 

@@ -10,6 +10,31 @@ function useMocks(): boolean {
   return import.meta.env.VITE_USE_MOCKS === 'true'
 }
 
+export interface ParsedSSEEvent {
+  type: 'token' | 'actions' | 'done' | 'unknown'
+  content?: string
+}
+
+export function parseSSEEvent(data: string): ParsedSSEEvent {
+  let parsed: { type: string; content?: string }
+  try {
+    parsed = JSON.parse(data) as { type: string; content?: string }
+  } catch {
+    return { type: 'unknown' }
+  }
+
+  switch (parsed.type) {
+    case 'token':
+      return { type: 'token', content: parsed.content }
+    case 'actions':
+      return { type: 'actions', content: parsed.content }
+    case 'done':
+      return { type: 'done' }
+    default:
+      return { type: 'unknown' }
+  }
+}
+
 export function sendMessage(
   message: string,
   sessionId: string,
@@ -34,12 +59,7 @@ export function sendMessage(
     body: JSON.stringify({ message, session_id: sessionId }),
     signal: controller.signal,
     onmessage(event) {
-      let parsed: { type: string; content?: string }
-      try {
-        parsed = JSON.parse(event.data) as { type: string; content?: string }
-      } catch {
-        return
-      }
+      const parsed = parseSSEEvent(event.data)
 
       switch (parsed.type) {
         case 'token':

@@ -22,7 +22,7 @@
 
   --color-text-primary: #e0e0e0;
   --color-text-secondary: #888;
-  --color-text-muted: #666;
+  --color-text-muted: #737373;
   --color-accent: #5dcaa5;
   --color-error: #c4736d;
 
@@ -75,7 +75,12 @@ body,
 }
 
 body {
-  font-family: 'Satoshi Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family:
+    'Satoshi Variable',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
   background: linear-gradient(
     180deg,
     hsl(calc(258 + var(--sky-hue-shift)), 59%, 17%) 0%,
@@ -89,8 +94,13 @@ body {
 }
 
 @keyframes skyBreathe {
-  0%, 100% { --sky-hue-shift: 0; }
-  50% { --sky-hue-shift: 5; }
+  0%,
+  100% {
+    --sky-hue-shift: 0;
+  }
+  50% {
+    --sky-hue-shift: 5;
+  }
 }
 
 @supports not (animation: skyBreathe 1s) {
@@ -161,7 +171,8 @@ button:active {
 }
 
 /* Mobile polish */
-button, a {
+button,
+a {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
@@ -180,7 +191,8 @@ body.in-chat {
 }
 
 /* User select */
-button, .input-bar {
+button,
+.input-bar {
   user-select: none;
   -webkit-user-select: none;
 }
@@ -221,11 +233,19 @@ button, .input-bar {
 }
 
 @keyframes fadeOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }

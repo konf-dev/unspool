@@ -13,6 +13,7 @@ function isCompletionMessage(content: string): boolean {
 interface MessageBubbleProps {
   message: Message
   isLatest: boolean
+  isQueued?: boolean
   onAction: (value: string) => void
 }
 
@@ -35,6 +36,7 @@ function formatRelativeTime(dateStr: string): string {
 export function MessageBubble({
   message,
   isLatest,
+  isQueued = false,
   onAction,
 }: MessageBubbleProps) {
   const [showTimestamp, setShowTimestamp] = useState(false)
@@ -65,9 +67,15 @@ export function MessageBubble({
     message.role,
     isLatest ? 'latest' : '',
     isError ? 'error' : '',
+    isQueued ? 'queued' : '',
   ]
     .filter(Boolean)
     .join(' ')
+
+  const truncated =
+    message.content.length > 100 ? message.content.slice(0, 100) + '...' : message.content
+  const ariaLabel =
+    message.role === 'user' ? `You said: ${truncated}` : `Unspool said: ${truncated}`
 
   return (
     <div className={`message-row ${message.role}`}>
@@ -75,6 +83,7 @@ export function MessageBubble({
         <div
           className={bubbleClasses}
           onClick={() => setShowTimestamp((prev) => !prev)}
+          aria-label={ariaLabel}
         >
           {message.role === 'assistant' ? (
             <div className="message-bubble-content markdown-content">
@@ -84,13 +93,22 @@ export function MessageBubble({
             <span className="message-bubble-content">{message.content}</span>
           )}
           {showDoneDot && <span className="done-dot" aria-hidden="true" />}
+          {isQueued && (
+            <svg className="queued-icon" viewBox="0 0 16 16" fill="none" aria-label="Queued">
+              <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+              <path
+                d="M8 4V8.5L10.5 10"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          )}
         </div>
         {message.actions && message.actions.length > 0 && (
           <ActionButtons actions={message.actions} onAction={onAction} />
         )}
-        <div
-          className={`message-timestamp ${showTimestamp ? 'visible' : ''}`}
-        >
+        <div className={`message-timestamp ${showTimestamp ? 'visible' : ''}`}>
           {formatRelativeTime(message.createdAt)}
         </div>
       </div>
