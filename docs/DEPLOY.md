@@ -76,8 +76,11 @@ After deploying the backend, create QStash schedules:
 | Decay urgency | `POST https://your-api.railway.app/jobs/decay-urgency` | `0 */6 * * *` (every 6h) |
 | Sync calendar | `POST https://your-api.railway.app/jobs/sync-calendar` | `0 */4 * * *` (every 4h) |
 | Detect patterns | `POST https://your-api.railway.app/jobs/detect-patterns` | `0 3 * * *` (daily 3am) |
+| Reset notifications | `POST https://your-api.railway.app/jobs/reset-notifications` | `0 0 * * *` (daily midnight) |
 
 `process-conversation` is triggered per-request, not on a cron.
+
+**Note:** Cron schedules are defined in `config/jobs.yaml` and registered with QStash automatically on production startup (idempotent via `schedule_id`). Manual QStash setup is only needed if auto-registration fails.
 
 ---
 
@@ -230,6 +233,7 @@ Set `VITE_USE_MOCKS=true` in `frontend/.env.development` to run the frontend wit
 | POST | `/jobs/decay-urgency` | Every 6h |
 | POST | `/jobs/sync-calendar` | Every 4h |
 | POST | `/jobs/detect-patterns` | Daily |
+| POST | `/jobs/reset-notifications` | Daily (midnight UTC) |
 | POST | `/jobs/process-conversation` | Per-request (delayed 10s via QStash) |
 
 ---

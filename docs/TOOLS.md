@@ -2,7 +2,7 @@
 
 Tools are Python async functions registered with `@register_tool("name")`. The orchestrator calls them from pipeline steps via `tool_call` type. All tools live in `backend/src/tools/`.
 
-**All tools read thresholds and configuration from `config/scoring.yaml`** — no business logic is hardcoded in Python. See [scoring.yaml sections](#configuration) below.
+Tool modules are auto-discovered on startup — adding a new file in `src/tools/` with `@register_tool` decorators is sufficient. No need to edit `main.py`.
 
 ---
 
@@ -14,11 +14,13 @@ Used by the context assembler to load data before pipeline execution.
 |------|-----------|---------|
 | `fetch_messages` | `(user_id, limit=20)` | `list[dict]` — recent messages, newest first |
 | `fetch_profile` | `(user_id)` | `dict` — user profile fields |
-| `fetch_items` | `(user_id)` | `list[dict]` — all open items, sorted by urgency |
+| `fetch_items` | `(user_id, limit=50)` | `list[dict]` — open items, sorted by urgency |
 | `fetch_urgent_items` | `(user_id, hours=48)` | `list[dict]` — items with deadlines within N hours |
 | `fetch_memories` | `(user_id, embedding=None, limit=5)` | `list[dict]` — semantic search if embedding provided, otherwise recent |
 | `fetch_entities` | `(user_id)` | `list[dict]` — known entities, sorted by last mentioned |
 | `fetch_calendar_events` | `(user_id)` | `list[dict]` — upcoming events from Google Calendar |
+
+Context limits (`limit` params) are configured in `config/context_rules.yaml` under `defaults`.
 
 ## DB Tools (`db_tools.py`)
 
@@ -39,22 +41,45 @@ Core data operations used in pipeline steps.
 
 ## Scoring Tools (`scoring_tools.py`)
 
-Urgency and energy estimation. **All thresholds from `config/scoring.yaml`.**
+Fills in defaults for items where the LLM didn't provide energy or urgency values.
 
-| Tool | Signature | Returns | Config section |
-|------|-----------|---------|----------------|
-| `calculate_urgency` | `(item, hours_until_deadline=None)` | `float` — 0.0–1.0 urgency score | `urgency_weights`, `urgency_breakpoints`, `deadline_type_scores` |
-| `infer_energy` | `(text)` | `str` — `low`, `medium`, or `high` | `energy_levels.*.patterns` |
-| `enrich_items` | `(items)` | `list[dict]` — items with `urgency_score` and `energy_estimate` filled in | — |
+| Tool | Signature | Returns |
+|------|-----------|---------|
+| `enrich_items` | `(items)` | `list[dict]` — items with `urgency_score` and `energy_estimate` filled in |
+
+`enrich_items` does NOT override LLM-provided values. It only fills defaults:
+- `energy_estimate` defaults to `"medium"` if the LLM returned null
+- `urgency_score` defaults based on `deadline_type`: hard → 0.5, soft → 0.3, none → 0.1
+
+Energy estimation and urgency scoring are handled by the LLM in the `brain_dump_extract.md` prompt, not by heuristics. The `decay_urgency` cron job maintains urgency scores over time.
+
+## Query Tools (`query_tools.py`)
+
+Dynamic data fetching for complex user queries.
+
+| Tool | Signature | Returns |
+|------|-----------|---------|
+| `smart_fetch` | `(user_id, query_spec)` | `dict` — results keyed by source (`items`, `memories`, `messages`, `calendar`) |
+
+`smart_fetch` takes a structured `query_spec` dict (produced by the `analyze_query.md` LLM step) and constructs targeted DB queries. Supports:
+- **Entity filtering** — resolves entity names to IDs via case-insensitive match against `entities` table
+- **Timeframe filtering** — parses `"last_week"`, `"last_month"`, `"last_N_days"` into datetime ranges
+- **Multi-source search** — queries any combination of `items`, `memories`, `messages`, `calendar`
+- **Status filtering** — `"open"`, `"done"`, or `"all"`
+- **Limit capping** — max 100 results per source to prevent excessive fetches
+
+Falls back gracefully if `query_spec` is malformed (e.g. LLM JSON parse failure).
 
 ## Item Matching Tools (`item_matching.py`)
 
-Fuzzy matching for "done" and "skip" intents. **Thresholds from `config/scoring.yaml`.**
+Matching for "done" and "skip" intents. **Thresholds from `config/scoring.yaml`.**
 
 | Tool | Signature | Returns | Config section |
 |------|-----------|---------|----------------|
 | `fuzzy_match_item` | `(user_id, text)` | `dict \| None` — best matching open item, or None | `matching.min_similarity`, `matching.substring_boost` |
 | `reschedule_item` | `(item, user_id)` | `dict \| None` — rescheduled item with new nudge_after | `reschedule.urgency_decay_factor`, `reschedule.nudge_delay` |
+
+`fuzzy_match_item` first tries full-text search using the `search_text` tsvector column on `items`. If no results, falls back to word overlap + substring matching.
 
 `reschedule_item` applies different nudge delays based on deadline type:
 - `hard` → delay by N hours (default 4)
@@ -76,20 +101,20 @@ Track completion streaks for positive reinforcement. **Thresholds from `config/s
 
 ## Configuration
 
-All tool thresholds live in `config/scoring.yaml`. Key sections:
+Tool thresholds live in `config/scoring.yaml`. Key sections:
 
 | Section | Controls |
 |---------|----------|
-| `urgency_weights` | Weight of deadline, explicit, recency, dependency factors |
-| `urgency_breakpoints` | Score at overdue / 24h / 48h / distant thresholds |
-| `deadline_type_scores` | Bonus for hard vs soft deadline types |
 | `decay` | Soft decay factor, auto-expire days/threshold, hard ramp formula |
-| `energy_levels` | Pattern words for low/medium/high energy classification |
 | `momentum` | Lookback window and "on a roll" threshold |
 | `pick_next` | Scoring boosts for deadline type, energy, surfacing |
 | `reschedule` | Urgency decay factor and per-type nudge delays |
 | `matching` | Fuzzy match minimum similarity and substring boost |
 | `notifications` | Quiet hours, deadline window, push title/body templates |
+
+Additional config files:
+- `config/jobs.yaml` — Cron schedules and post-processing dispatch mapping
+- `config/patterns.yaml` — Pattern detection analysis definitions (which LLM analyses run, thresholds, prompt templates)
 
 ---
 
@@ -97,7 +122,7 @@ All tool thresholds live in `config/scoring.yaml`. Key sections:
 
 1. Create or edit a file in `backend/src/tools/`
 2. Decorate with `@register_tool("tool_name")`
-3. Import the module in `backend/src/main.py`'s `lifespan()` function
+3. Tool is auto-discovered on startup — no need to edit `main.py`
 4. Use in a pipeline step:
    ```yaml
    - id: my_step
