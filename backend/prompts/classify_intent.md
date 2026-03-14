@@ -20,11 +20,11 @@ Possible intents:
 {% if recent_messages %}
 Recent conversation for context:
 {% for msg in recent_messages[-5:] %}
-{{ msg.role }}: {{ msg.content }}
+{{ msg.role }}: <user_input>{{ msg.content }}</user_input>
 {% endfor %}
 {% endif %}
 
-User message: {{ user_message }}
+User message: <user_input>{{ user_message }}</user_input>
 
 Respond with a JSON object:
 {"intent": "<intent_name>", "confidence": <0.0-1.0>}

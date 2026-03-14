@@ -15,7 +15,7 @@ from src.orchestrator.config_loader import (
 )
 from src.orchestrator.prompt_renderer import get_prompt_hash, render_prompt
 from src.orchestrator.query_executor import execute_operation, execute_query
-from src.orchestrator.types import Context, Step, StepResult
+from src.orchestrator.types import OUTPUT_SCHEMAS, Context, Step, StepResult
 from src.orchestrator.variant_selector import select_variant
 from src.telemetry.events import (
     log_llm_usage,
@@ -91,7 +91,7 @@ def _truncate(value: Any, max_len: int = 300) -> Any:
 
 
 def _resolve_inputs(
-    inputs: dict[str, str] | None,
+    inputs: dict[str, str | None] | None,
     context: Context,
     step_results: dict[str, StepResult],
 ) -> dict[str, Any]:
@@ -99,7 +99,10 @@ def _resolve_inputs(
         return {}
     resolved = {}
     for key, template in inputs.items():
-        resolved[key] = resolve_variable(template, context, step_results)
+        if template is None:
+            resolved[key] = None
+        else:
+            resolved[key] = resolve_variable(template, context, step_results)
     return resolved
 
 
@@ -285,6 +288,19 @@ async def _execute_llm_step(
         output: Any = result.content
         if step.output_schema:
             output = _extract_json(result.content, step.id)
+            schema_cls = OUTPUT_SCHEMAS.get(step.output_schema)
+            if schema_cls and isinstance(output, dict):
+                try:
+                    validated = schema_cls.model_validate(output)
+                    output = validated.model_dump()
+                except Exception as exc:
+                    _log.warning(
+                        "llm.output_validation_failed",
+                        step_id=step.id,
+                        schema=step.output_schema,
+                        error=str(exc),
+                        trace_id=context.trace_id,
+                    )
 
         yield (
             None,

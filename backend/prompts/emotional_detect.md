@@ -10,7 +10,7 @@ Levels:
 - "medium": Noticeably stressed, overwhelmed, struggling to cope, anxiety about tasks
 - "high": Crisis mode, breakdown, feeling completely unable to function, deep distress
 
-User message: {{ message }}
+User message: <user_input>{{ message }}</user_input>
 
 Respond with a JSON object only:
 {"level": "low|medium|high", "reasoning": "brief explanation"}

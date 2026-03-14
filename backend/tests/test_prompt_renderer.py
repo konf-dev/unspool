@@ -1,23 +1,16 @@
 import pytest
 
-from src.orchestrator.prompt_renderer import render_prompt, _strip_frontmatter
+from src.orchestrator.prompt_renderer import render_prompt
 
 
-class TestStripFrontmatter:
-    def test_with_frontmatter(self) -> None:
-        source = "---\nname: test\n---\nHello {{ name }}"
-        result = _strip_frontmatter(source)
-        assert result == "Hello {{ name }}"
-
-    def test_without_frontmatter(self) -> None:
-        source = "Hello {{ name }}"
-        result = _strip_frontmatter(source)
-        assert result == "Hello {{ name }}"
-
-    def test_empty_frontmatter(self) -> None:
-        source = "---\n---\nBody here"
-        result = _strip_frontmatter(source)
-        assert result == "Body here"
+class TestFrontmatterStripping:
+    def test_frontmatter_not_in_output(self) -> None:
+        result = render_prompt(
+            "classify_intent.md",
+            {"user_message": "test", "recent_messages": []},
+        )
+        assert "input_vars" not in result
+        assert "---" not in result
 
 
 class TestRenderPrompt:
@@ -46,6 +39,16 @@ class TestRenderPrompt:
         )
         assert "hello" in result
         assert "hi there" in result
+
+    def test_user_input_tags_present(self) -> None:
+        result = render_prompt(
+            "classify_intent.md",
+            {
+                "user_message": "test injection",
+                "recent_messages": [],
+            },
+        )
+        assert "<user_input>test injection</user_input>" in result
 
     def test_missing_template_raises(self) -> None:
         with pytest.raises(FileNotFoundError):

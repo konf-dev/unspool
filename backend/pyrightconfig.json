@@ -1,0 +1,6 @@
+{
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.11",
+  "include": ["src", "tests"],
+  "exclude": ["**/__pycache__"]
+}

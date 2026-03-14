@@ -13,7 +13,7 @@ Rules:
 - Make them feel like this is totally normal and fine
 
 {% if item %}
-The item they can't do: {{ item.get('interpreted_action', 'something') }}
+The item they can't do: <user_input>{{ item.get('interpreted_action', 'something') }}</user_input>
 {% else %}
 Could not match a specific item, but they expressed they can't do something right now.
 {% endif %}

@@ -22,7 +22,7 @@ What was searched for:
 Items found:
 {% for item in found_items %}
 {% if item is mapping %}
-- {{ item.get('interpreted_action', item.get('raw_text', '')) }} ({{ item.get('status', '') }})
+- <user_input>{{ item.get('interpreted_action', item.get('raw_text', '')) }}</user_input> ({{ item.get('status', '') }})
 {% endif %}
 {% endfor %}
 {% endif %}
@@ -31,7 +31,7 @@ Items found:
 Memories:
 {% for mem in found_memories %}
 {% if mem is mapping %}
-- {{ mem.get('content', '') }}
+- <user_input>{{ mem.get('content', '') }}</user_input>
 {% endif %}
 {% endfor %}
 {% endif %}
@@ -40,7 +40,7 @@ Memories:
 Past messages:
 {% for msg in found_messages %}
 {% if msg is mapping %}
-- [{{ msg.get('role', '') }}] {{ msg.get('content', '')[:200] }}
+- [{{ msg.get('role', '') }}] <user_input>{{ msg.get('content', '')[:200] }}</user_input>
 {% endif %}
 {% endfor %}
 {% endif %}

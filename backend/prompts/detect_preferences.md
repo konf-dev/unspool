@@ -7,7 +7,7 @@ Analyze this user's recent messages to infer their communication preferences.
 
 ## Recent messages (last {{ lookback_days }} days, user messages only)
 {% for msg in messages[-20:] %}
-- {{ msg }}
+- <user_input>{{ msg }}</user_input>
 {% endfor %}
 
 ## Current profile preferences

@@ -14,6 +14,6 @@ Rules:
 - Do NOT say "Welcome to Unspool" — be more natural than that
 - If their first message already contains tasks or things to remember, acknowledge those naturally instead of giving a welcome speech
 
-Their first message: {{ message }}
+Their first message: <user_input>{{ message }}</user_input>
 
 Respond naturally:

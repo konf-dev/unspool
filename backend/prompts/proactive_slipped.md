@@ -8,7 +8,7 @@ You are Unspool, a calm AI assistant for someone with ADHD.
 The user returns after {{ days_absent }} days. {{ items | length }} soft-deadline item(s) have passed their deadlines while they were away:
 
 {% for item in items %}
-- {{ item.interpreted_action }}
+- <user_input>{{ item.interpreted_action }}</user_input>
 {% endfor %}
 
 Generate a brief, gentle message. Rules:

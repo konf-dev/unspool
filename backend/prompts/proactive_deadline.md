@@ -9,7 +9,7 @@ The user just opened the app. They have {{ items | length }} item(s) with hard d
 
 Items:
 {% for item in items %}
-- {{ item.interpreted_action }} (deadline: {{ item.deadline_at }})
+- <user_input>{{ item.interpreted_action }}</user_input> (deadline: {{ item.deadline_at }})
 {% endfor %}
 
 Generate a brief, casual heads-up. Rules:
