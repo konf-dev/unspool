@@ -9,13 +9,12 @@ interface RequestBody {
   messages: DemoMessage[]
 }
 
-interface AnthropicContentBlock {
-  type: string
-  text: string
+interface OpenAIChoice {
+  message: { content: string }
 }
 
-interface AnthropicResponse {
-  content: AnthropicContentBlock[]
+interface OpenAIResponse {
+  choices: OpenAIChoice[]
 }
 
 const VALID_ROLES = new Set(['user', 'assistant'])
@@ -103,23 +102,21 @@ export default async function handler(req: Request): Promise<Response> {
     }
   }
 
-  const anthropicMessages = messages.map((m) => ({
+  const chatMessages = messages.map((m) => ({
     role: m.role,
     content: m.content,
   }))
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'gpt-4.1-nano',
       max_tokens: 150,
-      system: SYSTEM_PROMPT,
-      messages: anthropicMessages,
+      messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...chatMessages],
     }),
   })
 
@@ -130,8 +127,8 @@ export default async function handler(req: Request): Promise<Response> {
     })
   }
 
-  const data = (await response.json()) as AnthropicResponse
-  const content = data.content[0]?.text ?? ''
+  const data = (await response.json()) as OpenAIResponse
+  const content = data.choices[0]?.message?.content ?? ''
 
   const userMessageCount = messages.filter((m) => m.role === 'user').length
   const shouldPromptSignIn =
