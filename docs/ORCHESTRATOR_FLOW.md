@@ -301,16 +301,30 @@ DB query: open items where deadline_at <= now + 48h
 #### QUERY_SEARCH — "Did I ever mention X?"
 
 ```
-Search ALL items (including done/expired)
+User message
     │
-    ├── Small DB → send items to LLM, ask for matches
-    ├── Large DB → vector embedding search (pgvector etc.)
-    │
-    ├── 0 results → "I don't have anything about that."
-    ├── Found → "yeah, about 3 weeks ago you mentioned
-    │            transformer attention for scheduling.
-    │            want me to pull up the details?"
     ▼
+┌────────────────────┐
+│  ANALYZE QUERY     │ ── LLM call (analyze_query.md)
+│                    │    Determines: search_type, entity,
+│                    │    timeframe, which sources to query,
+│                    │    text search terms, status filter
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐
+│  SMART FETCH       │ ── Tool call (smart_fetch)
+│                    │    Resolves entity names → IDs
+│                    │    Constructs targeted DB queries
+│                    │    Searches: items, memories,
+│                    │    messages, calendar (as needed)
+└────────┬───────────┘
+         │
+         ├── 0 results → "I don't have anything about that."
+         ├── Found → "yeah, about 3 weeks ago you mentioned
+         │            transformer attention for scheduling.
+         │            want me to pull up the details?"
+         ▼
    → PERSONALIZATION → RESPONSE DELIVERY
 ```
 
@@ -613,15 +627,22 @@ Schedule: Every 4 hours (QStash cron)
     Delete events that no longer exist
     If OAuth token expired: refresh or mark disconnected
 
-Job: PATTERN DETECTION (Tier 3)
+Job: PATTERN DETECTION
 Endpoint: POST /jobs/detect-patterns
 Schedule: Once daily (QStash cron)
-  Analyze EPISODIC tier (last 30 days):
-    - Behavioral patterns (dump times, completion rates, avoidance)
-    - Energy patterns (what correlates with productive bursts?)
-    - Nudge effectiveness (which styles get responses?)
-  Store insights in SEMANTIC tier with confidence scores
-  Also: cleanup/archive completed items older than 14 days
+Config: config/patterns.yaml defines which analyses run
+  For each active user (last 30 days):
+    1. completion_stats (db_only) — completions by day of week, averages
+    2. behavioral_patterns (LLM) — productivity timing, avoidance, energy cycles
+    3. preference_inference (LLM) — tone, length, pushiness, emoji, language
+  Store insights in user_profiles.patterns JSONB field
+  Respects min_data_days and confidence_threshold per analysis
+
+Job: NOTIFICATION RESET
+Endpoint: POST /jobs/reset-notifications
+Schedule: Daily at midnight UTC (QStash cron)
+  Reset notification_sent_today = false for all users
+  Prevents notification spam (max 1 push per day rule)
 ```
 
 **Security:** All `/jobs/*` endpoints verify `Upstash-Signature` header — prevents external triggering.
@@ -634,7 +655,8 @@ Schedule: Once daily (QStash cron)
 | Urgency decay | Every 6h | 0 | Must have (scoring) |
 | Post-conversation | After each chat | 1-2 | Must have (embeddings, dedup) |
 | Calendar sync | Every 4h | 0 | Must have (calendar context) |
-| Pattern detection | Daily | 1-2 | Can be stub (hardened in v0.2) |
+| Pattern detection | Daily | 1-3 | Config-driven LLM analyses (config/patterns.yaml) |
+| Notification reset | Daily midnight | 0 | Must have (prevents >1 push/day) |
 
 ---
 

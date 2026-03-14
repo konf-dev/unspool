@@ -96,13 +96,14 @@ unspool/
 │   │   ├── pipelines/     # 10 YAML pipeline definitions
 │   │   ├── intents.yaml   # Intent taxonomy + pipeline routing
 │   │   ├── context_rules.yaml  # Per-intent data loading rules
-│   │   ├── scoring.yaml   # All thresholds: urgency, decay, energy,
-│   │   │                  # momentum, pick_next, reschedule, matching,
-│   │   │                  # notifications
+│   │   ├── scoring.yaml   # Thresholds: decay, momentum, pick_next,
+│   │   │                  # reschedule, matching, notifications
 │   │   ├── proactive.yaml # Proactive message trigger rules
 │   │   ├── gate.yaml      # Rate limits (free/paid)
+│   │   ├── jobs.yaml      # Cron schedules + post-processing dispatch map
+│   │   ├── patterns.yaml  # Pattern detection analysis definitions
 │   │   └── variants.yaml  # A/B test definitions
-│   ├── prompts/           # 21 Jinja2 prompt templates (.md)
+│   ├── prompts/           # 26 Jinja2 prompt templates (.md)
 │   ├── supabase/
 │   │   └── migrations/    # SQL schema migrations
 │   ├── src/
@@ -110,15 +111,16 @@ unspool/
 │   │   ├── config.py      # Settings from env vars
 │   │   ├── api/           # chat.py, messages.py, subscribe.py, auth_token.py
 │   │   ├── jobs/          # check_deadlines, decay_urgency, process_conversation,
-│   │   │                  # sync_calendar, detect_patterns
+│   │   │                  # sync_calendar, detect_patterns, reset_notifications
 │   │   ├── orchestrator/  # engine.py, intent.py, context.py, config_loader.py,
 │   │   │                  # prompt_renderer.py, variant_selector.py, types.py
 │   │   ├── tools/         # registry.py, db_tools.py, scoring_tools.py,
-│   │   │                  # context_tools.py, item_matching.py, momentum_tools.py
+│   │   │                  # context_tools.py, item_matching.py, momentum_tools.py,
+│   │   │                  # query_tools.py
 │   │   ├── llm/           # protocol.py, anthropic_provider.py, openai_provider.py,
 │   │   │                  # embedding.py, registry.py
 │   │   ├── db/            # supabase.py (asyncpg), redis.py (Upstash)
-│   │   ├── integrations/  # google_calendar.py, stripe.py, push.py
+│   │   ├── integrations/  # google_calendar.py, stripe.py, push.py, qstash.py
 │   │   ├── auth/          # supabase_auth.py, qstash_auth.py
 │   │   └── telemetry/     # logger.py, events.py, middleware.py
 │   ├── tests/
@@ -145,8 +147,11 @@ unspool/
 - **v0.1 is a monolith.** One FastAPI process handles /api/* and /jobs/*. Split later if needed.
 - **Orchestrator is config-driven.** Three layers: config (YAML pipelines, prompts, scoring) / engine (~400 lines, never changes) / tools (Python functions). Adding new behavior = config change.
 - **Intent classification is LLM-only.** Every message goes through the classify_intent prompt. No hardcoded regex patterns — avoids misclassification on ambiguous inputs.
-- **Target: 1-2 LLM calls per user message.** Classification + extraction + response can often be one structured call.
+- **Energy and urgency are LLM-inferred.** No regex word-pattern matching. The LLM estimates energy_estimate and urgency_score in the extract prompt. `enrich_items` only fills defaults when the LLM returns null.
+- **System prompt injected into all pipeline LLM calls.** `prompts/system.md` provides consistent Unspool personality and user preferences across all pipelines.
+- **Target: 1-2 LLM calls per user message.** Classification + extraction + response can often be one structured call. Query searches use 2 (analyze + respond).
 - **All /jobs/* endpoints verify Upstash-Signature header.** Prevents external triggering.
+- **Post-processing dispatched via QStash.** Pipeline YAML defines `post_processing` jobs; `chat.py` dispatches them after saving the assistant response.
 - **All /api/* endpoints verify Supabase JWT.** Extract user_id from token.
 
 ### Database
@@ -226,9 +231,12 @@ CREATE POLICY "Users see own profile" ON user_profiles
 |---|---|---|---|
 | Deadline scanner | POST /jobs/check-deadlines | Hourly | Send push for hard deadlines <24h away |
 | Urgency decay | POST /jobs/decay-urgency | Every 6h | Recalculate urgency scores, expire old items |
-| Process conversation | POST /jobs/process-conversation | After each chat (delayed 10s) | Embeddings, dedup, profile extraction |
+| Process conversation | POST /jobs/process-conversation | After each chat (delayed 10s) | Embeddings, entity extraction, memory extraction |
 | Calendar sync | POST /jobs/sync-calendar | Every 4h | Fetch Google Calendar events |
-| Pattern detection | POST /jobs/detect-patterns | Daily | Analyze behavior, update personalization |
+| Pattern detection | POST /jobs/detect-patterns | Daily | Config-driven LLM analyses (behavioral, preferences) |
+| Notification reset | POST /jobs/reset-notifications | Daily midnight | Reset notification_sent_today flag |
+
+Cron schedules are defined in `config/jobs.yaml` and registered with QStash on production startup. Pattern detection analyses are defined in `config/patterns.yaml`.
 
 ## Environment Variables
 

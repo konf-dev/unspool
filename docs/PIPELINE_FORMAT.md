@@ -221,7 +221,7 @@ Assignments are persisted in the `experiment_assignments` table.
 |----------|-------|-------------|
 | `brain_dump` | extract → enrich → save → respond | Extract items from brain dump, score, save, respond |
 | `query_next` | fetch_items → score_and_pick → respond | Pick best next item, respond with one thing |
-| `query_search` | embed_query → search (hybrid) → respond | Semantic+text search for specific items |
+| `query_search` | analyze → smart_fetch → respond | LLM-analyzed query → targeted multi-source fetch |
 | `query_upcoming` | fetch_upcoming → respond | Show upcoming deadlines |
 | `status_done` | match_item → mark_done → check_momentum → respond | Mark done, celebrate streak |
 | `status_cant` | match_item → reschedule → respond | Reschedule or deprioritize |
@@ -255,7 +255,9 @@ Available condition types: `urgent_items`, `days_absent`, `recent_completions`, 
 
 ## Scoring & Thresholds
 
-All tool thresholds, scoring weights, and notification parameters live in `config/scoring.yaml`. This includes urgency calculation, energy inference patterns, momentum detection, item picking boosts, reschedule delays, fuzzy matching thresholds, and push notification settings. See `docs/TOOLS.md` for the full section reference.
+Tool thresholds and notification parameters live in `config/scoring.yaml`. This includes urgency decay, momentum detection, item picking boosts, reschedule delays, fuzzy matching thresholds, and push notification settings. Energy estimation and initial urgency scoring are handled by the LLM in prompt templates, not by config-driven heuristics. See `docs/TOOLS.md` for the full section reference.
+
+Additional config files: `config/jobs.yaml` (cron schedules, dispatch mapping) and `config/patterns.yaml` (pattern detection analysis definitions).
 
 ---
 
