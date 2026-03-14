@@ -59,5 +59,32 @@ def get_langfuse_context() -> Any:
         return None
 
 
+def update_current_observation(**kwargs: Any) -> None:
+    """Update the current Langfuse observation with model, input, output, usage, etc.
+
+    Safe to call even when Langfuse is not configured — silently no-ops.
+    """
+    if not _langfuse_available:
+        return
+    try:
+        from langfuse.decorators import langfuse_context
+
+        langfuse_context.update_current_observation(**kwargs)
+    except Exception:
+        _log.debug("langfuse.update_observation_failed", exc_info=True)
+
+
+def update_current_trace(**kwargs: Any) -> None:
+    """Update the current Langfuse trace with user_id, session_id, metadata, etc."""
+    if not _langfuse_available:
+        return
+    try:
+        from langfuse.decorators import langfuse_context
+
+        langfuse_context.update_current_trace(**kwargs)
+    except Exception:
+        _log.debug("langfuse.update_trace_failed", exc_info=True)
+
+
 # Initialize on import
 _init_langfuse()

@@ -25,7 +25,11 @@ from src.telemetry.events import (
     log_step_started,
     log_variant_selected,
 )
-from src.telemetry.langfuse_integration import observe, observe_generation
+from src.telemetry.langfuse_integration import (
+    observe,
+    observe_generation,
+    update_current_observation,
+)
 from src.telemetry.logger import get_logger
 
 _log = get_logger("orchestrator.engine")
@@ -208,18 +212,29 @@ async def _execute_llm_step(
             trace_id=context.trace_id,
         )
 
+        used_model = model or settings.LLM_MODEL
+
         await log_llm_usage(
             trace_id=context.trace_id,
             user_id=context.user_id,
             step_id=step.id,
             pipeline=pipeline_name,
             variant=variant,
-            model=model or settings.LLM_MODEL,
+            model=used_model,
             provider=settings.LLM_PROVIDER,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             latency_ms=latency_ms,
             ttft_ms=round(ttft * 1000, 2) if ttft else None,
+        )
+
+        update_current_observation(
+            name=f"llm_step:{step.id}",
+            model=used_model,
+            input=messages,
+            output=content,
+            usage={"input": input_tokens, "output": output_tokens},
+            metadata={"pipeline": pipeline_name, "step_id": step.id, "stream": True},
         )
 
         yield (
@@ -234,6 +249,7 @@ async def _execute_llm_step(
     else:
         result = await provider.generate(messages, model=model)
         latency_ms = round((time.perf_counter() - start) * 1000, 2)
+        used_model = model or settings.LLM_MODEL
 
         await log_llm_usage(
             trace_id=context.trace_id,
@@ -241,11 +257,20 @@ async def _execute_llm_step(
             step_id=step.id,
             pipeline=pipeline_name,
             variant=variant,
-            model=model or settings.LLM_MODEL,
+            model=used_model,
             provider=settings.LLM_PROVIDER,
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
             latency_ms=latency_ms,
+        )
+
+        update_current_observation(
+            name=f"llm_step:{step.id}",
+            model=used_model,
+            input=messages,
+            output=result.content,
+            usage={"input": result.input_tokens, "output": result.output_tokens},
+            metadata={"pipeline": pipeline_name, "step_id": step.id, "stream": False},
         )
 
         _log.info(
@@ -307,6 +332,13 @@ async def _execute_tool_step(
         latency_ms=latency_ms,
         output_preview=_truncate(result),
         trace_id=context.trace_id,
+    )
+
+    update_current_observation(
+        name=f"tool:{step.tool}",
+        input=_truncate(resolved_inputs),
+        output=_truncate(result),
+        metadata={"tool": step.tool, "step_id": step.id},
     )
 
     return StepResult(step_id=step.id, output=result, latency_ms=latency_ms)
