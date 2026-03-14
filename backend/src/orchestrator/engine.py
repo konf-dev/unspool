@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from collections.abc import AsyncIterator, Callable
 from typing import Any
@@ -175,8 +176,13 @@ async def _execute_llm_step(
 
         output: Any = result.content
         if step.output_schema:
+            raw = result.content.strip()
+            # Strip markdown code fences — LLMs commonly wrap JSON in ```json...```
+            fence_match = re.search(r"```(?:json)?\s*\n?(.*?)```", raw, re.DOTALL)
+            if fence_match:
+                raw = fence_match.group(1).strip()
             try:
-                output = json.loads(result.content)
+                output = json.loads(raw)
             except json.JSONDecodeError:
                 _log.warning(
                     "llm.json_parse_failed",
