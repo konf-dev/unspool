@@ -85,6 +85,9 @@ Goal: Every feature in PRODUCT_SPEC.md actually works end-to-end. v0.1 spec fulf
 - [ ] **UI polish pass** — Animation jank, responsive edge cases, sent-while-offline indicator (clock icon on queued messages)
 - [ ] **PWA install prompt** — Device-aware "add to home screen" suggestion, detect iOS Safari/Android Chrome/desktop, trigger once after 3+ interactions
 - [ ] **Account deletion via chat** — Meta intent with confirmation step, uses existing `DELETE /api/account`
+- [ ] **Item update/correction via chat** — "the meeting moved to Wednesday" / "actually the deadline is next Friday" — user needs to correct the AI's understanding of an existing item (deadline, description, etc.) from conversation
+- [ ] **Item removal via chat** — "forget about the dentist" / "never mind about that" — user wants to delete or deprioritize a specific item. Needs matching + removal to work reliably, not just a generic meta response
+- [ ] **Offline message queuing** — Frontend queues messages typed while offline and sends them when connection returns. Offline banner exists but messages typed offline are currently lost
 
 ---
 
@@ -98,7 +101,7 @@ Goal: Handle 50+ concurrent users without things breaking.
 - [ ] **Connection pool tuning** — asyncpg `max_size=10`; add `pool.acquire(timeout=5)`, consider raising pool size
 - [ ] **ASGI middleware for tracing** — Replace BaseHTTPMiddleware (known streaming buffering issues) with raw ASGI middleware
 - [ ] **Prompt file caching** — `prompt_renderer.py` reads from disk every call; add mtime-based cache (same pattern as config_loader)
-- [ ] **Timezone-aware rate limiting** — Reset at user's local midnight (`user_profiles.timezone`), not UTC
+- [ ] **Timezone-aware operations** — Rate limiting resets at user's local midnight, but also deadline calculations (check_deadlines job, proactive triggers, urgency decay) need user timezone for correct "24 hours away" / quiet hours logic
 - [ ] **Migration rollback scripts** — Write a paired `00NNN_<name>.down.sql` for every migration. Two-phase destructive DDL: before dropping a column, (1) deploy code that stops reading it, (2) confirm stable, (3) drop in the next migration
 
 ---
@@ -112,11 +115,17 @@ Goal: The AI feels genuinely smart and personal. "It gets me."
 - [ ] **Disambiguation responses** — fuzzy_match_item with multiple matches asks "which one?", resolves from conversation context on next message
 - [ ] **Action buttons from backend** — Parse `[button text]` patterns in response, emit SSE `actions` event, strip from saved text (frontend already handles the event)
 - [ ] **Focus mode** — Single-task mode, AI refuses additions and redirects to current task, session-level state in Redis
+- [ ] **Task decomposition** — When a task feels too big ("write chapter 3"), AI offers to break it into 5-15 minute chunks specific to what the user has mentioned. Key ADHD feature — the blocker isn't the task, it's that the task is too large to start
+- [ ] **Counter-catastrophizing with data** — "I'm not getting anywhere" → AI pulls actual completion stats and counters with real data ("you've done 47 things this month"). Emotional responses need access to item_events data to ground reassurance in facts, not platitudes
+- [ ] **Duplicate / already-tracked detection** — User says "need to do laundry" when laundry is already an open item. AI should handle gracefully — acknowledge without creating a duplicate, or update the existing item with new context
+- [ ] **"Chill" / adjust nudging intensity** — User says "stop nudging me" or "chill" → AI backs off proactive messages significantly. Needs a pushiness adjustment that persists across sessions, not just one-time acknowledgment
 
 **Personalization:**
 - [ ] **Apply preference inference to profile** — detect_patterns writes to `patterns` JSONB but never updates actual columns (tone/length/pushiness/emoji/language); apply high-confidence results
 - [ ] **Explicit preference tool** — "be more pushy" / "use emoji" detected as intent, updates profile directly
 - [ ] **Memory-to-profile enrichment** — Extract structured fields (occupation, location, timezone) from memories into profile columns
+- [ ] **Pattern insight surfacing in conversation** — Patterns are detected daily and stored in `user_profiles.patterns`, but never shown to the user. AI should weave insights into responses naturally ("I noticed you're productive early in the week...") — not as reports, conversationally
+- [ ] **Multi-language response** — Language is detected and stored in `primary_language` but prompts don't instruct the LLM to respond in that language. Need prompts to use the detected language and handle mid-conversation language switching
 
 **Smart scheduling:**
 - [ ] **Recurrence detection** — Detect "user creates 'do laundry' weekly" pattern, offer to make recurring
@@ -141,12 +150,19 @@ Goal: From "works for me" to "works for paying strangers."
 - [ ] **Idea correlation** — Semantic search past items/memories when user dumps something new, surface connections above similarity threshold
 - [ ] **Weekly summary push (opt-in)** — Offered after 2+ weeks active use, sent at user's typical active time
 - [ ] **Free tier redesign** — Consider items-captured/day instead of messages/day (brain dump of 5 items in 1 message vs 5 "what should I do" queries — cost is asymmetric)
+- [ ] **Progress summaries for multi-week projects** — "how's the thesis going?" → AI assembles status from weeks of done/in-progress conversational mentions. Different from QUERY_OVERVIEW (current snapshot) — this is about tracking a project's arc over time
+- [ ] **Explain suggestion reasoning** — "why did you suggest this?" → AI explains its pick_next logic transparently: "it's due tomorrow and it's a quick one." Builds trust, especially when suggestions feel wrong
+- [ ] **Data export** — "can I get my data?" → JSON/CSV export of items, messages, and profile. GDPR requirement and trust-builder for users sharing sensitive information
+- [ ] **Selective topic deletion** — "delete everything about the thesis" → remove items matching a topic, not just single items or full account deletion. Needs semantic matching + batch operation
+- [ ] **Contact / feedback channel** — "I need help" / "something is broken" → clear path to reach a human surfaced in the meta pipeline. Not a chatbot loop — an actual email or form
 
 **Launch readiness:**
 - [ ] **Landing page enhancement** — Demo GIF/video of brain-dump flow, privacy copy for ADHD users (medication/mental health data)
 - [ ] **Privacy policy content** — What's stored, what goes to LLM providers, right to deletion, GDPR basics (LegalPage component exists)
 - [ ] **Share sheet integration** — Register as PWA share target in manifest.json, capture text/URLs from other apps
 - [ ] **Config-file feature flags** — Add `config/flags.yaml`, load with existing `load_config()`. Deploy risky features behind `flag: false`, flip to `true` in a separate commit. Rollback = one more commit. No external service needed; Railway redeploy is ~1-2 min
+- [ ] **Accessibility pass** — Screen reader labels on chat elements, keyboard navigation, `prefers-reduced-motion` support, WCAG AA color contrast audit. Users with ADHD frequently have co-occurring conditions; accessibility isn't optional
+- [ ] **Share link** — Easy way to share Unspool with a friend. Just a copyable link, not an invite system
 
 **Orchestrator DX:**
 - [ ] **Flow visualization tool** (can be separate repo) — Reads all config YAML (intents.yaml, pipelines/*.yaml, proactive.yaml, jobs.yaml, context_rules.yaml) and generates a visual map of every path through the system. Three diagrams: (a) message flow: gate → classify → context → pipeline → steps → post-processing, with all error/fallback paths, (b) background job flows: trigger → queries → mutations → side effects, (c) proactive message evaluation: trigger conditions → prompt rendering → delivery. Two approaches:
@@ -167,6 +183,7 @@ Goal: Multi-platform, better voice, more integrations. Only when current infrast
 - [ ] **Apple Calendar / Outlook Calendar**
 - [ ] **Horizontal scaling** — Split /api/* and /jobs/* into separate Railway services
 - [ ] **Deferred one-shot actions** — "remind me Tuesday" with QStash `dispatch_at()`, nudge-item endpoint
+- [ ] **Calendar connect prompt for magic link users** — User who signed up without Google gets offered calendar connection later in chat, when calendar context would have been useful ("you mentioned a meeting but I can't check your calendar"). Conversational, not a settings page
 
 ---
 
