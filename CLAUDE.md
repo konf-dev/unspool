@@ -285,12 +285,15 @@ API_URL=http://localhost:8000
 
 ### Python (backend)
 - **Async everywhere.** All route handlers are `async def`. All DB calls use async clients.
-- **Type hints required** on all function signatures.
+- **Type hints required** on all function signatures. Never use string-quoted annotations (`"SomeType"`) — import the type and use it directly.
 - **Pydantic models** for all request/response schemas.
 - **No print statements.** Use `structlog` for logging.
-- **Black** for formatting (line length 100).
-- **Ruff** for linting.
-- Tests in `/backend/tests/` using pytest + pytest-asyncio.
+- **Ruff** for both formatting and linting. Run `ruff format .` and `ruff check .` before committing. CI enforces both.
+- Tests in `/backend/tests/` using pytest + pytest-asyncio. Always run full suite (`pytest -x --timeout=30`) before pushing.
+- **FastAPI dependency mocking:** Use `app.dependency_overrides[dep_fn] = lambda: value`, not `patch()`. FastAPI resolves deps via its own DI, not Python imports.
+- **Multiple context managers from a list:** Use `contextlib.ExitStack`, not `with (*list)` — tuple unpacking doesn't work in `with` statements.
+- **Langfuse instrumentation:** When adding `@observe` to a function that makes LLM calls, also call `update_current_observation(model=..., input=..., output=..., usage=...)` to report the actual LLM data. The decorator alone only captures timing.
+- **Test data shapes:** When testing Jinja2 templates, use realistic data that matches actual pipeline output shapes. Empty dicts/lists miss collisions like `results.items` (dict method vs data key).
 
 ### TypeScript (frontend)
 - **Functional components only.** No class components.
@@ -299,6 +302,13 @@ API_URL=http://localhost:8000
 - **CSS variables** for all colors and spacing (defined in globals.css).
 - **No CSS-in-JS libraries.** Plain CSS or CSS modules.
 - Prettier for formatting.
+
+### Error Handling
+- **The user must always get a response.** No matter what breaks — LLM timeout, DB down, tool crash, bad JSON — the chat endpoint must send an error message via SSE, never hang or return a 500. The pattern: `wrapped_stream()` in `chat.py` catches `TimeoutError` and `Exception`, sends "sorry, something went wrong" as a token event, and saves it with `metadata.error=true`.
+- **Fail open on non-critical services.** Redis down → skip rate limiting. Optional context fields fail → log warning and continue. Individual tool/step failures are logged but don't crash the pipeline when the step isn't required for the response.
+- **Never crash the server process.** Background jobs (`/jobs/*`) must catch their own exceptions internally. A failing cron job should return an error dict, not take down the worker.
+- **60-second pipeline timeout.** `asyncio.timeout()` wraps the entire pipeline (classify + assemble + execute). If anything hangs, user gets a timeout message instead of infinite spinner.
+- **Log everything with trace_id.** Every error log must include `trace_id` so failures can be traced across Railway logs, Langfuse, and the admin API.
 
 ### General
 - **No comments explaining what code does.** Code should be self-documenting. Comments only for WHY something is non-obvious.
@@ -326,6 +336,50 @@ Read these before making architectural decisions:
 - `docs/OBSERVABILITY.md` — Admin API, Langfuse tracing, debugging workflows
 - `docs/DEPLOYMENT_LOG.md` — Exact steps followed, issues hit, and current production state
 
+## Git Rules
+
+- **Always ask before pushing to remote or merging to main.** Never run `git push`, `git merge main`, or `gh pr merge` without explicit user confirmation. Commits are fine, pushing is not — pushing triggers production deployments.
+
+## Post-Push Verification
+
+After every push to `main`, verify the deployment succeeded:
+
+```bash
+# 1. Check backend health (Railway auto-deploys, ~1-2 min)
+curl -s https://api.unspool.life/health | jq
+
+# 2. Check for recent errors
+curl -s -H "X-Admin-Key: $ADMIN_API_KEY" https://api.unspool.life/admin/errors?limit=5 | jq
+
+# 3. Check GitHub Actions CI status
+gh run list --limit 3
+```
+
+If the health check fails or returns errors, check Railway logs for crash details. Vercel auto-deploys the frontend on push — it only needs checking if `frontend/` changed.
+
+## Debugging Production Issues
+
+You have CLI access to debug production without needing dashboards:
+
+```bash
+# Admin API — inspect traces, user data, errors
+curl -H "X-Admin-Key: $ADMIN_API_KEY" https://api.unspool.life/admin/trace/{trace_id} | jq
+curl -H "X-Admin-Key: $ADMIN_API_KEY" https://api.unspool.life/admin/user/{user_id}/messages | jq
+curl -H "X-Admin-Key: $ADMIN_API_KEY" https://api.unspool.life/admin/errors | jq
+
+# Langfuse — full LLM trace waterfall (prompts, responses, tokens, cost)
+curl -u "$LANGFUSE_PUBLIC_KEY:$LANGFUSE_SECRET_KEY" \
+  "$LANGFUSE_HOST/api/public/traces?limit=10" | jq
+
+# Railway logs
+railway logs --filter "step.error"
+
+# GitHub Actions
+gh run view --log-failed
+```
+
+The trace_id from `X-Trace-Id` response header or `messages.metadata.trace_id` connects all three systems. See `docs/OBSERVABILITY.md` for detailed debugging workflows.
+
 ## Quick Commands
 
 ```bash
@@ -339,4 +393,7 @@ uvicorn src.main:app --reload --port 8000    # Dev server at localhost:8000
 # Tests
 cd backend && pytest
 cd frontend && npm run test
+
+# Lint + format (run before committing)
+cd backend && ruff check . && ruff format .
 ```
