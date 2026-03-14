@@ -11,10 +11,7 @@ type Route = 'landing' | 'login' | 'chat' | 'privacy' | 'terms'
 
 function isStandalone(): boolean {
   const nav = navigator as Navigator & { standalone?: boolean }
-  return (
-    nav.standalone === true ||
-    window.matchMedia('(display-mode: standalone)').matches
-  )
+  return nav.standalone === true || window.matchMedia('(display-mode: standalone)').matches
 }
 
 function getInitialRoute(): Route {
@@ -36,7 +33,7 @@ const WELCOME_MESSAGE: Message = {
   createdAt: new Date().toISOString(),
   actions: [
     { label: 'suggest something', value: 'what should I do?' },
-    { label: 'just dumping', value: "brain dump time" },
+    { label: 'just dumping', value: 'brain dump time' },
   ],
 }
 
@@ -85,9 +82,13 @@ export function App() {
     }
   }, [isAuthenticated, isLoading, route])
 
-  // Fetch messages when entering chat
+  // Fetch messages when entering chat + handle demo-to-auth bridge
   useEffect(() => {
     if (isLoading || !isAuthenticated || !token || route !== 'chat') return
+
+    // Clear demo conversation from localStorage (fresh start after sign-in)
+    localStorage.removeItem('unspool-demo-messages')
+    localStorage.removeItem('unspool-demo-count')
 
     void fetchMessages(token, 50)
       .then((fetched) => {
@@ -158,20 +159,11 @@ export function App() {
 
   return (
     <div className={fadeClass}>
-      {route === 'privacy' && (
-        <PrivacyPage onBack={handleBackToLanding} />
-      )}
-      {route === 'terms' && (
-        <TermsPage onBack={handleBackToLanding} />
-      )}
-      {route === 'landing' && (
-        <LandingPage onGetStarted={handleGetStarted} />
-      )}
+      {route === 'privacy' && <PrivacyPage onBack={handleBackToLanding} />}
+      {route === 'terms' && <TermsPage onBack={handleBackToLanding} />}
+      {route === 'landing' && <LandingPage onGetStarted={handleGetStarted} />}
       {route === 'login' && (
-        <LoginScreen
-          onSignInWithGoogle={signInWithGoogle}
-          onSignInWithEmail={signInWithEmail}
-        />
+        <LoginScreen onSignInWithGoogle={signInWithGoogle} onSignInWithEmail={signInWithEmail} />
       )}
       {route === 'chat' && (
         <ChatScreen

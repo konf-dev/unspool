@@ -9,11 +9,7 @@
   left: 0;
   right: 0;
   height: 40px;
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    var(--color-sky-bottom)
-  );
+  background: linear-gradient(to bottom, transparent, var(--color-sky-bottom));
   pointer-events: none;
 }
 
@@ -47,7 +43,9 @@
 
 .input-bar-textarea:focus {
   border-color: rgba(93, 202, 165, 0.25);
-  box-shadow: var(--glass-glow-ai), 0 0 0 1px rgba(93, 202, 165, 0.1);
+  box-shadow:
+    var(--glass-glow-ai),
+    0 0 0 1px rgba(93, 202, 165, 0.1);
 }
 
 .input-bar-textarea::placeholder {
@@ -67,7 +65,7 @@
   justify-content: center;
   transition:
     opacity var(--duration-normal) ease,
-    transform var(--duration-fast) ease;
+    transform 120ms var(--ease-spring);
 }
 
 .input-bar-send:hover {
