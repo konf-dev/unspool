@@ -6,7 +6,6 @@ from collections.abc import AsyncIterator
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-
 from src.auth.supabase_auth import get_current_user
 from src.telemetry.langfuse_integration import observe, update_current_trace
 from src.db import redis, supabase as db
@@ -159,6 +158,49 @@ async def _dispatch_post_processing(
         await dispatch_job(endpoint, payload, delay=job.delay)
 
 
+async def _save_and_dispatch(
+    user_id: str,
+    trace_id: str,
+    session_id: str,
+    user_msg_id: str,
+    collected_tokens: list[str],
+    context_out: list[Context],
+    stream_state: dict[str, bool],
+) -> None:
+    full_response = "".join(collected_tokens)
+    if not full_response:
+        return
+
+    metadata: dict[str, object] = {
+        "trace_id": trace_id,
+        "session_id": session_id,
+    }
+    if stream_state.get("failed"):
+        metadata["error"] = True
+    if not stream_state.get("completed"):
+        metadata["partial"] = True
+
+    assistant_msg_id = ""
+    try:
+        assistant_msg = await db.save_message(
+            user_id=user_id,
+            role="assistant",
+            content=full_response,
+            metadata=metadata,
+        )
+        assistant_msg_id = str(assistant_msg["id"])
+    except Exception:
+        _log.error(
+            "chat.save_response_failed",
+            trace_id=trace_id,
+            user_id=user_id,
+            exc_info=True,
+        )
+
+    if context_out and assistant_msg_id and not stream_state.get("failed"):
+        await _dispatch_post_processing(context_out[0], user_msg_id, assistant_msg_id)
+
+
 @router.post("/chat")
 async def chat(
     request: ChatRequest,
@@ -185,80 +227,68 @@ async def chat(
 
     collected_tokens: list[str] = []
     context_out: list[Context] = []
+    stream_state: dict[str, bool] = {"failed": False, "completed": False}
 
     async def wrapped_stream() -> AsyncIterator[str]:
-        pipeline_failed = False
         try:
-            async for chunk in _stream_response(
-                user_id, request.message, trace_id, context_out
-            ):
-                if '"type": "token"' in chunk:
-                    try:
-                        data_str = chunk.removeprefix("data: ").strip()
-                        parsed = json.loads(data_str)
-                        if parsed.get("type") == "token":
-                            collected_tokens.append(parsed["content"])
-                    except (json.JSONDecodeError, KeyError):
-                        pass
-                yield chunk
-        except TimeoutError:
-            pipeline_failed = True
-            _log.error(
-                "chat.pipeline_timeout",
-                trace_id=trace_id,
-                user_id=user_id,
-                timeout_seconds=_PIPELINE_TIMEOUT_SECONDS,
-            )
-            error_msg = "sorry, that took too long. try again?"
-            error_event = json.dumps({"type": "token", "content": error_msg})
-            yield f"data: {error_event}\n\n"
-            collected_tokens.append(error_msg)
+            try:
+                async for chunk in _stream_response(
+                    user_id, request.message, trace_id, context_out
+                ):
+                    if '"type": "token"' in chunk:
+                        try:
+                            data_str = chunk.removeprefix("data: ").strip()
+                            parsed = json.loads(data_str)
+                            if parsed.get("type") == "token":
+                                collected_tokens.append(parsed["content"])
+                        except (json.JSONDecodeError, KeyError):
+                            pass
+                    yield chunk
+                stream_state["completed"] = True
+            except TimeoutError:
+                stream_state["failed"] = True
+                _log.error(
+                    "chat.pipeline_timeout",
+                    trace_id=trace_id,
+                    user_id=user_id,
+                    timeout_seconds=_PIPELINE_TIMEOUT_SECONDS,
+                )
+                error_msg = "sorry, that took too long. try again?"
+                error_event = json.dumps({"type": "token", "content": error_msg})
+                yield f"data: {error_event}\n\n"
+                collected_tokens.append(error_msg)
 
-            done_event = json.dumps({"type": "done"})
-            yield f"data: {done_event}\n\n"
-        except Exception:
-            pipeline_failed = True
-            _log.error(
-                "chat.pipeline_failed",
-                trace_id=trace_id,
-                user_id=user_id,
-                exc_info=True,
-            )
-            error_msg = "sorry, something went wrong on my end. try again?"
-            error_event = json.dumps({"type": "token", "content": error_msg})
-            yield f"data: {error_event}\n\n"
-            collected_tokens.append(error_msg)
+                done_event = json.dumps({"type": "done"})
+                yield f"data: {done_event}\n\n"
+            except Exception:
+                stream_state["failed"] = True
+                _log.error(
+                    "chat.pipeline_failed",
+                    trace_id=trace_id,
+                    user_id=user_id,
+                    exc_info=True,
+                )
+                error_msg = "sorry, something went wrong on my end. try again?"
+                error_event = json.dumps({"type": "token", "content": error_msg})
+                yield f"data: {error_event}\n\n"
+                collected_tokens.append(error_msg)
 
-            done_event = json.dumps({"type": "done"})
-            yield f"data: {done_event}\n\n"
+                done_event = json.dumps({"type": "done"})
+                yield f"data: {done_event}\n\n"
         finally:
-            # Save and dispatch even if client disconnects mid-stream.
-            full_response = "".join(collected_tokens)
-            assistant_msg_id = ""
-            if full_response:
-                try:
-                    assistant_msg = await db.save_message(
-                        user_id=user_id,
-                        role="assistant",
-                        content=full_response,
-                        metadata={
-                            "trace_id": trace_id,
-                            "session_id": request.session_id,
-                            **({"error": True} if pipeline_failed else {}),
-                        },
-                    )
-                    assistant_msg_id = str(assistant_msg["id"])
-                except Exception:
-                    _log.error(
-                        "chat.save_response_failed",
-                        trace_id=trace_id,
-                        user_id=user_id,
-                        exc_info=True,
-                    )
-
-            if context_out and assistant_msg_id and not pipeline_failed:
-                await _dispatch_post_processing(
-                    context_out[0], user_msg_id, assistant_msg_id
+            # Save even if client disconnects mid-stream (generator closed).
+            # BackgroundTask runs after normal completion; this finally block
+            # covers the disconnect case where BackgroundTask would be skipped.
+            if not stream_state.get("saved"):
+                stream_state["saved"] = True
+                await _save_and_dispatch(
+                    user_id=user_id,
+                    trace_id=trace_id,
+                    session_id=request.session_id,
+                    user_msg_id=user_msg_id,
+                    collected_tokens=collected_tokens,
+                    context_out=context_out,
+                    stream_state=stream_state,
                 )
 
     return StreamingResponse(

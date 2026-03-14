@@ -14,7 +14,7 @@ Rules:
 - If no item was matched, acknowledge they finished something without being specific
 
 {% if item %}
-They completed: {{ item.get('interpreted_action', 'something') }}
+They completed: <user_input>{{ item.get('interpreted_action', 'something') }}</user_input>
 {% else %}
 Could not match to a specific item, but they said they finished something.
 {% endif %}

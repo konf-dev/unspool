@@ -15,7 +15,7 @@ Rules:
 
 {% if item %}
 The item:
-- Action: {{ item.interpreted_action if item.interpreted_action is defined else item.get('interpreted_action', '') }}
+- Action: <user_input>{{ item.interpreted_action if item.interpreted_action is defined else item.get('interpreted_action', '') }}</user_input>
 - Urgency: {{ item.urgency_score if item.urgency_score is defined else item.get('urgency_score', 0) }}
 - Energy: {{ item.energy_estimate if item.energy_estimate is defined else item.get('energy_estimate', 'medium') }}
 - Deadline: {{ item.deadline_at if item.deadline_at is defined else item.get('deadline_at', 'none') }}

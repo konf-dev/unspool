@@ -1,0 +1,9 @@
+-r requirements.in
+ruff
+pytest
+pytest-asyncio
+pytest-httpx
+pytest-timeout
+pre-commit
+pip-audit
+pyright

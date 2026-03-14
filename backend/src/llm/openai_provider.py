@@ -1,6 +1,7 @@
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, cast
 
 from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel
 
 from src.config import get_settings
@@ -28,7 +29,7 @@ class OpenAIProvider:
     ) -> LLMResult:
         response = await self._client.chat.completions.create(
             model=model or self._default_model,
-            messages=messages,
+            messages=cast(list[ChatCompletionMessageParam], messages),
             **kwargs,
         )
         if not response.choices:
@@ -49,7 +50,7 @@ class OpenAIProvider:
     ) -> AsyncIterator[StreamChunk]:
         response = await self._client.chat.completions.create(
             model=model or self._default_model,
-            messages=messages,
+            messages=cast(list[ChatCompletionMessageParam], messages),
             stream=True,
             stream_options={"include_usage": True},
             **kwargs,
@@ -76,7 +77,7 @@ class OpenAIProvider:
     ) -> BaseModel:
         response = await self._client.beta.chat.completions.parse(
             model=model or self._default_model,
-            messages=messages,
+            messages=cast(list[ChatCompletionMessageParam], messages),
             response_format=schema,
             **kwargs,
         )

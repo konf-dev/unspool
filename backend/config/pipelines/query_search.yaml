@@ -5,7 +5,7 @@ steps:
   - id: analyze
     type: llm_call
     prompt: analyze_query.md
-    output_schema: json
+    output_schema: QueryAnalysis
 
   - id: fetch
     type: tool_call

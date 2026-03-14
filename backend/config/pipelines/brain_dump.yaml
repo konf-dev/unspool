@@ -5,7 +5,7 @@ steps:
   - id: extract
     type: llm_call
     prompt: brain_dump_extract.md
-    output_schema: json
+    output_schema: ItemExtraction
     model: null  # uses default
 
   - id: enrich

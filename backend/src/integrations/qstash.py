@@ -45,9 +45,7 @@ async def dispatch_job(
             body=payload,
             delay=delay if delay else None,
         )
-        msg_id = (
-            response.message_id if hasattr(response, "message_id") else str(response)
-        )
+        msg_id = str(getattr(response, "message_id", None) or response)
         _log.info(
             "qstash.dispatched",
             endpoint=endpoint,
@@ -126,9 +124,7 @@ async def dispatch_at(
             body=payload,
             not_before=not_before,
         )
-        msg_id = (
-            response.message_id if hasattr(response, "message_id") else str(response)
-        )
+        msg_id = str(getattr(response, "message_id", None) or response)
         _log.info(
             "qstash.scheduled_at",
             endpoint=endpoint,

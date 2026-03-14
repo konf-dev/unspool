@@ -129,7 +129,7 @@ async def _evaluate_trigger(
     condition = trigger_config.get("condition")
     params = trigger_config.get("params", {})
 
-    evaluator = _CONDITION_EVALUATORS.get(condition)
+    evaluator = _CONDITION_EVALUATORS.get(condition or "")
     if not evaluator:
         _log.warning(
             "proactive.unknown_condition", condition=condition, trigger=trigger_name

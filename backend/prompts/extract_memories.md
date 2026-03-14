@@ -11,7 +11,7 @@ Extract factual information about the user from these messages. Facts are things
 
 Messages:
 {% for msg in user_messages %}
-- {{ msg }}
+- <user_input>{{ msg }}</user_input>
 {% endfor %}
 
 Return each fact on its own line, prefixed with "- ". Only include clear, confident facts — not speculation.

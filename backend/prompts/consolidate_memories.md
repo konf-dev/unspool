@@ -7,7 +7,7 @@ Review these stored memories about a user. Identify duplicates, contradictions, 
 
 ## Memories
 {% for mem in memories %}
-- [{{ mem.id }}] {{ mem.content }} (created: {{ mem.created_at }}, confidence: {{ mem.confidence }})
+- [{{ mem.id }}] <user_input>{{ mem.content }}</user_input> (created: {{ mem.created_at }}, confidence: {{ mem.confidence }})
 {% endfor %}
 
 For each memory, decide:
