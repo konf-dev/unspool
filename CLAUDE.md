@@ -152,6 +152,8 @@ unspool/
 - **Target: 1-2 LLM calls per user message.** Classification + extraction + response can often be one structured call. Query searches use 2 (analyze + respond).
 - **All /jobs/* endpoints verify Upstash-Signature header.** Prevents external triggering.
 - **Post-processing dispatched via QStash.** Pipeline YAML defines `post_processing` jobs; `chat.py` dispatches them after saving the assistant response.
+- **60-second pipeline timeout.** If the LLM hangs or a tool stalls, the user gets "sorry, that took too long" instead of infinite spinner. Pipeline crashes show "sorry, something went wrong." Both are saved with `metadata.error=true`.
+- **Graceful degradation.** Redis down → rate limiting skipped (fail open). LLM API down → falls back to conversation intent. Individual tool/step failures are logged but don't crash the pipeline when possible.
 - **All /api/* endpoints verify Supabase JWT.** Extract user_id from token.
 
 ### Database
