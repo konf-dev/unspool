@@ -71,7 +71,9 @@
 
 .message-bubble.error {
   border-color: rgba(196, 115, 109, 0.3);
-  box-shadow: 0 0 12px rgba(196, 115, 109, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow:
+    0 0 12px rgba(196, 115, 109, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .message-bubble.latest {
@@ -131,9 +133,20 @@
   transform: scale(0.94);
 }
 
-.message-bubble.latest .action-buttons .action-btn {
+.message-bubble.latest ~ .action-buttons .action-btn {
   animation: messageEnter 200ms var(--ease-spring) both;
+}
+
+.message-bubble.latest ~ .action-buttons .action-btn:nth-child(1) {
   animation-delay: 80ms;
+}
+
+.message-bubble.latest ~ .action-buttons .action-btn:nth-child(2) {
+  animation-delay: 160ms;
+}
+
+.message-bubble.latest ~ .action-buttons .action-btn:nth-child(3) {
+  animation-delay: 240ms;
 }
 
 .done-dot {
@@ -182,6 +195,19 @@
     opacity: 1;
     transform: translateY(0) translateX(0) scale(1);
   }
+}
+
+.message-bubble.queued {
+  opacity: 0.6;
+}
+
+.queued-icon {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: var(--spacing-xs);
+  vertical-align: middle;
+  opacity: 0.5;
 }
 
 /* Markdown typography */
@@ -252,7 +278,7 @@
   .message-bubble.latest.user {
     animation: none;
   }
-  .message-bubble.latest .action-buttons .action-btn {
+  .message-bubble.latest ~ .action-buttons .action-btn {
     animation: none;
   }
   .message-bubble {

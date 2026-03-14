@@ -11,6 +11,7 @@ interface MessageListProps {
   isStreaming: boolean
   isThinking: boolean
   onAction: (value: string) => void
+  queuedContents?: Set<string>
 }
 
 export function MessageList({
@@ -19,13 +20,13 @@ export function MessageList({
   isStreaming,
   isThinking,
   onAction,
+  queuedContents,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [showJumpToBottom, setShowJumpToBottom] = useState(false)
 
-  const showStreamingBubble =
-    isStreaming && !isThinking && streamingContent !== null
+  const showStreamingBubble = isStreaming && !isThinking && streamingContent !== null
 
   const checkAtBottom = useCallback(() => {
     const el = scrollRef.current
@@ -49,26 +50,22 @@ export function MessageList({
 
   return (
     <div className="message-list-container" role="log" aria-live="polite">
-      <div
-        ref={scrollRef}
-        className="message-list-scroll"
-        onScroll={checkAtBottom}
-      >
+      <div ref={scrollRef} className="message-list-scroll" onScroll={checkAtBottom}>
         <div className="message-list-inner">
           {messages.map((message, index) => (
             <div
               key={message.id}
               style={{
-                paddingTop:
-                  index === 0 ? 'var(--spacing-lg)' : 'var(--spacing-message-gap)',
+                paddingTop: index === 0 ? 'var(--spacing-lg)' : 'var(--spacing-message-gap)',
               }}
             >
               <MessageBubble
                 message={message}
-                isLatest={
-                  !showStreamingBubble &&
-                  !isThinking &&
-                  index === messages.length - 1
+                isLatest={!showStreamingBubble && !isThinking && index === messages.length - 1}
+                isQueued={
+                  message.role === 'user' &&
+                  queuedContents !== undefined &&
+                  queuedContents.has(message.content)
                 }
                 onAction={onAction}
               />

@@ -1,20 +1,22 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import type { Message, ActionButton } from '../types'
 import { sendMessage } from '../lib/api'
 import { useOffline } from '../hooks/useOffline'
 import { usePush } from '../hooks/usePush'
 import { useCatEasterEgg } from '../hooks/useCatEasterEgg'
+import { usePWAInstall } from '../hooks/usePWAInstall'
 import { MessageList } from './MessageList'
 import { InputBar } from './InputBar'
 import { OfflineBanner } from './OfflineBanner'
 import { CatEasterEgg } from './CatEasterEgg'
 import './ChatScreen.css'
 
+const QUEUE_KEY = 'unspool-queue'
+
 function generateId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
   }
-  // Fallback for non-secure contexts (e.g. HTTP on mobile)
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0
     const v = c === 'x' ? r : (r & 0x3) | 0x8
@@ -32,6 +34,18 @@ function getSessionId(): string {
   return id
 }
 
+function loadQueue(): string[] {
+  try {
+    const raw = localStorage.getItem(QUEUE_KEY)
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (Array.isArray(parsed)) return parsed as string[]
+  } catch {
+    // Corrupted data
+  }
+  return []
+}
+
 interface ChatScreenProps {
   initialMessages: Message[]
   token: string
@@ -39,18 +53,24 @@ interface ChatScreenProps {
   onSignOut: () => Promise<void>
 }
 
-export function ChatScreen({ initialMessages, token, userId: _userId, onSignOut }: ChatScreenProps) {
+export function ChatScreen({
+  initialMessages,
+  token,
+  userId: _userId,
+  onSignOut,
+}: ChatScreenProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [streamingContent, setStreamingContent] = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
   const [lastAssistantContent, setLastAssistantContent] = useState<string | null>(null)
-  const [queuedMessages, setQueuedMessages] = useState<string[]>([])
+  const [queuedMessages, setQueuedMessages] = useState<string[]>(loadQueue)
   const abortRef = useRef<AbortController | null>(null)
   const pendingActionsRef = useRef<ActionButton[] | null>(null)
   const firstTokenReceivedRef = useRef(false)
   const userAbortedRef = useRef(false)
   const sessionIdRef = useRef(getSessionId())
+  const pwaPromptShownRef = useRef(false)
 
   const { isOnline } = useOffline()
   const messageCount = messages.length
@@ -63,6 +83,51 @@ export function ChatScreen({ initialMessages, token, userId: _userId, onSignOut 
     isThinking,
     lastAssistantContent,
   )
+
+  const {
+    showPrompt: showPWA,
+    isIOS,
+    triggerInstall,
+    dismiss: dismissPWA,
+  } = usePWAInstall(messageCount)
+
+  // Persist queue to localStorage
+  useEffect(() => {
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(queuedMessages))
+  }, [queuedMessages])
+
+  // Deduplicate queue against fetched messages on mount
+  useEffect(() => {
+    if (initialMessages.length > 0 && queuedMessages.length > 0) {
+      const existingContent = new Set(
+        initialMessages.filter((m) => m.role === 'user').map((m) => m.content),
+      )
+      setQueuedMessages((prev) => prev.filter((text) => !existingContent.has(text)))
+    }
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // PWA install prompt as system message
+  useEffect(() => {
+    if (showPWA && !pwaPromptShownRef.current) {
+      pwaPromptShownRef.current = true
+      const pwaMessage: Message = {
+        id: `pwa-${Date.now()}`,
+        role: 'assistant',
+        content: 'add unspool to your home screen for the full experience',
+        createdAt: new Date().toISOString(),
+        actions: isIOS
+          ? [{ label: 'show me how', value: '__pwa_ios' }]
+          : [
+              { label: 'install', value: '__pwa_install' },
+              { label: 'not now', value: '__pwa_dismiss' },
+            ],
+        metadata: { isSystem: true },
+      }
+      setMessages((prev) => [...prev, pwaMessage])
+    }
+  }, [showPWA, isIOS])
 
   useEffect(() => {
     if (isOnline) {
@@ -276,14 +341,36 @@ export function ChatScreen({ initialMessages, token, userId: _userId, onSignOut 
 
   const handleAction = useCallback(
     (value: string) => {
+      if (value === '__pwa_install') {
+        void triggerInstall()
+        return
+      }
+      if (value === '__pwa_dismiss') {
+        dismissPWA()
+        return
+      }
+      if (value === '__pwa_ios') {
+        const iosMessage: Message = {
+          id: `pwa-ios-${Date.now()}`,
+          role: 'assistant',
+          content:
+            'tap the share button at the bottom of Safari, then scroll down and tap "Add to Home Screen"',
+          createdAt: new Date().toISOString(),
+          metadata: { isSystem: true },
+        }
+        setMessages((prev) => [...prev, iosMessage])
+        return
+      }
       handleSend(value)
     },
-    [handleSend],
+    [handleSend, triggerInstall, dismissPWA],
   )
 
   const handleSignOut = useCallback(() => {
     void onSignOut()
   }, [onSignOut])
+
+  const queuedSet = useMemo(() => new Set(queuedMessages), [queuedMessages])
 
   return (
     <div className="chat-screen">
@@ -292,12 +379,7 @@ export function ChatScreen({ initialMessages, token, userId: _userId, onSignOut 
         <div className="stars-medium" />
         <div className="stars-large" />
       </div>
-      <button
-        className="sign-out-btn"
-        type="button"
-        onClick={handleSignOut}
-        aria-label="Sign out"
-      >
+      <button className="sign-out-btn" type="button" onClick={handleSignOut} aria-label="Sign out">
         sign out
       </button>
       <OfflineBanner visible={!isOnline} />
@@ -308,12 +390,9 @@ export function ChatScreen({ initialMessages, token, userId: _userId, onSignOut 
           isStreaming={isStreaming}
           isThinking={isThinking}
           onAction={handleAction}
+          queuedContents={queuedSet}
         />
-        <InputBar
-          onSend={handleSend}
-          isStreaming={isStreaming || isThinking}
-          onStop={handleStop}
-        />
+        <InputBar onSend={handleSend} isStreaming={isStreaming || isThinking} onStop={handleStop} />
       </div>
       {showCat && <CatEasterEgg variant={variant} onDone={onCatDone} />}
     </div>
