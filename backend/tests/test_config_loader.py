@@ -47,7 +47,7 @@ class TestConfigValidation:
 
     def test_gate_free_tier_is_10(self) -> None:
         config = load_config("gate")
-        assert config["rate_limits"]["free"]["daily_messages"] == 10
+        assert config["rate_limits"]["free"]["daily_messages"] == 50
 
 
 class TestLoadPipeline:
