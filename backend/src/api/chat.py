@@ -151,6 +151,7 @@ async def chat(
     context_out: list[Context] = []
 
     async def wrapped_stream() -> AsyncIterator[str]:
+        pipeline_failed = False
         try:
             async for chunk in _stream_response(
                 user_id, request.message, trace_id, context_out
@@ -164,9 +165,25 @@ async def chat(
                     except (json.JSONDecodeError, KeyError):
                         pass
                 yield chunk
+        except Exception:
+            pipeline_failed = True
+            _log.error(
+                "chat.pipeline_failed",
+                trace_id=trace_id,
+                user_id=user_id,
+                exc_info=True,
+            )
+            # Send a user-friendly error response via SSE so the frontend
+            # shows something instead of silently failing
+            error_msg = "sorry, something went wrong on my end. try again?"
+            error_event = json.dumps({"type": "token", "content": error_msg})
+            yield f"data: {error_event}\n\n"
+            collected_tokens.append(error_msg)
+
+            done_event = json.dumps({"type": "done"})
+            yield f"data: {done_event}\n\n"
         finally:
             # Save and dispatch even if client disconnects mid-stream.
-            # The finally block runs on GeneratorExit, ensuring we don't lose data.
             full_response = "".join(collected_tokens)
             assistant_msg_id = ""
             if full_response:
@@ -175,7 +192,11 @@ async def chat(
                         user_id=user_id,
                         role="assistant",
                         content=full_response,
-                        metadata={"trace_id": trace_id, "session_id": request.session_id},
+                        metadata={
+                            "trace_id": trace_id,
+                            "session_id": request.session_id,
+                            **({"error": True} if pipeline_failed else {}),
+                        },
                     )
                     assistant_msg_id = str(assistant_msg["id"])
                 except Exception:
@@ -186,7 +207,7 @@ async def chat(
                         exc_info=True,
                     )
 
-            if context_out and assistant_msg_id:
+            if context_out and assistant_msg_id and not pipeline_failed:
                 await _dispatch_post_processing(
                     context_out[0], user_msg_id, assistant_msg_id
                 )
