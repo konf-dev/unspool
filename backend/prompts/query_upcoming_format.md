@@ -15,7 +15,7 @@ Rules:
 {% if items %}
 Upcoming items with deadlines:
 {% for item in items %}
-- {{ item.get('interpreted_action', '') }} (deadline: {{ item.get('deadline_at', 'unknown') }}, type: {{ item.get('deadline_type', 'unknown') }})
+- <user_input>{{ item.get('interpreted_action', '') }}</user_input> (deadline: {{ item.get('deadline_at', 'unknown') }}, type: {{ item.get('deadline_type', 'unknown') }})
 {% endfor %}
 {% else %}
 No upcoming deadlines found.

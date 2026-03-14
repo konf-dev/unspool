@@ -13,7 +13,7 @@ For each item, determine:
 - energy_estimate: "low" (quick/easy, under 15 min), "medium" (moderate, 15-45 min), "high" (significant effort, deep focus needed). Judge by the actual task, not individual words.
 - urgency_score: 0.0 to 1.0. Consider deadline proximity, real-world consequences of delay, and whether external parties are waiting. 0.0 = no urgency, 1.0 = must happen today.
 
-User message: {{ user_message }}
+User message: <user_input>{{ user_message }}</user_input>
 
 {% if profile and profile.get('timezone') %}
 User timezone: {{ profile.timezone }}

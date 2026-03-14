@@ -16,6 +16,7 @@ class TestContextPostProcessing:
             user_message="hello",
             post_processing_jobs=jobs,
         )
+        assert ctx.post_processing_jobs is not None
         assert len(ctx.post_processing_jobs) == 1
         assert ctx.post_processing_jobs[0].job == "process_conversation"
         assert ctx.post_processing_jobs[0].delay == "10s"
@@ -82,5 +83,6 @@ class TestPipelinePostProcessing:
         from src.orchestrator.config_loader import load_pipeline
 
         pipeline = load_pipeline("brain_dump")
+        assert pipeline.post_processing is not None
         for job in pipeline.post_processing:
             assert isinstance(job.delay, str), f"Job {job.job} delay should be a string"

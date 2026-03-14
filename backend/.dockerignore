@@ -1,0 +1,11 @@
+.env*
+.git
+.gitignore
+__pycache__
+*.pyc
+tests/
+*.md
+pyrightconfig.json
+requirements-dev.in
+requirements-dev.txt
+.ruff_cache

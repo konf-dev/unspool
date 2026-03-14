@@ -39,6 +39,31 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         importlib.import_module(f"src.tools.{module_name}")
     log.info("tools.registered")
 
+    # Validate all config files and cross-references at startup
+    from src.orchestrator.config_loader import (
+        load_config as _load_cfg,
+        validate_config_references,
+    )
+    from src.orchestrator.config_models import CONFIG_MODELS
+    from src.tools.registry import get_tool_registry
+
+    for config_name in CONFIG_MODELS:
+        try:
+            _load_cfg(config_name)
+            log.info("config.validated", config=config_name)
+        except Exception:
+            log.error("config.validation_failed", config=config_name, exc_info=True)
+            raise
+
+    tool_reg = get_tool_registry()
+    ref_errors = validate_config_references(tool_reg)
+    if ref_errors:
+        for err in ref_errors:
+            log.error("config.cross_ref_error", error=err)
+        raise RuntimeError(
+            f"Config cross-reference validation failed with {len(ref_errors)} error(s)"
+        )
+
     if settings.ENVIRONMENT != "development":
         from src.integrations.qstash import schedule_cron
         from src.orchestrator.config_loader import load_config as _load_config

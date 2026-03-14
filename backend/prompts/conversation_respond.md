@@ -19,7 +19,7 @@ Rules:
 - Do NOT list what you extracted
 - Do NOT say "I've added that to your items"
 
-Their message: {{ message }}
+Their message: <user_input>{{ message }}</user_input>
 
 {% if user_profile %}
 Tone: {{ user_profile.get('tone_preference', 'casual') }}

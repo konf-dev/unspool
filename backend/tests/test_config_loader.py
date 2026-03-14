@@ -1,7 +1,21 @@
+from pathlib import Path
+
 import pytest
 
-from src.orchestrator.config_loader import load_config, load_pipeline, resolve_variable
+from src.orchestrator.config_loader import (
+    load_config,
+    load_pipeline,
+    resolve_variable,
+    validate_config_references,
+)
+from src.orchestrator.config_models import CONFIG_MODELS
 from src.orchestrator.types import Context, StepResult
+
+_PIPELINES_DIR = Path(__file__).resolve().parent.parent / "config" / "pipelines"
+
+
+def _all_pipeline_names() -> list[str]:
+    return sorted(p.stem for p in _PIPELINES_DIR.glob("*.yaml"))
 
 
 class TestLoadConfig:
@@ -24,6 +38,18 @@ class TestLoadConfig:
             load_config("nonexistent_config_xyz")
 
 
+class TestConfigValidation:
+    @pytest.mark.parametrize("config_name", list(CONFIG_MODELS.keys()))
+    def test_all_configs_validate(self, config_name: str) -> None:
+        config = load_config(config_name)
+        model_cls = CONFIG_MODELS[config_name]
+        model_cls.model_validate(config)
+
+    def test_gate_free_tier_is_10(self) -> None:
+        config = load_config("gate")
+        assert config["rate_limits"]["free"]["daily_messages"] == 10
+
+
 class TestLoadPipeline:
     def test_load_brain_dump(self) -> None:
         pipeline = load_pipeline("brain_dump")
@@ -37,27 +63,48 @@ class TestLoadPipeline:
         assert "fetch" in step_ids
         assert "respond" in step_ids
 
-    def test_all_pipelines_load(self) -> None:
-        pipeline_names = [
-            "brain_dump",
-            "conversation",
-            "emotional",
-            "meta",
-            "onboarding",
-            "query_next",
-            "query_search",
-            "query_upcoming",
-            "status_cant",
-            "status_done",
-        ]
-        for name in pipeline_names:
-            pipeline = load_pipeline(name)
-            assert pipeline.name == name
-            assert len(pipeline.steps) > 0, f"Pipeline {name} has no steps"
+    @pytest.mark.parametrize("name", _all_pipeline_names())
+    def test_all_pipelines_load(self, name: str) -> None:
+        pipeline = load_pipeline(name)
+        assert pipeline.name == name
+        assert len(pipeline.steps) > 0, f"Pipeline {name} has no steps"
+
+    @pytest.mark.parametrize("name", _all_pipeline_names())
+    def test_pipeline_steps_have_valid_types(self, name: str) -> None:
+        pipeline = load_pipeline(name)
+        for step in pipeline.steps:
+            # Step.type is a Literal, so Pydantic already validates this,
+            # but this test catches issues if the Literal is out of sync.
+            assert step.type in {
+                "llm_call",
+                "tool_call",
+                "query",
+                "operation",
+                "branch",
+                "transform",
+            }, f"Pipeline {name} step {step.id} has invalid type {step.type}"
 
     def test_missing_pipeline_raises(self) -> None:
         with pytest.raises(FileNotFoundError):
             load_pipeline("nonexistent_pipeline_xyz")
+
+
+class TestCrossReferenceValidation:
+    def test_cross_references_pass(self) -> None:
+        # Import and register tools the same way main.py does
+        import importlib
+        import pkgutil
+
+        import src.tools as _tools_package
+
+        for _, module_name, _ in pkgutil.iter_modules(_tools_package.__path__):
+            importlib.import_module(f"src.tools.{module_name}")
+
+        from src.tools.registry import get_tool_registry
+
+        tool_reg = get_tool_registry()
+        errors = validate_config_references(tool_reg)
+        assert errors == [], f"Cross-reference errors: {errors}"
 
 
 class TestResolveVariable:

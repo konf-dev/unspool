@@ -1,15 +1,16 @@
 import hashlib
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import ValidationError
 
 from src.config import get_settings
+from src.orchestrator.config_models import CONFIG_MODELS
 from src.orchestrator.types import (
     Context,
     Pipeline,
-    PostProcessingJob,
-    Step,
     StepResult,
 )
 from src.telemetry.logger import get_logger
@@ -17,6 +18,7 @@ from src.telemetry.logger import get_logger
 _log = get_logger("orchestrator.config")
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+_PROMPTS_DIR = Path(__file__).resolve().parent.parent.parent / "prompts"
 
 _pipeline_cache: dict[str, tuple[Pipeline, float]] = {}
 _config_cache: dict[str, tuple[dict[str, Any], float]] = {}
@@ -50,39 +52,7 @@ def load_pipeline(name: str) -> Pipeline:
     file_hash = hashlib.sha256(raw_bytes).hexdigest()[:12]
     _config_hashes[f"pipeline:{name}"] = file_hash
 
-    steps = []
-    for step_raw in raw.get("steps", []):
-        steps.append(
-            Step(
-                id=step_raw["id"],
-                type=step_raw["type"],
-                prompt=step_raw.get("prompt"),
-                model=step_raw.get("model"),
-                tool=step_raw.get("tool"),
-                query=step_raw.get("query"),
-                operation=step_raw.get("operation"),
-                input=step_raw.get("input"),
-                output_schema=step_raw.get("output_schema"),
-                stream=step_raw.get("stream", False),
-                conditions=step_raw.get("conditions"),
-                transform=step_raw.get("transform"),
-                retry=step_raw.get("retry"),
-            )
-        )
-
-    post = None
-    if "post_processing" in raw:
-        post = [
-            PostProcessingJob(job=p["job"], delay=p.get("delay", "0s"))
-            for p in raw["post_processing"]
-        ]
-
-    pipeline = Pipeline(
-        name=raw.get("name", name),
-        description=raw.get("description", ""),
-        steps=steps,
-        post_processing=post,
-    )
+    pipeline = Pipeline.model_validate(raw)
 
     _pipeline_cache[name] = (pipeline, _file_mtime(path))
     return pipeline
@@ -108,8 +78,60 @@ def load_config(name: str) -> dict[str, Any]:
     file_hash = hashlib.sha256(raw_bytes).hexdigest()[:12]
     _config_hashes[f"config:{name}"] = file_hash
 
+    model_cls = CONFIG_MODELS.get(name)
+    if model_cls:
+        try:
+            model_cls.model_validate(raw)
+        except ValidationError as exc:
+            _log.error("config.validation_failed", config=name, errors=str(exc))
+            raise
+
     _config_cache[name] = (raw, _file_mtime(path))
     return raw
+
+
+def validate_config_references(
+    tool_registry: dict[str, Callable[..., Any]],
+) -> list[str]:
+    errors: list[str] = []
+
+    # Check intents → pipeline files
+    try:
+        intents = load_config("intents")
+        for intent_name, intent_def in intents.get("intents", {}).items():
+            pipeline_name = intent_def.get("pipeline", intent_name)
+            pipeline_path = _CONFIG_DIR / "pipelines" / f"{pipeline_name}.yaml"
+            if not pipeline_path.exists():
+                errors.append(
+                    f"Intent '{intent_name}' references pipeline '{pipeline_name}' "
+                    f"but {pipeline_path} does not exist"
+                )
+    except (FileNotFoundError, ValidationError) as exc:
+        errors.append(f"Failed to load intents config: {exc}")
+
+    # Check pipeline steps → tools and prompts
+    pipelines_dir = _CONFIG_DIR / "pipelines"
+    for pipeline_path in sorted(pipelines_dir.glob("*.yaml")):
+        pipeline_name = pipeline_path.stem
+        try:
+            pipeline = load_pipeline(pipeline_name)
+            for step in pipeline.steps:
+                if step.tool and step.tool not in tool_registry:
+                    errors.append(
+                        f"Pipeline '{pipeline_name}' step '{step.id}' references "
+                        f"tool '{step.tool}' which is not registered"
+                    )
+                if step.prompt:
+                    prompt_path = _PROMPTS_DIR / step.prompt
+                    if not prompt_path.exists():
+                        errors.append(
+                            f"Pipeline '{pipeline_name}' step '{step.id}' references "
+                            f"prompt '{step.prompt}' but {prompt_path} does not exist"
+                        )
+        except (FileNotFoundError, ValidationError) as exc:
+            errors.append(f"Failed to load pipeline '{pipeline_name}': {exc}")
+
+    return errors
 
 
 def resolve_variable(
@@ -120,7 +142,7 @@ def resolve_variable(
     if not isinstance(template, str) or not template.startswith("${"):
         return template
 
-    path = template.strip("${}").strip()
+    path = template.removeprefix("${").removesuffix("}").strip()
 
     if path == "user_message":
         return context.user_message
