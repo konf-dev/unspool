@@ -111,6 +111,25 @@ async def get_messages(
     return [dict(r) for r in rows]
 
 
+async def get_messages_by_ids(
+    user_id: str, message_ids: list[str],
+) -> list[dict[str, Any]]:
+    if not message_ids:
+        return []
+    pool = _get_pool()
+    rows = await pool.fetch(
+        """
+        SELECT id, user_id, role, content, created_at, metadata
+        FROM messages
+        WHERE user_id = $1 AND id = ANY($2::uuid[])
+        ORDER BY created_at ASC
+        """,
+        user_id,
+        message_ids,
+    )
+    return [dict(r) for r in rows]
+
+
 async def save_item(
     user_id: str,
     raw_text: str,
@@ -146,15 +165,17 @@ async def save_item(
     return dict(row)
 
 
-async def get_open_items(user_id: str) -> list[dict[str, Any]]:
+async def get_open_items(user_id: str, limit: int = 50) -> list[dict[str, Any]]:
     pool = _get_pool()
     rows = await pool.fetch(
         """
         SELECT * FROM items
         WHERE user_id = $1 AND status = 'open'
         ORDER BY urgency_score DESC, created_at DESC
+        LIMIT $2
         """,
         user_id,
+        limit,
     )
     return [dict(r) for r in rows]
 
@@ -621,7 +642,8 @@ async def batch_update_items(updates: list[dict[str, Any]]) -> None:
     pool = _get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            for upd in updates:
+            for original in updates:
+                upd = dict(original)  # copy to avoid mutating caller's dicts
                 item_id = upd.pop("id")
                 user_id = upd.pop("user_id")
                 if not upd:
@@ -791,6 +813,216 @@ async def get_completion_stats(user_id: str) -> dict[str, Any]:
         "total_completed": total,
         "avg_daily": round(total / 30, 2) if total else 0.0,
     }
+
+
+async def get_message_activity(user_id: str, days: int = 30) -> list[dict[str, Any]]:
+    pool = _get_pool()
+    rows = await pool.fetch(
+        """
+        SELECT created_at::date AS day,
+               COUNT(*) FILTER (WHERE role = 'user') AS user_msgs,
+               COUNT(*) FILTER (WHERE role = 'assistant') AS assistant_msgs
+        FROM messages
+        WHERE user_id = $1
+          AND created_at > now() - ($2 || ' days')::interval
+        GROUP BY day
+        ORDER BY day
+        """,
+        user_id,
+        str(days),
+    )
+    return [dict(r) for r in rows]
+
+
+async def get_user_messages_text(
+    user_id: str, days: int = 30, limit: int = 50,
+) -> list[str]:
+    pool = _get_pool()
+    rows = await pool.fetch(
+        """
+        SELECT content FROM messages
+        WHERE user_id = $1 AND role = 'user'
+          AND created_at > now() - ($2 || ' days')::interval
+        ORDER BY created_at DESC
+        LIMIT $3
+        """,
+        user_id,
+        str(days),
+        limit,
+    )
+    return [r["content"] for r in rows]
+
+
+async def get_user_first_interaction(user_id: str) -> str | None:
+    pool = _get_pool()
+    row = await pool.fetchrow(
+        "SELECT MIN(created_at) AS first_at FROM messages WHERE user_id = $1",
+        user_id,
+    )
+    if row and row["first_at"]:
+        return row["first_at"].isoformat()
+    return None
+
+
+# --- Filtered query functions (used by smart_fetch tool) ---
+
+
+async def get_items_filtered(
+    user_id: str,
+    entity_id: str | None = None,
+    since: "datetime | None" = None,
+    status: str | None = None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    pool = _get_pool()
+    conditions = ["user_id = $1"]
+    params: list[Any] = [user_id]
+    idx = 2
+
+    if status and status != "all":
+        conditions.append(f"status = ${idx}")
+        params.append(status)
+        idx += 1
+    if since:
+        conditions.append(f"created_at >= ${idx}")
+        params.append(since)
+        idx += 1
+    if entity_id:
+        conditions.append(f"${idx} = ANY(entity_ids)")
+        params.append(entity_id)
+        idx += 1
+
+    where = " AND ".join(conditions)
+    params.append(limit)
+    query = f"""
+        SELECT * FROM items
+        WHERE {where}
+        ORDER BY created_at DESC
+        LIMIT ${idx}
+    """
+    rows = await pool.fetch(query, *params)
+    return [dict(r) for r in rows]
+
+
+async def get_memories_filtered(
+    user_id: str,
+    since: "datetime | None" = None,
+    search_text: str | None = None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    pool = _get_pool()
+    conditions = ["user_id = $1"]
+    params: list[Any] = [user_id]
+    idx = 2
+
+    if since:
+        conditions.append(f"created_at >= ${idx}")
+        params.append(since)
+        idx += 1
+    if search_text:
+        conditions.append(f"search_text @@ plainto_tsquery('english', ${idx})")
+        params.append(search_text)
+        idx += 1
+
+    where = " AND ".join(conditions)
+    params.append(limit)
+    query = f"""
+        SELECT * FROM memories
+        WHERE {where}
+        ORDER BY created_at DESC
+        LIMIT ${idx}
+    """
+    rows = await pool.fetch(query, *params)
+    return [dict(r) for r in rows]
+
+
+async def get_messages_filtered(
+    user_id: str,
+    since: "datetime | None" = None,
+    search_text: str | None = None,
+    role: str | None = None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    pool = _get_pool()
+    conditions = ["user_id = $1"]
+    params: list[Any] = [user_id]
+    idx = 2
+
+    if since:
+        conditions.append(f"created_at >= ${idx}")
+        params.append(since)
+        idx += 1
+    if search_text:
+        conditions.append(f"content ILIKE ${idx} ESCAPE '\\'")
+        escaped = search_text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        params.append(f"%{escaped}%")
+        idx += 1
+    if role:
+        conditions.append(f"role = ${idx}")
+        params.append(role)
+        idx += 1
+
+    where = " AND ".join(conditions)
+    params.append(limit)
+    query = f"""
+        SELECT id, role, content, created_at FROM messages
+        WHERE {where}
+        ORDER BY created_at DESC
+        LIMIT ${idx}
+    """
+    rows = await pool.fetch(query, *params)
+    return [dict(r) for r in rows]
+
+
+async def get_calendar_events_filtered(
+    user_id: str,
+    since: "datetime | None" = None,
+    until: "datetime | None" = None,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    pool = _get_pool()
+    conditions = ["user_id = $1"]
+    params: list[Any] = [user_id]
+    idx = 2
+
+    if since:
+        conditions.append(f"start_at >= ${idx}")
+        params.append(since)
+        idx += 1
+    if until:
+        conditions.append(f"start_at <= ${idx}")
+        params.append(until)
+        idx += 1
+
+    where = " AND ".join(conditions)
+    params.append(limit)
+    query = f"""
+        SELECT * FROM calendar_events
+        WHERE {where}
+        ORDER BY start_at ASC
+        LIMIT ${idx}
+    """
+    rows = await pool.fetch(query, *params)
+    return [dict(r) for r in rows]
+
+
+async def resolve_entity(user_id: str, name: str) -> str | None:
+    pool = _get_pool()
+    # Use case-insensitive exact match, not ILIKE, to prevent wildcard injection
+    row = await pool.fetchrow(
+        """
+        SELECT id FROM entities
+        WHERE user_id = $1 AND (LOWER(name) = LOWER($2) OR LOWER($2) = ANY(
+            SELECT LOWER(a) FROM unnest(aliases) AS a
+        ))
+        LIMIT 1
+        """,
+        user_id,
+        name,
+    )
+    if row:
+        return str(row["id"])
+    return None
 
 
 async def create_subscription(

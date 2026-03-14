@@ -2,14 +2,13 @@ import re
 
 from src.db.supabase import (
     get_items_without_embeddings,
-    get_messages,
+    get_messages_by_ids,
     save_entity,
     save_item_event,
     save_memory,
     update_item_embedding,
 )
-from src.llm.embedding import OpenAIEmbedding
-from src.llm.registry import get_llm_provider
+from src.llm.registry import get_embedding_provider, get_llm_provider
 from src.orchestrator.prompt_renderer import render_prompt
 from src.telemetry.logger import get_logger
 
@@ -30,10 +29,9 @@ async def run_process_conversation(user_id: str, message_ids: list[str]) -> dict
         message_count=len(message_ids),
     )
 
-    messages = await get_messages(user_id, limit=len(message_ids))
-    relevant = [m for m in messages if str(m["id"]) in message_ids]
+    relevant = await get_messages_by_ids(user_id, message_ids)
 
-    embedder = OpenAIEmbedding()
+    embedder = get_embedding_provider()
     items = await get_items_without_embeddings(user_id)
     embedded_count = 0
     for item in items:

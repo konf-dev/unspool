@@ -9,6 +9,7 @@ _log = get_logger("tools.item_matching")
 
 
 def _text_similarity(query: str, candidate: str) -> float:
+    """Jaccard word overlap — used as a fallback when items lack search_text."""
     query_words = set(query.lower().split())
     candidate_words = set(candidate.lower().split())
     if not query_words or not candidate_words:
@@ -29,9 +30,22 @@ async def fuzzy_match_item(
         config = {}
 
     matching_config = config.get("matching", {})
-    min_similarity = matching_config.get("min_similarity", 0.1)
+    min_similarity = matching_config.get("min_similarity", 0.3)
     substring_boost = matching_config.get("substring_boost", 0.7)
 
+    # Try full-text search first — uses the search_text tsvector column.
+    # Filter to open items only since this is used for "done" / "skip" matching.
+    text_results = await db.search_items_text(user_id, text, limit=5)
+    open_results = [r for r in text_results if r.get("status") == "open"]
+    if open_results:
+        _log.info(
+            "fuzzy_match.text_search_hit",
+            user_id=user_id,
+            count=len(open_results),
+        )
+        return open_results[0]
+
+    # Fall back to word overlap + substring matching
     items = await db.get_open_items(user_id)
     if not items:
         return None

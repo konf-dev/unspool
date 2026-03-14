@@ -46,6 +46,7 @@ class Context:
     entities: list[dict[str, Any]] | None = None
     calendar_events: list[dict[str, Any]] | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    post_processing_jobs: list["PostProcessingJob"] | None = None
 
 
 @dataclass

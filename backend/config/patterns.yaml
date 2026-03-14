@@ -1,0 +1,39 @@
+# Pattern detection configuration.
+# Each analysis runs during the daily detect_patterns job unless run_on is set.
+# type: db_only — pure SQL aggregation, no LLM call
+# type: llm_analysis — renders a prompt template and calls the LLM
+
+analyses:
+  completion_stats:
+    type: db_only
+    enabled: true
+    description: Completion counts by day of week and averages
+
+  behavioral_patterns:
+    type: llm_analysis
+    enabled: true
+    description: Detect productivity patterns — best times, energy flow, avoidance
+    prompt: detect_behavioral_patterns.md
+    min_data_days: 14
+    lookback_days: 30
+    confidence_threshold: 0.7
+
+  preference_inference:
+    type: llm_analysis
+    enabled: true
+    description: Infer communication and task preferences from message style
+    prompt: detect_preferences.md
+    min_data_days: 7
+    lookback_days: 30
+    confidence_threshold: 0.6
+
+  memory_consolidation:
+    type: llm_analysis
+    enabled: true
+    description: Consolidate duplicate or contradictory memories
+    prompt: consolidate_memories.md
+    min_memories: 10
+    confidence_threshold: 0.8
+    run_on: process_conversation
+
+output_field: patterns
