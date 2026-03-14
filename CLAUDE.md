@@ -70,6 +70,7 @@ unspool/
 │   ├── SCHEMA.md          # Database schema reference
 │   ├── PIPELINE_FORMAT.md # Pipeline YAML format spec
 │   ├── DEPLOY.md          # Deployment guide
+│   ├── OBSERVABILITY.md   # Admin API, Langfuse, debugging guide
 │   └── TOOLS.md           # Tool registry reference
 ├── frontend/              # React + Vite PWA
 │   ├── public/
@@ -109,7 +110,8 @@ unspool/
 │   ├── src/
 │   │   ├── main.py        # FastAPI app entry
 │   │   ├── config.py      # Settings from env vars
-│   │   ├── api/           # chat.py, messages.py, subscribe.py, auth_token.py
+│   │   ├── api/           # chat.py, messages.py, subscribe.py, auth_token.py,
+│   │   │                  # admin.py
 │   │   ├── jobs/          # check_deadlines, decay_urgency, process_conversation,
 │   │   │                  # sync_calendar, detect_patterns, reset_notifications
 │   │   ├── orchestrator/  # engine.py, intent.py, context.py, config_loader.py,
@@ -121,8 +123,9 @@ unspool/
 │   │   │                  # embedding.py, registry.py
 │   │   ├── db/            # supabase.py (asyncpg), redis.py (Upstash)
 │   │   ├── integrations/  # google_calendar.py, stripe.py, push.py, qstash.py
-│   │   ├── auth/          # supabase_auth.py, qstash_auth.py
-│   │   └── telemetry/     # logger.py, events.py, middleware.py
+│   │   ├── auth/          # supabase_auth.py, qstash_auth.py, admin_auth.py
+│   │   └── telemetry/     # logger.py, events.py, middleware.py,
+│   │                      # langfuse_integration.py
 │   ├── tests/
 │   ├── requirements.txt
 │   ├── Dockerfile
@@ -266,6 +269,12 @@ GOOGLE_CLIENT_SECRET=
 LLM_API_KEY=
 LLM_MODEL=
 
+# Admin & Observability
+ADMIN_API_KEY=
+LANGFUSE_HOST=
+LANGFUSE_PUBLIC_KEY=
+LANGFUSE_SECRET_KEY=
+
 # App
 ENVIRONMENT=development
 FRONTEND_URL=http://localhost:5173
@@ -314,6 +323,7 @@ Read these before making architectural decisions:
 - `docs/ORCHESTRATOR_FLOW.md` — Every message processing path
 - `docs/FRONTEND_SPEC.md` — Detailed UI/UX spec with platform compatibility notes
 - `docs/DEPLOY.md` — Infrastructure setup and deployment procedures
+- `docs/OBSERVABILITY.md` — Admin API, Langfuse tracing, debugging workflows
 - `docs/DEPLOYMENT_LOG.md` — Exact steps followed, issues hit, and current production state
 
 ## Quick Commands

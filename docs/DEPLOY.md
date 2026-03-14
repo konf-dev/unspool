@@ -129,6 +129,10 @@ ENVIRONMENT=production
 FRONTEND_URL=https://unspool.life
 VAPID_PRIVATE_KEY
 VAPID_PUBLIC_KEY
+ADMIN_API_KEY
+LANGFUSE_HOST
+LANGFUSE_PUBLIC_KEY
+LANGFUSE_SECRET_KEY
 STRIPE_SECRET_KEY
 STRIPE_WEBHOOK_SECRET
 GOOGLE_CLIENT_ID
@@ -225,6 +229,22 @@ Set `VITE_USE_MOCKS=true` in `frontend/.env.development` to run the frontend wit
 | POST | `/api/push/subscribe` | Save Web Push subscription |
 | DELETE | `/api/account` | Delete all user data (irreversible, cascade across all tables) |
 
+### Admin (`/admin/*` — requires `X-Admin-Key` header)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/admin/trace/{trace_id}` | Full trace: messages + LLM usage for a request |
+| GET | `/admin/user/{user_id}/messages?limit=50` | User's conversation history |
+| GET | `/admin/user/{user_id}/items?status=open` | User's items by status |
+| GET | `/admin/user/{user_id}/profile` | Full profile including patterns |
+| GET | `/admin/jobs/recent?limit=20` | Recent LLM usage entries |
+| GET | `/admin/errors?limit=20` | Messages with `metadata.error=true` |
+
+Usage:
+```bash
+curl -H "X-Admin-Key: $ADMIN_API_KEY" https://api.unspool.life/admin/errors | jq
+```
+
 ### Background jobs (`/jobs/*` — requires QStash signature)
 
 | Method | Path | Schedule |
@@ -240,6 +260,8 @@ Set `VITE_USE_MOCKS=true` in `frontend/.env.development` to run the frontend wit
 
 ## Monitoring
 
+- **Langfuse:** Trace waterfall for every request — prompts, LLM responses, tool I/O, latency, token usage. Dashboard at [cloud.langfuse.com](https://cloud.langfuse.com). See `docs/OBSERVABILITY.md` for details.
+- **Admin API:** CLI access to traces, user data, errors. See API Endpoints → Admin section above.
 - **LLM usage:** Query the `llm_usage` table for token spend per pipeline/model
 - **Health:** `GET /health` returns `{"status": "ok"}`
 - **Logs:** Structured JSON via structlog — Railway captures stdout automatically
@@ -272,7 +294,7 @@ We use **GitHub Flow** — short-lived feature branches off `main`, merged via P
 Monorepo-aware CI using `dorny/paths-filter`:
 
 1. **detect-changes** — determines which directories changed
-2. **test-backend** — Python 3.11, `pip install`, `pytest -x --timeout=30` (only if `backend/` changed)
+2. **test-backend** — Python 3.11, `pip install`, `ruff check`, `ruff format --check`, `pytest -x --timeout=30` (only if `backend/` changed)
 3. **check-frontend** — Node 22, `npm ci`, `npm run build` (only if `frontend/` changed)
 
 ### Auto-deploy
