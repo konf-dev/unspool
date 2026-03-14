@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from src.auth.supabase_auth import get_current_user
 from src.db import redis, supabase as db
+from src.integrations.qstash import dispatch_job
 from src.orchestrator.config_loader import load_config
 from src.orchestrator.context import assemble_context
 from src.orchestrator.engine import execute_pipeline
@@ -56,6 +57,7 @@ async def _stream_response(
     user_id: str,
     message: str,
     trace_id: str,
+    context_out: list[Context],
 ) -> AsyncIterator[str]:
     context = Context(
         user_id=user_id,
@@ -80,8 +82,36 @@ async def _stream_response(
         event = json.dumps({"type": "token", "content": token})
         yield f"data: {event}\n\n"
 
+    context_out.append(context)
+
     done_event = json.dumps({"type": "done"})
     yield f"data: {done_event}\n\n"
+
+
+async def _dispatch_post_processing(
+    context: Context,
+    user_msg_id: str,
+    assistant_msg_id: str,
+) -> None:
+    if not context.post_processing_jobs:
+        return
+
+    try:
+        jobs_config = load_config("jobs")
+    except FileNotFoundError:
+        _log.warning("chat.jobs_config_missing")
+        return
+
+    dispatch_map = jobs_config.get("dispatch_map", {})
+
+    for job in context.post_processing_jobs:
+        endpoint = dispatch_map.get(job.job, job.job.replace("_", "-"))
+        payload = {
+            "user_id": context.user_id,
+            "trace_id": context.trace_id,
+            "message_ids": [user_msg_id, assistant_msg_id],
+        }
+        await dispatch_job(endpoint, payload, delay=job.delay)
 
 
 @router.post("/chat")
@@ -100,45 +130,57 @@ async def chat(
 
     await _check_gate(user_id)
 
-    await db.save_message(
+    user_msg = await db.save_message(
         user_id=user_id,
         role="user",
         content=request.message,
         metadata={"trace_id": trace_id, "session_id": request.session_id},
     )
+    user_msg_id = str(user_msg["id"])
 
     collected_tokens: list[str] = []
+    context_out: list[Context] = []
 
     async def wrapped_stream() -> AsyncIterator[str]:
-        async for chunk in _stream_response(user_id, request.message, trace_id):
-            if '"type": "token"' in chunk:
+        try:
+            async for chunk in _stream_response(
+                user_id, request.message, trace_id, context_out
+            ):
+                if '"type": "token"' in chunk:
+                    try:
+                        data_str = chunk.removeprefix("data: ").strip()
+                        parsed = json.loads(data_str)
+                        if parsed.get("type") == "token":
+                            collected_tokens.append(parsed["content"])
+                    except (json.JSONDecodeError, KeyError):
+                        pass
+                yield chunk
+        finally:
+            # Save and dispatch even if client disconnects mid-stream.
+            # The finally block runs on GeneratorExit, ensuring we don't lose data.
+            full_response = "".join(collected_tokens)
+            assistant_msg_id = ""
+            if full_response:
                 try:
-                    data_str = chunk.removeprefix("data: ").strip()
-                    parsed = json.loads(data_str)
-                    if parsed.get("type") == "token":
-                        collected_tokens.append(parsed["content"])
-                except (json.JSONDecodeError, KeyError):
-                    pass
-            yield chunk
+                    assistant_msg = await db.save_message(
+                        user_id=user_id,
+                        role="assistant",
+                        content=full_response,
+                        metadata={"trace_id": trace_id, "session_id": request.session_id},
+                    )
+                    assistant_msg_id = str(assistant_msg["id"])
+                except Exception:
+                    _log.error(
+                        "chat.save_response_failed",
+                        trace_id=trace_id,
+                        user_id=user_id,
+                        exc_info=True,
+                    )
 
-        full_response = "".join(collected_tokens)
-        if full_response:
-            try:
-                await db.save_message(
-                    user_id=user_id,
-                    role="assistant",
-                    content=full_response,
-                    metadata={"trace_id": trace_id, "session_id": request.session_id},
+            if context_out and assistant_msg_id:
+                await _dispatch_post_processing(
+                    context_out[0], user_msg_id, assistant_msg_id
                 )
-            except Exception:
-                _log.error(
-                    "chat.save_response_failed",
-                    trace_id=trace_id,
-                    user_id=user_id,
-                    exc_info=True,
-                )
-
-        _log.info("chat.post_processing_scheduled", trace_id=trace_id)
 
     return StreamingResponse(
         wrapped_stream(),

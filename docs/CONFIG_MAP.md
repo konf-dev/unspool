@@ -1,6 +1,6 @@
 # Config Map (auto-generated — do not edit)
 
-Generated: 2026-03-13 20:00 UTC | Git: 05e2200
+Generated: 2026-03-14 05:30 UTC | Git: 4ef75e0
 
 Intents config: `config/intents.yaml` (2bbcfb57edbd)
 Context rules: `config/context_rules.yaml` (ed199732d456)
@@ -17,7 +17,7 @@ Context: profile, recent_messages | optional: entities
 
 | Step | Type | Config | Hash |
 |------|------|--------|------|
-| extract | llm_call | `prompts/brain_dump_extract.md` | 419c2cbf1e86 |
+| extract | llm_call | `prompts/brain_dump_extract.md` | b7e1abb69824 |
 | enrich | tool_call | enrich_items | — |
 | save | tool_call | save_items | — |
 | respond | llm_call (stream) | `prompts/brain_dump_respond.md` | e5f3c0dbdac9 |
@@ -105,15 +105,15 @@ Context: profile, open_items, urgent_items, recent_messages | optional: calendar
 
 _User searching for something specific they told you about_
 
-Pipeline: `config/pipelines/query_search.yaml` (3aa769c3316d)
+Pipeline: `config/pipelines/query_search.yaml` (6b231539c9c5)
 
 Context: profile, recent_messages
 
 | Step | Type | Config | Hash |
 |------|------|--------|------|
-| embed_query | tool_call | generate_embedding | — |
-| search | tool_call | search_hybrid | — |
-| respond | llm_call (stream) | `prompts/query_search_format.md` | fe6bb563553a |
+| analyze | llm_call | `prompts/analyze_query.md` | 9c08e347d039 |
+| fetch | tool_call | smart_fetch | — |
+| respond | llm_call (stream) | `prompts/query_deep_respond.md` | 6ec368552a37 |
 
 ---
 
@@ -170,12 +170,16 @@ Context: profile, open_items, recent_messages
 These prompt files exist in `prompts/` but are not referenced by any pipeline:
 
 - `prompts/classify_intent.md` (67dc30d9ae02)
+- `prompts/consolidate_memories.md` (1bb5fec373b7)
+- `prompts/detect_behavioral_patterns.md` (278f6bcd37a4)
+- `prompts/detect_preferences.md` (43f579cfc9df)
 - `prompts/extract_memories.md` (e02ca444a54f)
 - `prompts/proactive_deadline.md` (bf92f97c87f6)
 - `prompts/proactive_long_absence.md` (94a4d7f80e5e)
 - `prompts/proactive_momentum.md` (723255a46657)
 - `prompts/proactive_slipped.md` (f82689db55f5)
 - `prompts/proactive_welcome_back.md` (26ed412e7a0b)
+- `prompts/query_search_format.md` (fe6bb563553a)
 - `prompts/system.md` (6b61a9716880)
 
 ## Config Files
@@ -185,9 +189,11 @@ These prompt files exist in `prompts/` but are not referenced by any pipeline:
 | `config/context_rules.yaml` | ed199732d456 |
 | `config/gate.yaml` | 04e355cf1fcc |
 | `config/intents.yaml` | 2bbcfb57edbd |
+| `config/jobs.yaml` | 6a771b1867b2 |
+| `config/patterns.yaml` | d9520794840f |
 | `config/proactive.yaml` | 3ae2be6602fb |
 | `config/queries.yaml` | 2750d030150b |
-| `config/scoring.yaml` | 901f9dcb23c7 |
+| `config/scoring.yaml` | a39cfef9e916 |
 | `config/variants.yaml` | 6b8de9494654 |
 | `config/pipelines/brain_dump.yaml` | 8e7f1dec822b |
 | `config/pipelines/conversation.yaml` | ca728c73bf6c |
@@ -195,7 +201,7 @@ These prompt files exist in `prompts/` but are not referenced by any pipeline:
 | `config/pipelines/meta.yaml` | 7171338a6371 |
 | `config/pipelines/onboarding.yaml` | 7793dc50bd64 |
 | `config/pipelines/query_next.yaml` | b26ef31f1bce |
-| `config/pipelines/query_search.yaml` | 3aa769c3316d |
+| `config/pipelines/query_search.yaml` | 6b231539c9c5 |
 | `config/pipelines/query_upcoming.yaml` | 124f91e6d31e |
 | `config/pipelines/status_cant.yaml` | ac59377069bb |
 | `config/pipelines/status_done.yaml` | 87c6d161baa4 |
