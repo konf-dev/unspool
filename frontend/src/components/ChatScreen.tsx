@@ -81,14 +81,6 @@ export function ChatScreen({ initialMessages, token, userId: _userId, onSignOut 
       const rest = queue.slice(1)
       setQueuedMessages(rest)
 
-      const userMessage: Message = {
-        id: `user-${Date.now()}`,
-        role: 'user',
-        content: first,
-        createdAt: new Date().toISOString(),
-      }
-
-      setMessages((prev) => [...prev, userMessage])
       setIsThinking(true)
       setIsStreaming(true)
       setStreamingContent('')
