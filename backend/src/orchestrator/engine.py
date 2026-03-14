@@ -25,6 +25,48 @@ from src.telemetry.logger import get_logger
 _log = get_logger("orchestrator.engine")
 
 
+def _extract_json(content: str, step_id: str) -> Any:
+    """Extract JSON from LLM output, handling common formatting issues.
+
+    LLMs frequently:
+    1. Wrap JSON in ```json...``` code fences
+    2. Add explanatory text before/after the JSON
+    3. Return clean JSON (the happy path)
+
+    Returns the parsed dict/list, or {} if all extraction attempts fail.
+    """
+    raw = content.strip()
+
+    # Try 1: Direct parse (happy path)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    # Try 2: Strip markdown code fences
+    fence_match = re.search(r"```(?:json)?\s*\n?(.*?)```", raw, re.DOTALL)
+    if fence_match:
+        try:
+            return json.loads(fence_match.group(1).strip())
+        except json.JSONDecodeError:
+            pass
+
+    # Try 3: Find the first { or [ and parse from there
+    for i, ch in enumerate(raw):
+        if ch in "{[":
+            try:
+                return json.loads(raw[i:])
+            except json.JSONDecodeError:
+                break
+
+    _log.warning(
+        "llm.json_parse_failed",
+        step_id=step_id,
+        content_preview=content[:300],
+    )
+    return {}
+
+
 def _truncate(value: Any, max_len: int = 300) -> Any:
     """Truncate a value for safe logging. Handles strings, dicts, lists."""
     if isinstance(value, str):
@@ -207,22 +249,7 @@ async def _execute_llm_step(
 
         output: Any = result.content
         if step.output_schema:
-            raw = result.content.strip()
-            # Strip markdown code fences — LLMs commonly wrap JSON in ```json...```
-            fence_match = re.search(r"```(?:json)?\s*\n?(.*?)```", raw, re.DOTALL)
-            if fence_match:
-                raw = fence_match.group(1).strip()
-            try:
-                output = json.loads(raw)
-            except json.JSONDecodeError:
-                _log.warning(
-                    "llm.json_parse_failed",
-                    step_id=step.id,
-                    content_preview=result.content[:200],
-                )
-                # Return empty dict instead of raw string so downstream
-                # steps/templates expecting a dict don't crash on .get()
-                output = {}
+            output = _extract_json(result.content, step.id)
 
         yield None, StepResult(
             step_id=step.id,
