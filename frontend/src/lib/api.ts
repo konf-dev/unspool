@@ -59,7 +59,6 @@ export function sendMessage(
     onerror(err) {
       console.error('SSE error:', err)
       onError?.(err)
-      onDone?.()
       throw err
     },
   })

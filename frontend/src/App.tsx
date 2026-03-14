@@ -110,12 +110,23 @@ export function App() {
     }
 
     if (prevScreen !== currentScreen) {
-      setFadeClass('app-screen')
-      const timer = setTimeout(() => {
-        setPrevScreen(currentScreen)
+      const doc = document as Document & {
+        startViewTransition?: (cb: () => void) => void
+      }
+
+      if (doc.startViewTransition) {
+        doc.startViewTransition(() => {
+          setPrevScreen(currentScreen)
+        })
         setFadeClass('app-screen visible')
-      }, 300)
-      return () => clearTimeout(timer)
+      } else {
+        setFadeClass('app-screen')
+        const timer = setTimeout(() => {
+          setPrevScreen(currentScreen)
+          setFadeClass('app-screen visible')
+        }, 300)
+        return () => clearTimeout(timer)
+      }
     }
   }, [currentScreen, isLoading, prevScreen])
 

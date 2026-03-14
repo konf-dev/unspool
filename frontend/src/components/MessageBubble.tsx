@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import Markdown from 'markdown-to-jsx'
 import type { Message } from '../types'
 import { COMPLETION_KEYWORDS } from '../lib/constants'
 import { ActionButtons } from './ActionButtons'
@@ -43,10 +44,27 @@ export function MessageBubble({
     [message.role, message.content],
   )
 
+  const isError = message.metadata?.isError === true
+  const isSystem = message.metadata?.isSystem === true
+
+  if (isSystem) {
+    return (
+      <div className="message-row system">
+        <div className="system-message">
+          <span className="system-message-content">{message.content}</span>
+          {message.actions && message.actions.length > 0 && (
+            <ActionButtons actions={message.actions} onAction={onAction} />
+          )}
+        </div>
+      </div>
+    )
+  }
+
   const bubbleClasses = [
     'message-bubble',
     message.role,
     isLatest ? 'latest' : '',
+    isError ? 'error' : '',
   ]
     .filter(Boolean)
     .join(' ')
@@ -58,7 +76,13 @@ export function MessageBubble({
           className={bubbleClasses}
           onClick={() => setShowTimestamp((prev) => !prev)}
         >
-          <span className="message-bubble-content">{message.content}</span>
+          {message.role === 'assistant' ? (
+            <div className="message-bubble-content markdown-content">
+              <Markdown>{message.content}</Markdown>
+            </div>
+          ) : (
+            <span className="message-bubble-content">{message.content}</span>
+          )}
           {showDoneDot && <span className="done-dot" aria-hidden="true" />}
         </div>
         {message.actions && message.actions.length > 0 && (
