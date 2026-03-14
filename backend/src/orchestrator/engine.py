@@ -108,7 +108,10 @@ async def _execute_llm_step(
         system_msg = {"role": "system", "content": system_content}
         history = []
         for msg in reversed(context.recent_messages[:10]):
-            history.append({"role": msg["role"], "content": msg["content"]})
+            role = msg.get("role")
+            content = msg.get("content")
+            if role and content:
+                history.append({"role": role, "content": content})
         history.append({"role": "user", "content": context.user_message})
         messages = [system_msg] + history
 
@@ -284,17 +287,28 @@ async def execute_pipeline(
 
         if step.type == "llm_call":
             llm_calls += 1
-            async for token, result in _execute_llm_step(
-                step, context, step_results, pipeline_name, variant, model_override
-            ):
-                if token is not None:
-                    yield token
-                if result is not None:
-                    step_results[step.id] = result
-                    log_step_completed(
-                        context.trace_id, step.id, result.latency_ms,
-                        tokens=result.tokens_used,
-                    )
+            try:
+                async for token, result in _execute_llm_step(
+                    step, context, step_results, pipeline_name, variant, model_override
+                ):
+                    if token is not None:
+                        yield token
+                    if result is not None:
+                        step_results[step.id] = result
+                        log_step_completed(
+                            context.trace_id, step.id, result.latency_ms,
+                            tokens=result.tokens_used,
+                        )
+            except Exception as exc:
+                log_step_error(
+                    trace_id=context.trace_id,
+                    step_id=step.id,
+                    step_type=step.type,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                    pipeline=pipeline_name,
+                )
+                raise
 
         elif step.type == "tool_call":
             try:

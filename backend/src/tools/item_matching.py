@@ -8,8 +8,10 @@ from src.telemetry.logger import get_logger
 _log = get_logger("tools.item_matching")
 
 
-def _text_similarity(query: str, candidate: str) -> float:
+def _text_similarity(query: str | None, candidate: str | None) -> float:
     """Jaccard word overlap — used as a fallback when items lack search_text."""
+    if not query or not candidate:
+        return 0.0
     query_words = set(query.lower().split())
     candidate_words = set(candidate.lower().split())
     if not query_words or not candidate_words:
@@ -32,6 +34,10 @@ async def fuzzy_match_item(
     matching_config = config.get("matching", {})
     min_similarity = matching_config.get("min_similarity", 0.3)
     substring_boost = matching_config.get("substring_boost", 0.7)
+
+    if not text:
+        _log.warning("fuzzy_match.empty_text", user_id=user_id)
+        return None
 
     # Try full-text search first — uses the search_text tsvector column.
     # Filter to open items only since this is used for "done" / "skip" matching.
@@ -74,7 +80,7 @@ async def fuzzy_match_item(
         "fuzzy_match.found",
         user_id=user_id,
         score=best_score,
-        item_id=str(best_item["id"]) if best_item else None,
+        item_id=str(best_item.get("id", "unknown")) if best_item else None,
     )
     return best_item
 
@@ -84,8 +90,14 @@ async def reschedule_item(
     item: dict[str, Any] | None,
     user_id: str,
 ) -> dict[str, Any] | None:
-    if not item:
+    if not item or not isinstance(item, dict):
         return None
+
+    item_id = item.get("id")
+    if not item_id:
+        _log.warning("reschedule_item.missing_id")
+        return None
+    item_id = str(item_id)
 
     from datetime import datetime, timedelta, timezone
 
@@ -97,8 +109,6 @@ async def reschedule_item(
     reschedule_config = config.get("reschedule", {})
     decay_factor = reschedule_config.get("urgency_decay_factor", 0.7)
     nudge_delays = reschedule_config.get("nudge_delay", {})
-
-    item_id = str(item["id"])
     current_urgency = float(item.get("urgency_score", 0.0))
     new_urgency = round(current_urgency * decay_factor, 3)
 
