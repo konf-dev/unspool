@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any
 
 from src.orchestrator.config_loader import load_config
@@ -15,7 +16,7 @@ from src.telemetry.logger import get_logger
 
 _log = get_logger("orchestrator.context")
 
-_LOADERS: dict[str, Any] = {
+_LOADERS: dict[str, Callable[..., Any]] = {
     "profile": fetch_profile,
     "recent_messages": fetch_messages,
     "open_items": fetch_items,
@@ -23,6 +24,14 @@ _LOADERS: dict[str, Any] = {
     "entities": fetch_entities,
     "memories": fetch_memories,
     "calendar_events": fetch_calendar_events,
+}
+
+# Extra kwargs to pass to loaders based on config defaults.
+# Loaders not listed here are called with just (user_id,).
+_LOADER_KWARGS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
+    "recent_messages": lambda d: {"limit": d.get("recent_messages_limit", 20)},
+    "open_items": lambda d: {"limit": d.get("open_items_limit", 50)},
+    "memories": lambda d: {"limit": d.get("memories_limit", 5)},
 }
 
 
@@ -50,28 +59,10 @@ async def assemble_context(
             continue
 
         try:
-            if field == "recent_messages":
-                limit = defaults.get("recent_messages_limit", 20)
-                result = await loader(user_id, limit=limit)
-                ctx.recent_messages = result
-            elif field == "profile":
-                result = await loader(user_id)
-                ctx.profile = result
-            elif field == "open_items":
-                result = await loader(user_id)
-                ctx.open_items = result
-            elif field == "urgent_items":
-                result = await loader(user_id)
-                ctx.urgent_items = result
-            elif field == "entities":
-                result = await loader(user_id)
-                ctx.entities = result
-            elif field == "memories":
-                result = await loader(user_id)
-                ctx.memories = result
-            elif field == "calendar_events":
-                result = await loader(user_id)
-                ctx.calendar_events = result
+            kwargs_fn = _LOADER_KWARGS.get(field)
+            extra_kwargs = kwargs_fn(defaults) if kwargs_fn else {}
+            result = await loader(user_id, **extra_kwargs)
+            setattr(ctx, field, result)
         except Exception:
             if field in required:
                 _log.error("context.required_field_failed", field=field, intent=intent)

@@ -28,7 +28,8 @@ async def classify_intent(
         {"role": "user", "content": message},
     ]
 
-    result = await provider.generate(messages, model=None)
+    classification_model = intents_config.get("classification_model")
+    result = await provider.generate(messages, model=classification_model)
 
     try:
         parsed = json.loads(result.content)

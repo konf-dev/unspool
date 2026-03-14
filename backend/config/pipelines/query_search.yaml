@@ -1,27 +1,25 @@
 name: query_search
-description: User searches for something specific
+description: User searches for something specific — analyzes the query, fetches targeted data, responds
 
 steps:
-  - id: embed_query
-    type: tool_call
-    tool: generate_embedding
-    input:
-      text: "${user_message}"
+  - id: analyze
+    type: llm_call
+    prompt: analyze_query.md
+    output_schema: json
 
-  - id: search
+  - id: fetch
     type: tool_call
-    tool: search_hybrid
+    tool: smart_fetch
     input:
       user_id: "${context.user_id}"
-      embedding: "${steps.embed_query.output}"
-      query_text: "${user_message}"
+      query_spec: "${steps.analyze.output}"
 
   - id: respond
     type: llm_call
-    prompt: query_search_format.md
+    prompt: query_deep_respond.md
     model: null
     stream: true
     input:
-      results: "${steps.search.output}"
-      query: "${user_message}"
+      query_analysis: "${steps.analyze.output}"
+      results: "${steps.fetch.output}"
       user_profile: "${context.profile}"

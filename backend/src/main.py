@@ -27,12 +27,31 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await init_pool()
         log.info("db.pool_initialized")
 
-    # Import tool modules to trigger registration
-    import src.tools.db_tools  # noqa: F401
-    import src.tools.scoring_tools  # noqa: F401
-    import src.tools.context_tools  # noqa: F401
-    import src.tools.item_matching  # noqa: F401
-    import src.tools.momentum_tools  # noqa: F401
+    # Auto-discover and import tool modules to trigger @register_tool decorators
+    import importlib
+    import pkgutil
+
+    import src.tools as _tools_package
+
+    for _, module_name, _ in pkgutil.iter_modules(_tools_package.__path__):
+        importlib.import_module(f"src.tools.{module_name}")
+    log.info("tools.registered")
+
+    if settings.ENVIRONMENT != "development":
+        from src.integrations.qstash import schedule_cron
+        from src.orchestrator.config_loader import load_config as _load_config
+
+        try:
+            jobs_config = _load_config("jobs")
+            for job_name, job_def in jobs_config.get("cron_jobs", {}).items():
+                await schedule_cron(
+                    endpoint=job_name,
+                    cron_expression=job_def["schedule"],
+                    schedule_id=job_def.get("schedule_id"),
+                )
+            log.info("cron.schedules_registered", count=len(jobs_config.get("cron_jobs", {})))
+        except Exception:
+            log.error("cron.registration_failed", exc_info=True)
 
     yield
 

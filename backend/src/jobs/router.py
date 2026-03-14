@@ -8,6 +8,7 @@ from src.jobs.check_deadlines import run_check_deadlines
 from src.jobs.decay_urgency import run_decay_urgency
 from src.jobs.detect_patterns import run_detect_patterns
 from src.jobs.process_conversation import run_process_conversation
+from src.jobs.reset_notifications import run_reset_notifications
 from src.jobs.sync_calendar import run_sync_calendar
 from src.telemetry.logger import get_logger
 
@@ -63,4 +64,13 @@ async def detect_patterns() -> dict:
     _log.info("job.start", job="detect_patterns", trace_id=trace_id)
     result = await run_detect_patterns()
     _log.info("job.done", job="detect_patterns", trace_id=trace_id)
+    return result
+
+
+@router.post("/reset-notifications")
+async def reset_notifications() -> dict:
+    trace_id = str(uuid.uuid4())
+    _log.info("job.start", job="reset_notifications", trace_id=trace_id)
+    result = await run_reset_notifications()
+    _log.info("job.done", job="reset_notifications", trace_id=trace_id)
     return result

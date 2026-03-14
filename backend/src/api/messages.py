@@ -1,3 +1,4 @@
+from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
 from typing import Any
 
@@ -25,60 +26,106 @@ def _serialize_message(msg: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+# --- Proactive condition evaluator registry ---
+
+ConditionEvaluator = Callable[
+    [dict[str, Any], str, dict[str, Any] | None],
+    Coroutine[Any, Any, dict[str, Any] | None],
+]
+
+_CONDITION_EVALUATORS: dict[str, ConditionEvaluator] = {}
+
+
+def register_condition(name: str) -> Callable[[ConditionEvaluator], ConditionEvaluator]:
+    def decorator(fn: ConditionEvaluator) -> ConditionEvaluator:
+        _CONDITION_EVALUATORS[name] = fn
+        return fn
+    return decorator
+
+
+@register_condition("urgent_items")
+async def _eval_urgent_items(
+    params: dict[str, Any], user_id: str, profile: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    hours = params.get("hours", 24)
+    items = await db.get_proactive_items(user_id, hours=hours)
+    if items:
+        return {"items": items, "profile": profile or {}}
+    return None
+
+
+@register_condition("days_absent")
+async def _eval_days_absent(
+    params: dict[str, Any], user_id: str, profile: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    min_days = params.get("min_days", 3)
+    last_interaction = await db.get_last_interaction(user_id)
+    if not last_interaction:
+        return None
+    try:
+        last_dt = datetime.fromisoformat(last_interaction)
+        days_absent = (datetime.now(timezone.utc) - last_dt).days
+        if days_absent >= min_days:
+            return {"days_absent": days_absent, "profile": profile or {}}
+    except (ValueError, TypeError):
+        pass
+    return None
+
+
+@register_condition("recent_completions")
+async def _eval_recent_completions(
+    params: dict[str, Any], user_id: str, profile: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    min_completions = params.get("min_completions", 3)
+    lookback = params.get("lookback_hours", 24)
+    count = await db.get_recently_done_count(user_id, hours=lookback)
+    if count >= min_completions:
+        return {"completion_count": count, "profile": profile or {}}
+    return None
+
+
+@register_condition("slipped_items")
+async def _eval_slipped_items(
+    params: dict[str, Any], user_id: str, profile: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    min_absent = params.get("min_absent_days", 3)
+    last_interaction = await db.get_last_interaction(user_id)
+    if not last_interaction:
+        return None
+    try:
+        last_dt = datetime.fromisoformat(last_interaction)
+        days_absent = (datetime.now(timezone.utc) - last_dt).days
+        if days_absent >= min_absent:
+            items = await db.get_slipped_items(user_id)
+            if items:
+                return {
+                    "items": items,
+                    "days_absent": days_absent,
+                    "profile": profile or {},
+                }
+    except (ValueError, TypeError):
+        pass
+    return None
+
+
+# --- End registry ---
+
+
 async def _evaluate_trigger(
     trigger_name: str,
     trigger_config: dict[str, Any],
     user_id: str,
     profile: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
-    """Evaluate a single proactive trigger. Returns template variables if triggered, None otherwise."""
     condition = trigger_config.get("condition")
     params = trigger_config.get("params", {})
 
-    if condition == "urgent_items":
-        hours = params.get("hours", 24)
-        items = await db.get_proactive_items(user_id, hours=hours)
-        if items:
-            return {"items": items, "profile": profile or {}}
+    evaluator = _CONDITION_EVALUATORS.get(condition)
+    if not evaluator:
+        _log.warning("proactive.unknown_condition", condition=condition, trigger=trigger_name)
+        return None
 
-    elif condition == "days_absent":
-        min_days = params.get("min_days", 3)
-        last_interaction = await db.get_last_interaction(user_id)
-        if last_interaction:
-            try:
-                last_dt = datetime.fromisoformat(last_interaction)
-                days_absent = (datetime.now(timezone.utc) - last_dt).days
-                if days_absent >= min_days:
-                    return {"days_absent": days_absent, "profile": profile or {}}
-            except (ValueError, TypeError):
-                pass
-
-    elif condition == "recent_completions":
-        min_completions = params.get("min_completions", 3)
-        lookback = params.get("lookback_hours", 24)
-        count = await db.get_recently_done_count(user_id, hours=lookback)
-        if count >= min_completions:
-            return {"completion_count": count, "profile": profile or {}}
-
-    elif condition == "slipped_items":
-        min_absent = params.get("min_absent_days", 3)
-        last_interaction = await db.get_last_interaction(user_id)
-        if last_interaction:
-            try:
-                last_dt = datetime.fromisoformat(last_interaction)
-                days_absent = (datetime.now(timezone.utc) - last_dt).days
-                if days_absent >= min_absent:
-                    items = await db.get_slipped_items(user_id)
-                    if items:
-                        return {
-                            "items": items,
-                            "days_absent": days_absent,
-                            "profile": profile or {},
-                        }
-            except (ValueError, TypeError):
-                pass
-
-    return None
+    return await evaluator(params, user_id, profile)
 
 
 async def _check_proactive(user_id: str) -> dict[str, Any] | None:
@@ -90,7 +137,6 @@ async def _check_proactive(user_id: str) -> dict[str, Any] | None:
     triggers = proactive_config.get("triggers", {})
     metadata_type = proactive_config.get("metadata_type", "proactive")
 
-    # Sort triggers by priority
     sorted_triggers = sorted(
         triggers.items(),
         key=lambda t: t[1].get("priority", 99),
