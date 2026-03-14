@@ -183,6 +183,9 @@ async def _execute_llm_step(
                     step_id=step.id,
                     content_preview=result.content[:200],
                 )
+                # Return empty dict instead of raw string so downstream
+                # steps/templates expecting a dict don't crash on .get()
+                output = {}
 
         yield None, StepResult(
             step_id=step.id,
