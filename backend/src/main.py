@@ -41,6 +41,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         from src.integrations.qstash import schedule_cron
         from src.orchestrator.config_loader import load_config as _load_config
 
+        log.info("cron.registering", api_url=settings.API_URL)
         try:
             jobs_config = _load_config("jobs")
             for job_name, job_def in jobs_config.get("cron_jobs", {}).items():

@@ -53,10 +53,13 @@ async def dispatch_job(
             message_id=msg_id,
         )
         return msg_id
-    except Exception:
+    except Exception as exc:
         _log.error(
             "qstash.dispatch_failed",
             endpoint=endpoint,
+            url=url,
+            error=str(exc),
+            error_type=type(exc).__name__,
             exc_info=True,
         )
         return None
@@ -86,11 +89,14 @@ async def schedule_cron(
             schedule_id=sid,
         )
         return sid
-    except Exception:
+    except Exception as exc:
         _log.error(
             "qstash.cron_registration_failed",
             endpoint=endpoint,
             cron=cron_expression,
+            url=url,
+            error=str(exc),
+            error_type=type(exc).__name__,
             exc_info=True,
         )
         return None
