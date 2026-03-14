@@ -2,7 +2,7 @@ import json
 from typing import Any
 
 from src.llm.registry import get_llm_provider
-from src.telemetry.langfuse_integration import observe
+from src.telemetry.langfuse_integration import observe, update_current_observation
 from src.orchestrator.config_loader import load_config
 from src.orchestrator.prompt_renderer import render_prompt
 from src.orchestrator.types import Context
@@ -37,6 +37,13 @@ async def classify_intent(
 
         classification_model = intents_config.get("classification_model")
         result = await provider.generate(messages, model=classification_model)
+
+        update_current_observation(
+            model=classification_model or "default",
+            input=messages,
+            output=result.content,
+            usage={"input": result.input_tokens, "output": result.output_tokens},
+        )
     except Exception:
         _log.error("intent.llm_call_failed", exc_info=True)
         return fallback, fallback_pipeline, 0.1
