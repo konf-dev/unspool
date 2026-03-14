@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     STRIPE_SECRET_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
 
+    ADMIN_API_KEY: str = ""
+
+    LANGFUSE_HOST: str = ""
+    LANGFUSE_PUBLIC_KEY: str = ""
+    LANGFUSE_SECRET_KEY: str = ""
+
     CORS_EXTRA_ORIGINS: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
@@ -51,9 +57,16 @@ def get_settings() -> Settings:
     if settings.ENVIRONMENT != "development":
         missing = [
             name
-            for name in ("SUPABASE_URL", "SUPABASE_SECRET_KEY", "SUPABASE_JWT_SIGNING_SECRET", "DATABASE_URL")
+            for name in (
+                "SUPABASE_URL",
+                "SUPABASE_SECRET_KEY",
+                "SUPABASE_JWT_SIGNING_SECRET",
+                "DATABASE_URL",
+            )
             if not getattr(settings, name)
         ]
         if missing:
-            raise RuntimeError(f"Missing required config in {settings.ENVIRONMENT}: {', '.join(missing)}")
+            raise RuntimeError(
+                f"Missing required config in {settings.ENVIRONMENT}: {', '.join(missing)}"
+            )
     return settings

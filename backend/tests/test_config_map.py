@@ -1,4 +1,5 @@
 """Tests for the config map generator script."""
+
 import subprocess
 import sys
 from pathlib import Path
@@ -38,9 +39,16 @@ class TestConfigMapGenerator:
         output = ROOT.parent / "docs" / "CONFIG_MAP.md"
         content = output.read_text()
         expected_intents = [
-            "brain_dump", "conversation", "emotional", "meta",
-            "onboarding", "query_next", "query_search",
-            "query_upcoming", "status_cant", "status_done",
+            "brain_dump",
+            "conversation",
+            "emotional",
+            "meta",
+            "onboarding",
+            "query_next",
+            "query_search",
+            "query_upcoming",
+            "status_cant",
+            "status_done",
         ]
         for intent in expected_intents:
             assert f"## {intent}" in content, f"Missing intent: {intent}"
@@ -55,7 +63,8 @@ class TestConfigMapGenerator:
         content = output.read_text()
         # Find hash patterns like (abc123def456)
         import re
-        hashes = re.findall(r'\(([0-9a-f]{12})\)', content)
+
+        hashes = re.findall(r"\(([0-9a-f]{12})\)", content)
         assert len(hashes) > 10, "Expected many hashes in output"
 
     def test_unreferenced_prompts_section(self) -> None:

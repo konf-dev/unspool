@@ -35,6 +35,10 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r backend/requirements.txt
+      - run: ruff check .
+        working-directory: backend
+      - run: ruff format --check .
+        working-directory: backend
       - run: pytest -x --timeout=30
         working-directory: backend
 

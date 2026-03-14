@@ -1,4 +1,5 @@
 """Tests for proactive condition evaluator registry."""
+
 from src.api.messages import _CONDITION_EVALUATORS
 from src.orchestrator.config_loader import load_config
 
@@ -16,13 +17,18 @@ class TestProactiveRegistry:
             )
 
     def test_known_evaluators_registered(self) -> None:
-        expected = ["urgent_items", "days_absent", "recent_completions", "slipped_items"]
+        expected = [
+            "urgent_items",
+            "days_absent",
+            "recent_completions",
+            "slipped_items",
+        ]
         for name in expected:
             assert name in _CONDITION_EVALUATORS, f"Evaluator '{name}' not registered"
 
     def test_evaluators_are_async_callable(self) -> None:
-        import asyncio
         import inspect
+
         for name, fn in _CONDITION_EVALUATORS.items():
             assert callable(fn), f"Evaluator '{name}' is not callable"
             assert inspect.iscoroutinefunction(fn), f"Evaluator '{name}' is not async"

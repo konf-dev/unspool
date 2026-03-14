@@ -8,6 +8,7 @@ def register_tool(name: str) -> Callable[..., Any]:
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         _registry[name] = fn
         return fn
+
     return decorator
 
 

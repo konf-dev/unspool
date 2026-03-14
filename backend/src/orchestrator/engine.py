@@ -7,7 +7,12 @@ from typing import Any
 
 from src.config import get_settings
 from src.llm.registry import get_llm_provider
-from src.orchestrator.config_loader import get_config_hash, load_config, load_pipeline, resolve_variable
+from src.orchestrator.config_loader import (
+    get_config_hash,
+    load_config,
+    load_pipeline,
+    resolve_variable,
+)
 from src.orchestrator.prompt_renderer import get_prompt_hash, render_prompt
 from src.orchestrator.query_executor import execute_operation, execute_query
 from src.orchestrator.types import Context, Step, StepResult
@@ -20,6 +25,7 @@ from src.telemetry.events import (
     log_step_started,
     log_variant_selected,
 )
+from src.telemetry.langfuse_integration import observe, observe_generation
 from src.telemetry.logger import get_logger
 
 _log = get_logger("orchestrator.engine")
@@ -126,6 +132,7 @@ def _build_prompt_variables(
     return variables
 
 
+@observe_generation("llm_step")
 async def _execute_llm_step(
     step: Step,
     context: Context,
@@ -215,11 +222,14 @@ async def _execute_llm_step(
             ttft_ms=round(ttft * 1000, 2) if ttft else None,
         )
 
-        yield None, StepResult(
-            step_id=step.id,
-            output=content,
-            latency_ms=latency_ms,
-            tokens_used=input_tokens + output_tokens,
+        yield (
+            None,
+            StepResult(
+                step_id=step.id,
+                output=content,
+                latency_ms=latency_ms,
+                tokens_used=input_tokens + output_tokens,
+            ),
         )
     else:
         result = await provider.generate(messages, model=model)
@@ -251,14 +261,18 @@ async def _execute_llm_step(
         if step.output_schema:
             output = _extract_json(result.content, step.id)
 
-        yield None, StepResult(
-            step_id=step.id,
-            output=output,
-            latency_ms=latency_ms,
-            tokens_used=result.input_tokens + result.output_tokens,
+        yield (
+            None,
+            StepResult(
+                step_id=step.id,
+                output=output,
+                latency_ms=latency_ms,
+                tokens_used=result.input_tokens + result.output_tokens,
+            ),
         )
 
 
+@observe("tool_step")
 async def _execute_tool_step(
     step: Step,
     context: Context,
@@ -326,6 +340,7 @@ def _evaluate_branch(
     return None
 
 
+@observe("execute_pipeline")
 async def execute_pipeline(
     pipeline_name: str,
     context: Context,
@@ -380,7 +395,9 @@ async def execute_pipeline(
                     if result is not None:
                         step_results[step.id] = result
                         log_step_completed(
-                            context.trace_id, step.id, result.latency_ms,
+                            context.trace_id,
+                            step.id,
+                            result.latency_ms,
                             tokens=result.tokens_used,
                         )
             except Exception as exc:
@@ -397,7 +414,10 @@ async def execute_pipeline(
         elif step.type == "tool_call":
             try:
                 result = await _execute_tool_step(
-                    step, context, step_results, tool_registry,
+                    step,
+                    context,
+                    step_results,
+                    tool_registry,
                 )
                 step_results[step.id] = result
                 log_step_completed(context.trace_id, step.id, result.latency_ms)
@@ -423,7 +443,9 @@ async def execute_pipeline(
                     output = []
                 latency_ms = round((time.perf_counter() - start) * 1000, 2)
                 step_results[step.id] = StepResult(
-                    step_id=step.id, output=output, latency_ms=latency_ms,
+                    step_id=step.id,
+                    output=output,
+                    latency_ms=latency_ms,
                 )
                 log_step_completed(context.trace_id, step.id, latency_ms)
             except Exception as exc:
@@ -452,7 +474,9 @@ async def execute_pipeline(
                     output = {}
                 latency_ms = round((time.perf_counter() - start) * 1000, 2)
                 step_results[step.id] = StepResult(
-                    step_id=step.id, output=output, latency_ms=latency_ms,
+                    step_id=step.id,
+                    output=output,
+                    latency_ms=latency_ms,
                 )
                 log_step_completed(context.trace_id, step.id, latency_ms)
             except Exception as exc:
@@ -471,7 +495,9 @@ async def execute_pipeline(
             target = _evaluate_branch(step, step_results, context)
             latency_ms = round((time.perf_counter() - start) * 1000, 2)
             step_results[step.id] = StepResult(
-                step_id=step.id, output=target, latency_ms=latency_ms,
+                step_id=step.id,
+                output=target,
+                latency_ms=latency_ms,
             )
             log_step_completed(context.trace_id, step.id, latency_ms, target=target)
 
@@ -492,7 +518,9 @@ async def execute_pipeline(
             _log.warning("transform.not_implemented", step_id=step.id)
             latency_ms = round((time.perf_counter() - start) * 1000, 2)
             step_results[step.id] = StepResult(
-                step_id=step.id, output=None, latency_ms=latency_ms,
+                step_id=step.id,
+                output=None,
+                latency_ms=latency_ms,
             )
             log_step_completed(context.trace_id, step.id, latency_ms)
 

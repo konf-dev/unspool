@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.account import router as account_router
+from src.api.admin import router as admin_router
 from src.api.auth_token import router as auth_token_router
 from src.api.chat import router as chat_router
 from src.api.messages import router as messages_router
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     if settings.DATABASE_URL:
         from src.db.supabase import init_pool
+
         await init_pool()
         log.info("db.pool_initialized")
 
@@ -50,7 +52,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     cron_expression=job_def["schedule"],
                     schedule_id=job_def.get("schedule_id"),
                 )
-            log.info("cron.schedules_registered", count=len(jobs_config.get("cron_jobs", {})))
+            log.info(
+                "cron.schedules_registered", count=len(jobs_config.get("cron_jobs", {}))
+            )
         except Exception:
             log.error("cron.registration_failed", exc_info=True)
 
@@ -58,6 +62,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     if settings.DATABASE_URL:
         from src.db.supabase import close_pool
+
         await close_pool()
 
     log.info("app.shutdown")
@@ -96,6 +101,7 @@ app.include_router(messages_router, prefix="/api")
 app.include_router(auth_token_router, prefix="/api")
 app.include_router(subscribe_router, prefix="/api")
 app.include_router(jobs_router, prefix="/jobs")
+app.include_router(admin_router, prefix="/admin")
 
 
 @app.get("/health")

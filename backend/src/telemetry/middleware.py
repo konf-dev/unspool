@@ -18,10 +18,14 @@ def _get_git_sha() -> str:
     if sha:
         return sha[:8]
     try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"],
-            stderr=subprocess.DEVNULL,
-        ).decode().strip()
+        return (
+            subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                stderr=subprocess.DEVNULL,
+            )
+            .decode()
+            .strip()
+        )
     except Exception:
         return "unknown"
 
@@ -31,7 +35,9 @@ GIT_SHA = _get_git_sha()
 
 class TraceMiddleware(BaseHTTPMiddleware):
     async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint,
+        self,
+        request: Request,
+        call_next: RequestResponseEndpoint,
     ) -> Response:
         trace_id = str(uuid.uuid4())
         request.state.trace_id = trace_id

@@ -1,4 +1,5 @@
 """Tests that the migration SQL file is valid and contains expected statements."""
+
 from pathlib import Path
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "supabase" / "migrations"

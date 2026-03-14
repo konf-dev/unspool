@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from src.auth.supabase_auth import get_current_user
+from src.telemetry.langfuse_integration import observe
 from src.db import redis, supabase as db
 from src.integrations.qstash import dispatch_job
 from src.orchestrator.config_loader import load_config
@@ -68,6 +69,7 @@ async def _check_gate(user_id: str) -> None:
 _PIPELINE_TIMEOUT_SECONDS = 60
 
 
+@observe("chat.stream_response")
 async def _stream_response(
     user_id: str,
     message: str,
@@ -99,8 +101,16 @@ async def _stream_response(
             pipeline=pipeline_name,
             confidence=confidence,
             context_fields=[
-                f for f in ("profile", "open_items", "recent_messages", "urgent_items",
-                            "memories", "entities", "calendar_events")
+                f
+                for f in (
+                    "profile",
+                    "open_items",
+                    "recent_messages",
+                    "urgent_items",
+                    "memories",
+                    "entities",
+                    "calendar_events",
+                )
                 if getattr(context, f, None) is not None
             ],
         )

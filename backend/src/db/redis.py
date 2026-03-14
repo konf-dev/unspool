@@ -71,7 +71,9 @@ async def rate_limit_increment(user_id: str) -> None:
 
 async def session_set(user_id: str, key: str, value: str) -> None:
     r = get_redis()
-    await asyncio.to_thread(partial(r.set, f"session:{user_id}:{key}", value, ex=_TTL_SHORT_TERM))
+    await asyncio.to_thread(
+        partial(r.set, f"session:{user_id}:{key}", value, ex=_TTL_SHORT_TERM)
+    )
 
 
 async def session_get(user_id: str, key: str) -> str | None:
@@ -82,7 +84,9 @@ async def session_get(user_id: str, key: str) -> str | None:
 
 async def context_set(user_id: str, key: str, value: str) -> None:
     r = get_redis()
-    await asyncio.to_thread(partial(r.set, f"context:{user_id}:{key}", value, ex=_TTL_WORKING))
+    await asyncio.to_thread(
+        partial(r.set, f"context:{user_id}:{key}", value, ex=_TTL_WORKING)
+    )
 
 
 async def context_get(user_id: str, key: str) -> str | None:

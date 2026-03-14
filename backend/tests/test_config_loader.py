@@ -39,9 +39,16 @@ class TestLoadPipeline:
 
     def test_all_pipelines_load(self) -> None:
         pipeline_names = [
-            "brain_dump", "conversation", "emotional", "meta",
-            "onboarding", "query_next", "query_search",
-            "query_upcoming", "status_cant", "status_done",
+            "brain_dump",
+            "conversation",
+            "emotional",
+            "meta",
+            "onboarding",
+            "query_next",
+            "query_search",
+            "query_upcoming",
+            "status_cant",
+            "status_done",
         ]
         for name in pipeline_names:
             pipeline = load_pipeline(name)
@@ -83,13 +90,21 @@ class TestResolveVariable:
 
     def test_step_output(self) -> None:
         ctx = self._make_context()
-        results = {"classify": StepResult(step_id="classify", output={"intent": "brain_dump"}, latency_ms=10.0)}
+        results = {
+            "classify": StepResult(
+                step_id="classify", output={"intent": "brain_dump"}, latency_ms=10.0
+            )
+        }
         result = resolve_variable("${steps.classify.output}", ctx, results)
         assert result == {"intent": "brain_dump"}
 
     def test_step_output_subkey(self) -> None:
         ctx = self._make_context()
-        results = {"classify": StepResult(step_id="classify", output={"intent": "brain_dump"}, latency_ms=10.0)}
+        results = {
+            "classify": StepResult(
+                step_id="classify", output={"intent": "brain_dump"}, latency_ms=10.0
+            )
+        }
         result = resolve_variable("${steps.classify.output.intent}", ctx, results)
         assert result == "brain_dump"
 

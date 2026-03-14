@@ -1,6 +1,11 @@
 import pytest
 
-from src.db.supabase import _validate_columns, _ITEM_ALLOWED_COLUMNS, _PROFILE_ALLOWED_COLUMNS, _SUBSCRIPTION_ALLOWED_COLUMNS
+from src.db.supabase import (
+    _validate_columns,
+    _ITEM_ALLOWED_COLUMNS,
+    _PROFILE_ALLOWED_COLUMNS,
+    _SUBSCRIPTION_ALLOWED_COLUMNS,
+)
 
 
 class TestColumnAllowlists:

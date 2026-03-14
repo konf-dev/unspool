@@ -45,10 +45,14 @@ async def send_push_notification(
         return True
     except WebPushException as exc:
         if exc.response and exc.response.status_code == 410:
-            _log.info("push.subscription_expired", endpoint=subscription_info["endpoint"][:50])
+            _log.info(
+                "push.subscription_expired", endpoint=subscription_info["endpoint"][:50]
+            )
             if user_id:
                 try:
-                    await delete_push_subscription(user_id, subscription_info["endpoint"])
+                    await delete_push_subscription(
+                        user_id, subscription_info["endpoint"]
+                    )
                 except Exception:
                     _log.warning("push.delete_subscription_failed", exc_info=True)
             return False

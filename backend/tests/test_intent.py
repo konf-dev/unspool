@@ -60,6 +60,7 @@ class TestIntentsConfig:
     def test_all_intent_pipelines_exist(self, intents_config: dict) -> None:
         """Every pipeline referenced by an intent must exist as a YAML file."""
         from src.orchestrator.config_loader import load_pipeline
+
         for name, intent_def in intents_config.get("intents", {}).items():
             pipeline_name = intent_def["pipeline"]
             try:
