@@ -30,8 +30,8 @@
   padding: var(--spacing-md) var(--spacing-lg);
   background: var(--glass-ai-bg);
   border: 1px solid var(--glass-ai-border);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
   border-radius: var(--radius-input);
   color: var(--color-text-primary);
   font-family: inherit;
@@ -39,20 +39,19 @@
   line-height: 1.4;
   resize: none;
   outline: none;
-  transition: border-color 0.15s ease;
+  box-shadow: var(--glass-glow-ai);
+  transition:
+    border-color var(--duration-normal) ease,
+    box-shadow var(--duration-normal) ease;
 }
 
 .input-bar-textarea:focus {
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: rgba(93, 202, 165, 0.25);
+  box-shadow: var(--glass-glow-ai), 0 0 0 1px rgba(93, 202, 165, 0.1);
 }
 
 .input-bar-textarea::placeholder {
   color: var(--color-text-muted);
-}
-
-.input-bar-textarea:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .input-bar-send {
@@ -66,7 +65,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: opacity 0.15s ease, transform 0.1s ease;
+  transition:
+    opacity var(--duration-normal) ease,
+    transform var(--duration-fast) ease;
 }
 
 .input-bar-send:hover {
@@ -74,19 +75,36 @@
 }
 
 .input-bar-send:active {
-  transform: scale(0.95);
+  transform: scale(0.92);
 }
 
-.input-bar-send:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  transform: none;
+.input-bar-stop {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--glass-ai-bg);
+  border: 1px solid var(--glass-ai-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--glass-glow-ai);
+  transition: transform var(--duration-fast) ease;
 }
 
+.input-bar-stop:active {
+  transform: scale(0.92);
+}
 
 @supports not (backdrop-filter: blur(1px)) {
   .input-bar-textarea {
-    background: rgba(30, 30, 40, 0.9);
+    background: rgba(30, 30, 40, 0.92);
+  }
+  .input-bar-stop {
+    background: rgba(30, 30, 40, 0.92);
   }
 }
 

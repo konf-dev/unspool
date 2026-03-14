@@ -518,8 +518,6 @@ async def save_oauth_token(
     refresh_token: str,
     scopes: list[str],
 ) -> dict[str, Any]:
-    import json
-
     pool = _get_pool()
     row = await pool.fetchrow(
         """
@@ -534,7 +532,7 @@ async def save_oauth_token(
         user_id,
         provider,
         refresh_token,
-        json.dumps(scopes),
+        scopes,
     )
     return dict(row)
 

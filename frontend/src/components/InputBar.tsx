@@ -7,10 +7,11 @@ import './InputBar.css'
 
 interface InputBarProps {
   onSend: (message: string) => void
-  disabled: boolean
+  isStreaming: boolean
+  onStop: () => void
 }
 
-export function InputBar({ onSend, disabled }: InputBarProps) {
+export function InputBar({ onSend, isStreaming, onStop }: InputBarProps) {
   const [value, setValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { isRecording, isSupported, transcript, startRecording, stopRecording, clearTranscript } =
@@ -27,11 +28,12 @@ export function InputBar({ onSend, disabled }: InputBarProps) {
 
   const handleSend = useCallback(() => {
     const trimmed = value.trim()
-    if (!trimmed || disabled) return
+    if (!trimmed) return
+    navigator.vibrate?.(10)
     onSend(trimmed)
     setValue('')
     requestAnimationFrame(() => textareaRef.current?.focus())
-  }, [value, disabled, onSend])
+  }, [value, onSend])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -54,6 +56,64 @@ export function InputBar({ onSend, disabled }: InputBarProps) {
   const hasText = value.trim().length > 0
   const placeholder = isRecording ? 'listening...' : "what's on your mind?"
 
+  const renderButton = () => {
+    if (hasText) {
+      return (
+        <button
+          className="input-bar-send"
+          type="button"
+          onClick={handleSend}
+          aria-label="Send message"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M5 12L12 5L19 12M12 5V19"
+              stroke="#fff"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      )
+    }
+
+    if (isStreaming) {
+      return (
+        <button
+          className="input-bar-stop"
+          type="button"
+          onClick={onStop}
+          aria-label="Stop generating"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <rect width="14" height="14" rx="2" fill="#fff" />
+          </svg>
+        </button>
+      )
+    }
+
+    return (
+      <VoiceInput
+        isRecording={isRecording}
+        isSupported={isSupported}
+        onToggle={handleVoiceToggle}
+      />
+    )
+  }
+
   return (
     <div className="input-bar-wrapper">
       <div className="input-bar-fade" />
@@ -68,39 +128,8 @@ export function InputBar({ onSend, disabled }: InputBarProps) {
           placeholder={placeholder}
           minRows={1}
           maxRows={4}
-          disabled={disabled}
         />
-        {hasText ? (
-          <button
-            className="input-bar-send"
-            type="button"
-            onClick={handleSend}
-            disabled={disabled}
-            aria-label="Send message"
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M5 12L12 5L19 12M12 5V19"
-                stroke="#fff"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        ) : (
-          <VoiceInput
-            isRecording={isRecording}
-            isSupported={isSupported}
-            onToggle={handleVoiceToggle}
-          />
-        )}
+        {renderButton()}
       </div>
     </div>
   )

@@ -25,19 +25,21 @@
   height: 100%;
 }
 
+.stars-small::before,
 .stars-small::after,
+.stars-medium::before,
 .stars-medium::after,
+.stars-large::before,
 .stars-large::after {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
-  width: 2000px;
-  height: 2000px;
   border-radius: 50%;
 }
 
-.stars-small::after {
+/* Small stars — group 1 (4s cycle) */
+.stars-small::before {
   width: 1px;
   height: 1px;
   opacity: 0.4;
@@ -73,7 +75,17 @@
     650px 340px 0 #fff,
     740px 520px 0 #fff,
     830px 460px 0 #fff,
-    920px 380px 0 #fff,
+    920px 380px 0 #fff;
+}
+
+/* Small stars — group 2 (5.5s cycle, 1.8s delay) */
+.stars-small::after {
+  width: 1px;
+  height: 1px;
+  opacity: 0.4;
+  will-change: opacity;
+  animation: twinkle 5.5s ease-in-out 1.8s infinite;
+  box-shadow:
     1010px 500px 0 #fff,
     1110px 430px 0 #fff,
     1200px 550px 0 #fff,
@@ -125,12 +137,13 @@
     90px 1020px 0 #fff;
 }
 
-.stars-medium::after {
+/* Medium stars — group 3 (5s cycle, 0.7s delay) */
+.stars-medium::before {
   width: 1.5px;
   height: 1.5px;
   opacity: 0.6;
   will-change: opacity;
-  animation: twinkle 5s ease-in-out 1s infinite;
+  animation: twinkle 5s ease-in-out 0.7s infinite;
   box-shadow:
     80px 60px 0 #fff,
     250px 120px 0 #fff,
@@ -143,7 +156,17 @@
     1400px 130px 0 #fff,
     1570px 260px 0 #fff,
     1740px 70px 0 #fff,
-    1900px 170px 0 #fff,
+    1900px 170px 0 #fff;
+}
+
+/* Medium stars — group 4 (6.5s cycle, 2.5s delay) */
+.stars-medium::after {
+  width: 1.5px;
+  height: 1.5px;
+  opacity: 0.6;
+  will-change: opacity;
+  animation: twinkle 6.5s ease-in-out 2.5s infinite;
+  box-shadow:
     140px 380px 0 #fff,
     330px 460px 0 #fff,
     510px 340px 0 #fff,
@@ -175,12 +198,13 @@
     1750px 880px 0 #fff;
 }
 
-.stars-large::after {
+/* Large stars — group 5 (3s cycle, 1.2s delay) */
+.stars-large::before {
   width: 2px;
   height: 2px;
   opacity: 0.8;
   will-change: opacity;
-  animation: twinkle 3s ease-in-out 2s infinite;
+  animation: twinkle 3s ease-in-out 1.2s infinite;
   box-shadow:
     160px 80px 0 #fff,
     500px 150px 0 #fff,
@@ -189,7 +213,17 @@
     1550px 100px 0 #fff,
     1880px 240px 0 #fff,
     300px 400px 0 #fff,
-    700px 350px 0 #fff,
+    700px 350px 0 #fff;
+}
+
+/* Large stars — group 6 (4.5s cycle, 3s delay) */
+.stars-large::after {
+  width: 2px;
+  height: 2px;
+  opacity: 0.8;
+  will-change: opacity;
+  animation: twinkle 4.5s ease-in-out 3s infinite;
+  box-shadow:
     1100px 450px 0 #fff,
     1500px 380px 0 #fff,
     1850px 500px 0 #fff,
@@ -210,8 +244,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .stars-small::before,
   .stars-small::after,
+  .stars-medium::before,
   .stars-medium::after,
+  .stars-large::before,
   .stars-large::after {
     animation: none;
   }

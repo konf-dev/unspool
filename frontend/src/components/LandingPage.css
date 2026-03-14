@@ -44,6 +44,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-md);
+  animation: landingFadeUp 600ms var(--ease-out-expo) both;
 }
 
 .landing-title {
@@ -66,6 +67,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);
+  animation: landingFadeUp 600ms var(--ease-out-expo) 150ms both;
 }
 
 .landing-line {
@@ -78,16 +80,24 @@
 .landing-features {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg);
+  gap: var(--spacing-md);
   width: 100%;
   max-width: 360px;
+  animation: landingFadeUp 600ms var(--ease-out-expo) 300ms both;
 }
 
 .landing-feature {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   text-align: left;
+  padding: var(--spacing-md);
+  background: var(--glass-ai-bg);
+  border: 1px solid var(--glass-ai-border);
+  border-radius: var(--radius-bubble);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--glass-glow-ai);
 }
 
 .landing-feature-label {
@@ -114,15 +124,21 @@
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
-  transition: opacity 0.15s ease, transform 0.1s ease;
+  box-shadow: var(--glass-glow-accent);
+  transition:
+    opacity var(--duration-normal) ease,
+    transform var(--duration-fast) ease,
+    box-shadow var(--duration-normal) ease;
+  animation: landingFadeUp 600ms var(--ease-out-expo) 450ms both;
 }
 
 .landing-cta:hover {
   opacity: 0.9;
+  box-shadow: 0 0 40px rgba(93, 202, 165, 0.2);
 }
 
 .landing-cta:active {
-  transform: scale(0.98);
+  transform: scale(0.96);
 }
 
 .landing-pricing {
@@ -130,6 +146,7 @@
   font-size: 0.75rem;
   color: var(--color-text-muted);
   margin-top: calc(-1 * var(--spacing-md));
+  animation: landingFadeUp 600ms var(--ease-out-expo) 600ms both;
 }
 
 .landing-footer {
@@ -137,13 +154,14 @@
   align-items: center;
   gap: var(--spacing-sm);
   padding-top: var(--spacing-lg);
+  animation: landingFadeUp 600ms var(--ease-out-expo) 600ms both;
 }
 
 .landing-footer-link {
   font-size: 0.75rem;
   color: var(--color-text-muted);
   text-decoration: none;
-  transition: color 0.15s ease;
+  transition: color var(--duration-normal) ease;
 }
 
 .landing-footer-link:hover {
@@ -155,7 +173,21 @@
   color: var(--color-text-muted);
 }
 
+@supports not (backdrop-filter: blur(1px)) {
+  .landing-feature {
+    background: rgba(30, 30, 40, 0.92);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .landing-hero,
+  .landing-pitch,
+  .landing-features,
+  .landing-cta,
+  .landing-pricing,
+  .landing-footer {
+    animation: none;
+  }
   .landing-cta {
     transition: none;
   }

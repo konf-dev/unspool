@@ -18,20 +18,34 @@
   top: var(--spacing-sm);
   right: var(--spacing-md);
   z-index: 10;
-  background: none;
-  border: none;
+  background: var(--glass-ai-bg);
+  border: 1px solid var(--glass-ai-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-radius: var(--radius-bubble);
   color: var(--color-text-muted);
   font-family: inherit;
   font-size: 0.75rem;
   cursor: pointer;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  opacity: 0.6;
-  transition: opacity 0.2s;
+  min-height: 44px;
+  min-width: 44px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--glass-glow-ai);
+  transition:
+    opacity var(--duration-normal) ease,
+    color var(--duration-normal) ease,
+    transform var(--duration-fast) ease;
 }
 
 .sign-out-btn:hover {
-  opacity: 1;
   color: var(--color-text-secondary);
+}
+
+.sign-out-btn:active {
+  transform: scale(0.94);
 }
 
 .chat-container {
@@ -41,4 +55,10 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .sign-out-btn {
+    background: rgba(30, 30, 40, 0.92);
+  }
 }

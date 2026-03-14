@@ -5,9 +5,10 @@
   padding: var(--spacing-md) var(--spacing-lg);
   background: var(--glass-ai-bg);
   border: 1px solid var(--glass-ai-border);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
   border-radius: var(--radius-bubble);
+  box-shadow: var(--glass-glow-ai);
 }
 
 .typing-dot {
@@ -47,6 +48,6 @@
 
 @supports not (backdrop-filter: blur(1px)) {
   .typing-bubble {
-    background: rgba(30, 30, 40, 0.9);
+    background: rgba(30, 30, 40, 0.92);
   }
 }
