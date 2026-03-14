@@ -34,12 +34,15 @@ jobs:
           python-version: '3.11'
           cache: pip
           cache-dependency-path: backend/requirements-dev.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - run: pip install -r backend/requirements-dev.txt
       - run: ruff check .
         working-directory: backend
       - run: ruff format --check .
         working-directory: backend
-      - run: pyright
+      - run: npx pyright@1.1.408
         working-directory: backend
       - run: pip-audit -r requirements.txt
         working-directory: backend
