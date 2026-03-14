@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 from pywebpush import WebPushException, webpush
@@ -20,31 +21,43 @@ async def send_push_notification(
     payload = json.dumps({"title": title, "body": body})
 
     subscription_info = {
-        "endpoint": subscription["endpoint"],
+        "endpoint": subscription.get("endpoint", ""),
         "keys": {
-            "p256dh": subscription["p256dh"],
-            "auth": subscription["auth_key"],
+            "p256dh": subscription.get("p256dh", ""),
+            "auth": subscription.get("auth_key", ""),
         },
     }
 
+    if not subscription_info["endpoint"]:
+        _log.warning("push.missing_endpoint", user_id=user_id)
+        return False
+
     try:
-        webpush(
+        # webpush is synchronous — run in thread pool to avoid blocking event loop
+        await asyncio.to_thread(
+            webpush,
             subscription_info=subscription_info,
             data=payload,
             vapid_private_key=settings.VAPID_PRIVATE_KEY,
-            vapid_claims={"sub": f"mailto:notifications@unspool.life"},
+            vapid_claims={"sub": "mailto:notifications@unspool.life"},
         )
-        _log.info("push.sent", endpoint=subscription["endpoint"][:50])
+        _log.info("push.sent", endpoint=subscription_info["endpoint"][:50])
         return True
     except WebPushException as exc:
         if exc.response and exc.response.status_code == 410:
-            _log.info("push.subscription_expired", endpoint=subscription["endpoint"][:50])
+            _log.info("push.subscription_expired", endpoint=subscription_info["endpoint"][:50])
             if user_id:
-                await delete_push_subscription(user_id, subscription["endpoint"])
+                try:
+                    await delete_push_subscription(user_id, subscription_info["endpoint"])
+                except Exception:
+                    _log.warning("push.delete_subscription_failed", exc_info=True)
             return False
         _log.warning(
             "push.failed",
-            endpoint=subscription["endpoint"][:50],
+            endpoint=subscription_info["endpoint"][:50],
             error=str(exc),
         )
+        return False
+    except Exception:
+        _log.warning("push.unexpected_error", exc_info=True)
         return False

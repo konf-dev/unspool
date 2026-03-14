@@ -1096,7 +1096,8 @@ async def delete_user_data(user_id: str) -> dict[str, int]:
     uid = uuid.UUID(user_id)
     counts: dict[str, int] = {}
 
-    # Order matters: delete from child tables first to respect FK constraints
+    # Order matters: delete from child tables first to respect FK constraints.
+    # Most tables use `user_id`, but `user_profiles` uses `id` as the PK.
     tables_with_user_id = [
         "item_events",
         "items",
@@ -1110,7 +1111,6 @@ async def delete_user_data(user_id: str) -> dict[str, int]:
         "oauth_tokens",
         "subscriptions",
         "llm_usage",
-        "user_profiles",
     ]
 
     async with pool.acquire() as conn:
@@ -1119,9 +1119,14 @@ async def delete_user_data(user_id: str) -> dict[str, int]:
                 result = await conn.execute(
                     f"DELETE FROM {table} WHERE user_id = $1", uid,
                 )
-                # result is like "DELETE 5"
-                count = int(result.split()[-1])
+                count = int(result.split()[-1]) if result else 0
                 counts[table] = count
+
+            # user_profiles uses `id` as PK, not `user_id`
+            result = await conn.execute(
+                "DELETE FROM user_profiles WHERE id = $1", uid,
+            )
+            counts["user_profiles"] = int(result.split()[-1]) if result else 0
 
     _log.info("user.data_deleted", user_id=user_id, counts=counts)
     return counts

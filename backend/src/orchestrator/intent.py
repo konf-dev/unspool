@@ -15,21 +15,27 @@ async def classify_intent(
     context: Context,
 ) -> tuple[str, str, float]:
     intents_config = load_config("intents")
+    fallback = intents_config.get("fallback_intent", "conversation")
+    fallback_pipeline = intents_config.get("intents", {}).get(fallback, {}).get("pipeline", fallback)
 
-    provider = get_llm_provider()
-    variables: dict[str, Any] = {
-        "user_message": message,
-        "recent_messages": context.recent_messages or [],
-    }
-    rendered = render_prompt("classify_intent.md", variables)
+    try:
+        provider = get_llm_provider()
+        variables: dict[str, Any] = {
+            "user_message": message,
+            "recent_messages": context.recent_messages or [],
+        }
+        rendered = render_prompt("classify_intent.md", variables)
 
-    messages = [
-        {"role": "system", "content": rendered},
-        {"role": "user", "content": message},
-    ]
+        messages = [
+            {"role": "system", "content": rendered},
+            {"role": "user", "content": message},
+        ]
 
-    classification_model = intents_config.get("classification_model")
-    result = await provider.generate(messages, model=classification_model)
+        classification_model = intents_config.get("classification_model")
+        result = await provider.generate(messages, model=classification_model)
+    except Exception:
+        _log.error("intent.llm_call_failed", exc_info=True)
+        return fallback, fallback_pipeline, 0.1
 
     try:
         parsed = json.loads(result.content)
@@ -37,17 +43,16 @@ async def classify_intent(
         confidence = float(parsed.get("confidence", 0.5))
     except (json.JSONDecodeError, ValueError):
         _log.warning("intent.llm_parse_failed", content=result.content[:200])
-        intent_name = intents_config.get("fallback_intent", "conversation")
+        intent_name = fallback
         confidence = 0.3
 
     intent_def = intents_config.get("intents", {}).get(intent_name)
     if intent_def:
         pipeline = intent_def.get("pipeline", intent_name)
     else:
-        fallback = intents_config.get("fallback_intent", "conversation")
         _log.warning("intent.unknown", intent=intent_name, fallback=fallback)
         intent_name = fallback
-        pipeline = intents_config.get("intents", {}).get(fallback, {}).get("pipeline", fallback)
+        pipeline = fallback_pipeline
 
     _log.info(
         "intent.classified",

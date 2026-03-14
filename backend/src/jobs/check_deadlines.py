@@ -21,7 +21,11 @@ def _in_quiet_hours(tz_name: str | None, start: int, end: int) -> bool:
         tz = timezone.utc
 
     local_hour = datetime.now(tz).hour
-    return start <= local_hour < end
+    if start <= end:
+        # Same-day range (e.g., 1am-7am)
+        return start <= local_hour < end
+    # Wrap-around midnight (e.g., 22pm-7am)
+    return local_hour >= start or local_hour < end
 
 
 async def run_check_deadlines() -> dict:
@@ -50,39 +54,44 @@ async def run_check_deadlines() -> dict:
         grouped.setdefault(uid, []).append(row)
 
     for user_id, items in grouped.items():
-        tz_name = items[0].get("timezone")
-        if items[0].get("notification_sent_today"):
-            skipped += 1
-            continue
-
-        if _in_quiet_hours(tz_name, quiet_start, quiet_end):
-            skipped += 1
-            continue
-
         try:
-            await update_profile(user_id, notification_sent_today=True)
-        except ValueError:
+            tz_name = items[0].get("timezone")
+            if items[0].get("notification_sent_today"):
+                skipped += 1
+                continue
+
+            if _in_quiet_hours(tz_name, quiet_start, quiet_end):
+                skipped += 1
+                continue
+
+            try:
+                await update_profile(user_id, notification_sent_today=True)
+            except ValueError:
+                skipped += 1
+                continue
+
+            subscriptions = await get_push_subscriptions(user_id)
+            if not subscriptions:
+                continue
+
+            if len(items) == 1:
+                action = items[0].get("interpreted_action", "upcoming deadline")
+                body = body_single_template.format(action=action)
+            else:
+                body = body_multiple_template.format(count=len(items), hours=deadline_hours)
+
+            for sub in subscriptions:
+                await send_push_notification(
+                    subscription=sub,
+                    title=title,
+                    body=body,
+                    user_id=user_id,
+                )
+
+            notified += 1
+        except Exception:
+            _log.warning("check_deadlines.user_failed", user_id=user_id, exc_info=True)
             skipped += 1
-            continue
-
-        subscriptions = await get_push_subscriptions(user_id)
-        if not subscriptions:
-            continue
-
-        if len(items) == 1:
-            body = body_single_template.format(action=items[0]["interpreted_action"])
-        else:
-            body = body_multiple_template.format(count=len(items), hours=deadline_hours)
-
-        for sub in subscriptions:
-            await send_push_notification(
-                subscription=sub,
-                title=title,
-                body=body,
-                user_id=user_id,
-            )
-
-        notified += 1
 
     _log.info("check_deadlines.done", notified=notified, skipped=skipped)
     return {"notified": notified, "skipped": skipped}

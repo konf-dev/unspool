@@ -31,37 +31,58 @@ async def run_process_conversation(user_id: str, message_ids: list[str]) -> dict
 
     relevant = await get_messages_by_ids(user_id, message_ids)
 
-    embedder = get_embedding_provider()
-    items = await get_items_without_embeddings(user_id)
+    # Phase 1: Generate embeddings for items without them
     embedded_count = 0
-    for item in items:
-        text = f"{item['interpreted_action']} {item['raw_text']}"
-        embedding = await embedder.embed(text)
-        await update_item_embedding(str(item["id"]), user_id, embedding)
-        await save_item_event(
-            item_id=str(item["id"]),
-            user_id=user_id,
-            event_type="created",
-        )
-        embedded_count += 1
+    try:
+        embedder = get_embedding_provider()
+        items = await get_items_without_embeddings(user_id)
+        for item in items:
+            try:
+                text = f"{item.get('interpreted_action', '')} {item.get('raw_text', '')}"
+                embedding = await embedder.embed(text)
+                await update_item_embedding(str(item["id"]), user_id, embedding)
+                await save_item_event(
+                    item_id=str(item["id"]),
+                    user_id=user_id,
+                    event_type="created",
+                )
+                embedded_count += 1
+            except Exception:
+                _log.warning(
+                    "process_conversation.embed_item_failed",
+                    item_id=str(item.get("id", "unknown")),
+                    exc_info=True,
+                )
+    except Exception:
+        _log.warning("process_conversation.embedding_phase_failed", exc_info=True)
 
+    # Phase 2: Extract entities via regex
     entity_count = 0
     for msg in relevant:
-        if msg["role"] != "user":
+        if msg.get("role") != "user":
             continue
-        content = msg["content"]
+        content = msg.get("content", "")
+        if not content:
+            continue
 
         for match in _NAME_PATTERN.finditer(content):
             name = match.group(1)
-            await save_entity(user_id, name, "person", content[:200])
-            entity_count += 1
+            try:
+                await save_entity(user_id, name, "person", content[:200])
+                entity_count += 1
+            except Exception:
+                _log.warning("process_conversation.save_entity_failed", name=name, exc_info=True)
 
         for match in _PLACE_PATTERN.finditer(content):
             place = match.group(1)
-            await save_entity(user_id, place, "place", content[:200])
-            entity_count += 1
+            try:
+                await save_entity(user_id, place, "place", content[:200])
+                entity_count += 1
+            except Exception:
+                _log.warning("process_conversation.save_entity_failed", name=place, exc_info=True)
 
-    user_texts = [m["content"] for m in relevant if m["role"] == "user"]
+    # Phase 3: Extract memories via LLM
+    user_texts = [m.get("content", "") for m in relevant if m.get("role") == "user"]
     memory_count = 0
     if user_texts:
         try:
@@ -75,21 +96,26 @@ async def run_process_conversation(user_id: str, message_ids: list[str]) -> dict
             )
             facts_text = result.content
             if facts_text.strip().upper() != "NONE":
+                source_id = str(relevant[0]["id"]) if relevant else None
                 for line in facts_text.strip().split("\n"):
                     line = line.strip().lstrip("- ")
                     if line and len(line) > 5:
-                        source_id = str(relevant[0]["id"]) if relevant else None
-                        await save_memory(
-                            user_id=user_id,
-                            type="semantic",
-                            content=line,
-                            source_message_id=source_id,
-                        )
-                        memory_count += 1
-        except (ConnectionError, TimeoutError, ValueError) as exc:
+                        try:
+                            await save_memory(
+                                user_id=user_id,
+                                type="semantic",
+                                content=line,
+                                source_message_id=source_id,
+                            )
+                            memory_count += 1
+                        except Exception:
+                            _log.warning(
+                                "process_conversation.save_memory_failed",
+                                exc_info=True,
+                            )
+        except Exception:
             _log.warning(
                 "process_conversation.memory_extraction_failed",
-                error=str(exc),
                 exc_info=True,
             )
 

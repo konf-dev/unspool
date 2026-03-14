@@ -23,14 +23,22 @@ class PushSubscriptionRequest(BaseModel):
 
 @router.post("/subscribe")
 async def subscribe(user_id: str = Depends(get_current_user)) -> dict:
+    # Stripe checkout needs an email. Try to get it from the profile display_name
+    # or fall back to user_id (Supabase Auth stores email in auth.users, not user_profiles).
     from src.db.supabase import get_profile
 
-    profile = await get_profile(user_id)
-    email = profile.get("email", "")
-    if not email:
-        raise HTTPException(status_code=400, detail="No email on profile")
+    email = ""
+    try:
+        profile = await get_profile(user_id)
+        email = profile.get("display_name", "") if profile else ""
+    except Exception:
+        pass
 
-    url = await create_checkout_session(user_id, email)
+    try:
+        url = await create_checkout_session(user_id, email=email or user_id)
+    except Exception:
+        _log.error("subscribe.checkout_failed", user_id=user_id, exc_info=True)
+        raise HTTPException(status_code=500, detail="Could not create checkout session")
     return {"url": url}
 
 

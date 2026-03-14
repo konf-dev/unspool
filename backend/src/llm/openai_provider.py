@@ -31,6 +31,9 @@ class OpenAIProvider:
             messages=messages,
             **kwargs,
         )
+        if not response.choices:
+            _log.warning("openai.empty_choices")
+            return LLMResult(content="", input_tokens=0, output_tokens=0)
         choice = response.choices[0]
         return LLMResult(
             content=choice.message.content or "",

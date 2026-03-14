@@ -66,9 +66,19 @@ async def run_detect_patterns() -> dict:
                     patterns[name] = result
                     llm_calls += 1
 
-        # Pass dict directly — asyncpg handles JSONB serialization.
-        # Do NOT json.dumps() — that causes double-encoding.
-        await update_profile(user_id, patterns=patterns)
+        # Merge with existing patterns to avoid overwriting data from
+        # analyses that didn't run this cycle (e.g., LLM was down).
+        try:
+            existing_profile = await get_profile(user_id)
+            existing_patterns = existing_profile.get("patterns") or {}
+            if isinstance(existing_patterns, str):
+                import json as _json
+                existing_patterns = _json.loads(existing_patterns)
+        except Exception:
+            existing_patterns = {}
+
+        merged = {**existing_patterns, **patterns}
+        await update_profile(user_id, patterns=merged)
         updated += 1
 
     _log.info("detect_patterns.done", updated=updated, llm_calls=llm_calls)

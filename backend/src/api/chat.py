@@ -31,12 +31,16 @@ async def _check_gate(user_id: str) -> None:
     gate_config = load_config("gate")
     rate_limits = gate_config.get("rate_limits", {})
 
-    cached_tier = await redis.session_get(user_id, "tier")
-    if cached_tier:
-        tier = cached_tier
-    else:
-        tier = await db.get_user_tier(user_id)
-        await redis.session_set(user_id, "tier", tier)
+    tier = "free"
+    try:
+        cached_tier = await redis.session_get(user_id, "tier")
+        if cached_tier:
+            tier = cached_tier
+        else:
+            tier = await db.get_user_tier(user_id)
+            await redis.session_set(user_id, "tier", tier)
+    except Exception:
+        _log.warning("gate.tier_check_failed", user_id=user_id, exc_info=True)
 
     tier_config = rate_limits.get(tier, rate_limits.get("free", {}))
     daily_limit = tier_config.get("daily_messages", 10)
@@ -44,7 +48,12 @@ async def _check_gate(user_id: str) -> None:
     if daily_limit < 0:
         return
 
-    allowed, remaining = await redis.rate_limit_check(user_id, daily_limit)
+    try:
+        allowed, remaining = await redis.rate_limit_check(user_id, daily_limit)
+    except Exception:
+        _log.warning("gate.rate_limit_check_failed", user_id=user_id, exc_info=True)
+        return  # fail open — let the request through if Redis is down
+
     if not allowed:
         message = tier_config.get(
             "message",
