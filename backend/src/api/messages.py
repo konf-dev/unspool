@@ -179,14 +179,23 @@ async def _check_proactive(user_id: str) -> dict[str, Any] | None:
             )
             continue
 
-        msg = await db.save_message(
-            user_id=user_id,
-            role="assistant",
-            content=content,
-            metadata={"type": metadata_type, "trigger": trigger_name},
-        )
-        _log.info("proactive.sent", trigger=trigger_name, user_id=user_id)
-        return msg
+        try:
+            msg = await db.save_message(
+                user_id=user_id,
+                role="assistant",
+                content=content,
+                metadata={"type": metadata_type, "trigger": trigger_name},
+            )
+            _log.info("proactive.sent", trigger=trigger_name, user_id=user_id)
+            return msg
+        except Exception:
+            _log.warning(
+                "proactive.save_failed",
+                trigger=trigger_name,
+                user_id=user_id,
+                exc_info=True,
+            )
+            continue
 
     return None
 
