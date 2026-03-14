@@ -369,7 +369,7 @@ Multiple Claude sessions may work on different roadmap items simultaneously. Fol
 
 ## Post-Push Verification
 
-After every push to `main`, verify the deployment succeeded:
+After every push to `main`, verify the deployment succeeded. **All 4 steps are required** — a passing health check does NOT mean the app works (e.g., rate limiting can silently block all users while health returns 200).
 
 ```bash
 # 1. Check backend health (Railway auto-deploys, ~1-2 min)
@@ -380,9 +380,25 @@ curl -s -H "X-Admin-Key: $ADMIN_API_KEY" https://api.unspool.life/admin/errors?l
 
 # 3. Check GitHub Actions CI status
 gh run list --limit 3
+
+# 4. Smoke test the chat endpoint (catches auth, rate limiting, pipeline errors)
+curl -s -X POST https://api.unspool.life/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"hi","session_id":"smoke-test"}' \
+  -w "\nHTTP %{http_code}\n" | tail -5
+# Expected: 401 (Missing Bearer token) — proves the endpoint is reachable and FastAPI is routing.
+# If you get 429, rate limiting is too aggressive. Check gate.yaml + Redis state.
+# If you get 500, check Railway logs: railway logs | tail -30
 ```
 
 If the health check fails or returns errors, check Railway logs for crash details. Vercel auto-deploys the frontend on push — it only needs checking if `frontend/` changed.
+
+### Config change safety checklist
+
+Before changing config values that affect live users (gate.yaml, scoring.yaml, proactive.yaml):
+1. **Who is affected right now?** Check if the feature has dependencies that aren't live yet (e.g., lowering rate limits before Stripe is set up).
+2. **Is there cached state?** Redis keys, session caches, and tier lookups may reflect old values. A config change doesn't reset them.
+3. **Can you roll back?** Config changes deploy immediately on push. Know how to revert.
 
 ## Debugging Production Issues
 
