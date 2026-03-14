@@ -49,6 +49,7 @@ export function ChatScreen({ initialMessages, token, userId: _userId, onSignOut 
   const abortRef = useRef<AbortController | null>(null)
   const pendingActionsRef = useRef<ActionButton[] | null>(null)
   const firstTokenReceivedRef = useRef(false)
+  const userAbortedRef = useRef(false)
   const sessionIdRef = useRef(getSessionId())
 
   const { isOnline } = useOffline()
@@ -93,6 +94,7 @@ export function ChatScreen({ initialMessages, token, userId: _userId, onSignOut 
       setStreamingContent('')
       pendingActionsRef.current = null
       firstTokenReceivedRef.current = false
+      userAbortedRef.current = false
 
       let accumulated = ''
 
@@ -134,10 +136,24 @@ export function ChatScreen({ initialMessages, token, userId: _userId, onSignOut 
           }
         },
         () => {
+          if (userAbortedRef.current) {
+            userAbortedRef.current = false
+            return
+          }
           setIsStreaming(false)
           setIsThinking(false)
           setStreamingContent(null)
           abortRef.current = null
+
+          const errorMessage: Message = {
+            id: `error-${Date.now()}`,
+            role: 'assistant',
+            content: "couldn't reach the server — try again?",
+            createdAt: new Date().toISOString(),
+            actions: [{ label: 'retry', value: first }],
+            metadata: { isError: true },
+          }
+          setMessages((prev) => [...prev, errorMessage])
         },
       )
 
@@ -152,11 +168,32 @@ export function ChatScreen({ initialMessages, token, userId: _userId, onSignOut 
     }
   }, [isOnline, queuedMessages, isStreaming, isThinking, flushQueue])
 
+  const handleStop = useCallback(() => {
+    userAbortedRef.current = true
+    if (abortRef.current) {
+      abortRef.current.abort()
+      abortRef.current = null
+    }
+    setIsStreaming(false)
+    setIsThinking(false)
+    setStreamingContent(null)
+  }, [])
+
   const handleSend = useCallback(
     (text: string) => {
-      if (isStreaming || isThinking) return
-
       if (!isOnline) {
+        const userMessage: Message = {
+          id: `user-${Date.now()}`,
+          role: 'user',
+          content: text,
+          createdAt: new Date().toISOString(),
+        }
+        setMessages((prev) => [...prev, userMessage])
+        setQueuedMessages((prev) => [...prev, text])
+        return
+      }
+
+      if (isStreaming || isThinking) {
         const userMessage: Message = {
           id: `user-${Date.now()}`,
           role: 'user',
@@ -181,6 +218,7 @@ export function ChatScreen({ initialMessages, token, userId: _userId, onSignOut 
       setStreamingContent('')
       pendingActionsRef.current = null
       firstTokenReceivedRef.current = false
+      userAbortedRef.current = false
 
       let accumulated = ''
 
@@ -218,10 +256,24 @@ export function ChatScreen({ initialMessages, token, userId: _userId, onSignOut 
           firstTokenReceivedRef.current = false
         },
         () => {
+          if (userAbortedRef.current) {
+            userAbortedRef.current = false
+            return
+          }
           setIsStreaming(false)
           setIsThinking(false)
           setStreamingContent(null)
           abortRef.current = null
+
+          const errorMessage: Message = {
+            id: `error-${Date.now()}`,
+            role: 'assistant',
+            content: "couldn't reach the server — try again?",
+            createdAt: new Date().toISOString(),
+            actions: [{ label: 'retry', value: text }],
+            metadata: { isError: true },
+          }
+          setMessages((prev) => [...prev, errorMessage])
         },
       )
 
@@ -265,7 +317,11 @@ export function ChatScreen({ initialMessages, token, userId: _userId, onSignOut 
           isThinking={isThinking}
           onAction={handleAction}
         />
-        <InputBar onSend={handleSend} disabled={isStreaming || isThinking} />
+        <InputBar
+          onSend={handleSend}
+          isStreaming={isStreaming || isThinking}
+          onStop={handleStop}
+        />
       </div>
       {showCat && <CatEasterEgg variant={variant} onDone={onCatDone} />}
     </div>

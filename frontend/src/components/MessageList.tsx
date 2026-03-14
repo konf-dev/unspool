@@ -1,5 +1,4 @@
-import { useRef, useState, useCallback } from 'react'
-import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import type { Message } from '../types'
 import { MessageBubble } from './MessageBubble'
 import { StreamingText } from './StreamingText'
@@ -12,7 +11,6 @@ interface MessageListProps {
   isStreaming: boolean
   isThinking: boolean
   onAction: (value: string) => void
-  onLoadMore?: () => void
 }
 
 export function MessageList({
@@ -21,95 +19,106 @@ export function MessageList({
   isStreaming,
   isThinking,
   onAction,
-  onLoadMore,
 }: MessageListProps) {
-  const virtuosoRef = useRef<VirtuosoHandle>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [isAtBottom, setIsAtBottom] = useState(true)
   const [showJumpToBottom, setShowJumpToBottom] = useState(false)
 
   const showStreamingBubble =
     isStreaming && !isThinking && streamingContent !== null
 
-  const allMessages: Message[] = [
-    ...messages,
-    ...(showStreamingBubble
-      ? [
-          {
-            id: 'streaming',
-            role: 'assistant' as const,
-            content: streamingContent,
-            createdAt: new Date().toISOString(),
-          },
-        ]
-      : []),
-  ]
+  const checkAtBottom = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+    setIsAtBottom(atBottom)
+    setShowJumpToBottom(!atBottom)
+  }, [])
 
-  const handleAtBottomStateChange = useCallback(
-    (atBottom: boolean) => {
-      setShowJumpToBottom(!atBottom && (isStreaming || isThinking))
-    },
-    [isStreaming, isThinking],
-  )
+  useEffect(() => {
+    if (isAtBottom && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [messages, streamingContent, isThinking, isAtBottom])
 
   const handleJumpToBottom = useCallback(() => {
-    virtuosoRef.current?.scrollToIndex({
-      index: allMessages.length - 1,
-      behavior: 'smooth',
-    })
-  }, [allMessages.length])
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+    }
+  }, [])
 
   return (
     <div className="message-list-container" role="log" aria-live="polite">
-      <Virtuoso
-        ref={virtuosoRef}
-        data={allMessages}
-        followOutput="smooth"
-        startReached={onLoadMore}
-        atBottomStateChange={handleAtBottomStateChange}
-        atBottomThreshold={100}
-        itemContent={(index, message) => (
-          <div
-            style={{
-              paddingTop:
-                index === 0 ? 'var(--spacing-lg)' : 'var(--spacing-message-gap)',
-            }}
-          >
-            {message.id === 'streaming' ? (
+      <div
+        ref={scrollRef}
+        className="message-list-scroll"
+        onScroll={checkAtBottom}
+      >
+        <div className="message-list-inner">
+          {messages.map((message, index) => (
+            <div
+              key={message.id}
+              style={{
+                paddingTop:
+                  index === 0 ? 'var(--spacing-lg)' : 'var(--spacing-message-gap)',
+              }}
+            >
+              <MessageBubble
+                message={message}
+                isLatest={
+                  !showStreamingBubble &&
+                  !isThinking &&
+                  index === messages.length - 1
+                }
+                onAction={onAction}
+              />
+            </div>
+          ))}
+          {showStreamingBubble && (
+            <div style={{ paddingTop: 'var(--spacing-message-gap)' }}>
               <div className="message-row assistant">
                 <div>
                   <div className="message-bubble assistant">
-                    <StreamingText content={message.content} />
+                    <StreamingText content={streamingContent} />
                   </div>
                 </div>
               </div>
-            ) : (
-              <MessageBubble
-                message={message}
-                isLatest={index === allMessages.length - 1}
-                onAction={onAction}
-              />
-            )}
-          </div>
-        )}
-        components={{
-          Footer: () => (
-            <>
-              {isThinking && (
-                <div style={{ paddingTop: 'var(--spacing-message-gap)', paddingLeft: 'var(--spacing-md)' }}>
-                  <TypingIndicator />
-                </div>
-              )}
-              <div className="message-list-spacer" />
-            </>
-          ),
-        }}
-      />
+            </div>
+          )}
+          {isThinking && (
+            <div
+              style={{
+                paddingTop: 'var(--spacing-message-gap)',
+                paddingLeft: 'var(--spacing-md)',
+              }}
+            >
+              <TypingIndicator />
+            </div>
+          )}
+          <div className="message-list-spacer" />
+        </div>
+      </div>
       <button
         className={`jump-to-bottom ${showJumpToBottom ? 'visible' : ''}`}
         type="button"
         onClick={handleJumpToBottom}
         aria-label="Jump to latest message"
       >
-        jump to latest
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M12 5V19M5 12L12 19L19 12"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
     </div>
   )
