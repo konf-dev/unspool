@@ -28,10 +28,10 @@ async def check_momentum(user_id: str) -> dict[str, Any]:
 
 @register_tool("pick_next_item")
 async def pick_next_item(
-    items: list[dict[str, Any]],
+    items: list[dict[str, Any]] | None,
     user_id: str,
 ) -> dict[str, Any] | None:
-    if not items:
+    if not items or not isinstance(items, list):
         return None
 
     try:
@@ -48,6 +48,8 @@ async def pick_next_item(
 
     scored: list[tuple[float, dict[str, Any]]] = []
     for item in items:
+        if not isinstance(item, dict):
+            continue
         score = float(item.get("urgency_score", 0.0))
 
         if item.get("deadline_type") == "hard":
@@ -65,13 +67,16 @@ async def pick_next_item(
 
         scored.append((score, item))
 
+    if not scored:
+        return None
+
     scored.sort(key=lambda x: x[0], reverse=True)
     best = scored[0][1]
 
     _log.info(
         "pick_next.selected",
         user_id=user_id,
-        item_id=str(best["id"]),
+        item_id=str(best.get("id", "unknown")),
         score=scored[0][0],
     )
 
