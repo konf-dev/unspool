@@ -14,7 +14,7 @@ Rules:
 - If they mentioned feelings or stress alongside tasks, acknowledge the feeling first
 - Make them feel heard, not processed
 
-What they said: {{ user_message }}
+What they said: <user_input>{{ user_message }}</user_input>
 
 {% if extracted_items %}
 {% set item_list = extracted_items['items'] if 'items' in extracted_items else [] %}

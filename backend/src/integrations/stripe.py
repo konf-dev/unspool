@@ -35,7 +35,7 @@ async def create_checkout_session(user_id: str, email: str) -> str:
     )
 
     _log.info("stripe.checkout_created", user_id=user_id)
-    return session.url
+    return session.url or ""
 
 
 async def handle_webhook(payload: bytes, signature: str) -> dict:

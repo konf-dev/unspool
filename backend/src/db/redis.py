@@ -54,10 +54,10 @@ async def rate_limit_check(user_id: str, daily_limit: int) -> tuple[bool, int]:
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     key = f"rate:{user_id}:{today}"
 
-    # Atomic: INCR returns new count; if first call, key is created with value 1
+    # Atomic: SET NX creates the key with expiry in one call, then INCR.
+    # This avoids the race where INCR creates the key but EXPIRE never runs.
+    await asyncio.to_thread(partial(r.set, key, 0, ex=86400, nx=True))
     count = await asyncio.to_thread(r.incr, key)
-    if count == 1:
-        await asyncio.to_thread(r.expire, key, 86400)
 
     allowed = count <= daily_limit
     remaining = max(0, daily_limit - count)

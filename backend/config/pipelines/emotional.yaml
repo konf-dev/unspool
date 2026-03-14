@@ -8,7 +8,7 @@ steps:
     model: null
     input:
       message: "${user_message}"
-    output_schema: EmotionalLevel
+    output_schema: EmotionalDetection
 
   - id: respond
     type: llm_call

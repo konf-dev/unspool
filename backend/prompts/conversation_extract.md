@@ -13,11 +13,11 @@ Examples:
 {% if recent_messages %}
 Recent conversation:
 {% for msg in recent_messages[-5:] %}
-{{ msg.role }}: {{ msg.content }}
+{{ msg.role }}: <user_input>{{ msg.content }}</user_input>
 {% endfor %}
 {% endif %}
 
-Current message: {{ message }}
+Current message: <user_input>{{ message }}</user_input>
 
 Respond with a JSON object only:
 {

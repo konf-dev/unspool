@@ -11,7 +11,7 @@ Rules:
 - If nothing was found, say so and offer to help them capture it
 - Keep it brief — 2-3 sentences
 
-User asked about: {{ query }}
+User asked about: <user_input>{{ query }}</user_input>
 
 {% if results %}
 Found items:

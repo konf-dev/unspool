@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "if echo \"$CLAUDE_FILE_PATHS\" | grep -q '\\.py$'; then cd backend && ruff format $CLAUDE_FILE_PATHS 2>/dev/null; fi",
+        "description": "Auto-format Python files with ruff after edit/write"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "if echo \"$CLAUDE_FILE_PATHS\" | grep -qE 'backend/supabase/migrations/0.*\\.sql$'; then echo 'BLOCK: Do not modify existing migration files — create a new migration instead' && exit 1; fi",
+        "description": "Block writes to existing migration files"
+      },
+      {
+        "matcher": "Edit|Write",
+        "command": "if echo \"$CLAUDE_FILE_PATHS\" | grep -qE '^\\.env'; then echo 'BLOCK: Do not modify .env files — use .env.example instead' && exit 1; fi",
+        "description": "Block writes to .env files"
+      }
+    ],
+    "Stop": [
+      {
+        "command": "cd backend && pytest -x --timeout=30",
+        "description": "Run backend test suite before stopping"
+      }
+    ]
+  }
+}

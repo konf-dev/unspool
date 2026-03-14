@@ -2,11 +2,11 @@ import os
 import subprocess
 import time
 import uuid
+from collections.abc import MutableMapping
+from typing import Any
 
 import structlog
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.requests import Request
-from starlette.responses import Response
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from src.telemetry.logger import get_logger
 
@@ -33,31 +33,47 @@ def _get_git_sha() -> str:
 GIT_SHA = _get_git_sha()
 
 
-class TraceMiddleware(BaseHTTPMiddleware):
-    async def dispatch(
-        self,
-        request: Request,
-        call_next: RequestResponseEndpoint,
-    ) -> Response:
+class TraceMiddleware:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
         trace_id = str(uuid.uuid4())
-        request.state.trace_id = trace_id
+
+        state: MutableMapping[str, Any] = scope.setdefault("state", {})
+        state["trace_id"] = trace_id
 
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(trace_id=trace_id, git_sha=GIT_SHA)
 
-        _log.info("request.start", method=request.method, path=request.url.path)
+        method = scope.get("method", "")
+        path = scope.get("path", "")
+        _log.info("request.start", method=method, path=path)
 
         start = time.perf_counter()
-        response = await call_next(request)
-        latency_ms = round((time.perf_counter() - start) * 1000, 2)
 
+        status_code = 0
+
+        async def send_wrapper(message: Message) -> None:
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message.get("status", 0)
+                headers: list[tuple[bytes, bytes]] = list(message.get("headers", []))
+                headers.append((b"x-trace-id", trace_id.encode()))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
+        latency_ms = round((time.perf_counter() - start) * 1000, 2)
         _log.info(
             "request.end",
-            method=request.method,
-            path=request.url.path,
-            status_code=response.status_code,
+            method=method,
+            path=path,
+            status_code=status_code,
             latency_ms=latency_ms,
         )
-
-        response.headers["X-Trace-Id"] = trace_id
-        return response

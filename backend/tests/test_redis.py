@@ -23,8 +23,8 @@ class TestRateLimitCheck:
     @pytest.mark.asyncio
     async def test_first_request_allowed(self) -> None:
         mock_redis = MagicMock()
+        mock_redis.set.return_value = True
         mock_redis.incr.return_value = 1
-        mock_redis.expire.return_value = True
 
         with patch("src.db.redis.get_redis", return_value=mock_redis):
             allowed, remaining = await rate_limit_check("user-1", 10)
@@ -35,6 +35,7 @@ class TestRateLimitCheck:
     @pytest.mark.asyncio
     async def test_at_limit_still_allowed(self) -> None:
         mock_redis = MagicMock()
+        mock_redis.set.return_value = None
         mock_redis.incr.return_value = 10
 
         with patch("src.db.redis.get_redis", return_value=mock_redis):
@@ -45,6 +46,7 @@ class TestRateLimitCheck:
     @pytest.mark.asyncio
     async def test_over_limit_denied(self) -> None:
         mock_redis = MagicMock()
+        mock_redis.set.return_value = None
         mock_redis.incr.return_value = 11
 
         with patch("src.db.redis.get_redis", return_value=mock_redis):
@@ -53,19 +55,16 @@ class TestRateLimitCheck:
             assert remaining == 0
 
     @pytest.mark.asyncio
-    async def test_expire_set_on_first_increment(self) -> None:
+    async def test_atomic_set_nx_before_incr(self) -> None:
         mock_redis = MagicMock()
+        mock_redis.set.return_value = True
         mock_redis.incr.return_value = 1
 
         with patch("src.db.redis.get_redis", return_value=mock_redis):
             await rate_limit_check("user-1", 10)
-            mock_redis.expire.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_expire_not_set_on_subsequent(self) -> None:
-        mock_redis = MagicMock()
-        mock_redis.incr.return_value = 5
-
-        with patch("src.db.redis.get_redis", return_value=mock_redis):
-            await rate_limit_check("user-1", 10)
-            mock_redis.expire.assert_not_called()
+            # SET NX should be called with ex=86400 and nx=True
+            set_call = mock_redis.set.call_args
+            assert set_call.kwargs.get("ex") == 86400 or set_call[1].get("ex") == 86400
+            assert set_call.kwargs.get("nx") is True or set_call[1].get("nx") is True
+            # INCR should be called after SET NX
+            mock_redis.incr.assert_called_once()

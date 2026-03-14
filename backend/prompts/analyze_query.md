@@ -5,12 +5,12 @@ input_vars: [user_message, recent_messages, profile]
 ---
 The user is asking a question or searching for something. Determine what data we need to fetch to answer it.
 
-User's message: {{ user_message }}
+User's message: <user_input>{{ user_message }}</user_input>
 
 {% if recent_messages %}
 Recent conversation for context:
 {% for msg in recent_messages[-5:] %}
-{{ msg.role }}: {{ msg.content }}
+{{ msg.role }}: <user_input>{{ msg.content }}</user_input>
 {% endfor %}
 {% endif %}
 
