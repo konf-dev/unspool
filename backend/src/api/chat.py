@@ -81,6 +81,13 @@ async def _stream_response(
     )
 
     async with asyncio.timeout(_PIPELINE_TIMEOUT_SECONDS):
+        _log.info(
+            "chat.message_received",
+            trace_id=trace_id,
+            user_id=user_id,
+            message=message[:500],
+        )
+
         intent_name, pipeline_name, confidence = await classify_intent(message, context)
 
         context = await assemble_context(user_id, trace_id, message, intent_name)
@@ -91,6 +98,11 @@ async def _stream_response(
             intent=intent_name,
             pipeline=pipeline_name,
             confidence=confidence,
+            context_fields=[
+                f for f in ("profile", "open_items", "recent_messages", "urgent_items",
+                            "memories", "entities", "calendar_events")
+                if getattr(context, f, None) is not None
+            ],
         )
 
         tool_registry = get_tool_registry()

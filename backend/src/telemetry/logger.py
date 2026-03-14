@@ -47,7 +47,9 @@ def configure_logging() -> None:
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
     root_logger.addHandler(handler)
-    root_logger.setLevel(logging.INFO)
+    # DEBUG for MVP — full visibility into every request.
+    # Switch to INFO once stable and log volume becomes a concern.
+    root_logger.setLevel(logging.DEBUG)
 
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 

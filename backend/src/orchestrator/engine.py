@@ -25,6 +25,19 @@ from src.telemetry.logger import get_logger
 _log = get_logger("orchestrator.engine")
 
 
+def _truncate(value: Any, max_len: int = 300) -> Any:
+    """Truncate a value for safe logging. Handles strings, dicts, lists."""
+    if isinstance(value, str):
+        return value[:max_len] + "..." if len(value) > max_len else value
+    if isinstance(value, dict):
+        return {k: _truncate(v, 100) for k, v in list(value.items())[:10]}
+    if isinstance(value, list):
+        count = len(value)
+        preview = value[:3] if count <= 3 else value[:2] + [f"... +{count - 2} more"]
+        return preview
+    return value
+
+
 def _resolve_inputs(
     inputs: dict[str, str] | None,
     context: Context,
@@ -137,6 +150,15 @@ async def _execute_llm_step(
         latency_ms = round((time.perf_counter() - start) * 1000, 2)
         content = "".join(collected)
 
+        _log.info(
+            "llm.stream_done",
+            step_id=step.id,
+            latency_ms=latency_ms,
+            output_len=len(content),
+            output_preview=content[:300],
+            trace_id=context.trace_id,
+        )
+
         await log_llm_usage(
             trace_id=context.trace_id,
             user_id=context.user_id,
@@ -172,6 +194,15 @@ async def _execute_llm_step(
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
             latency_ms=latency_ms,
+        )
+
+        _log.info(
+            "llm.generate_done",
+            step_id=step.id,
+            latency_ms=latency_ms,
+            output_len=len(result.content),
+            output_preview=result.content[:300],
+            trace_id=context.trace_id,
         )
 
         output: Any = result.content
@@ -216,9 +247,26 @@ async def _execute_tool_step(
 
     resolved_inputs = _resolve_inputs(step.input, context, step_results)
 
+    _log.debug(
+        "tool.call_start",
+        step_id=step.id,
+        tool=step.tool,
+        inputs={k: _truncate(v) for k, v in resolved_inputs.items()},
+        trace_id=context.trace_id,
+    )
+
     start = time.perf_counter()
     result = await tool_fn(**resolved_inputs)
     latency_ms = round((time.perf_counter() - start) * 1000, 2)
+
+    _log.info(
+        "tool.call_done",
+        step_id=step.id,
+        tool=step.tool,
+        latency_ms=latency_ms,
+        output_preview=_truncate(result),
+        trace_id=context.trace_id,
+    )
 
     return StepResult(step_id=step.id, output=result, latency_ms=latency_ms)
 
