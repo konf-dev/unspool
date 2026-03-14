@@ -22,10 +22,13 @@ class TestStripFrontmatter:
 
 class TestRenderPrompt:
     def test_classify_intent_renders(self) -> None:
-        result = render_prompt("classify_intent.md", {
-            "user_message": "I need to buy groceries",
-            "recent_messages": [],
-        })
+        result = render_prompt(
+            "classify_intent.md",
+            {
+                "user_message": "I need to buy groceries",
+                "recent_messages": [],
+            },
+        )
         assert "I need to buy groceries" in result
         assert "brain_dump" in result
 
@@ -34,10 +37,13 @@ class TestRenderPrompt:
             {"role": "user", "content": "hello"},
             {"role": "assistant", "content": "hi there"},
         ]
-        result = render_prompt("classify_intent.md", {
-            "user_message": "done with that",
-            "recent_messages": messages,
-        })
+        result = render_prompt(
+            "classify_intent.md",
+            {
+                "user_message": "done with that",
+                "recent_messages": messages,
+            },
+        )
         assert "hello" in result
         assert "hi there" in result
 

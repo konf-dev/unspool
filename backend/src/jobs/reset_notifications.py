@@ -1,9 +1,11 @@
 from src.db.supabase import _get_pool
+from src.telemetry.langfuse_integration import observe
 from src.telemetry.logger import get_logger
 
 _log = get_logger("jobs.reset_notifications")
 
 
+@observe("job.reset_notifications")
 async def run_reset_notifications() -> dict:
     pool = _get_pool()
     row = await pool.fetchrow(

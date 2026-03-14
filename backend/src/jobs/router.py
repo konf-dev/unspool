@@ -43,7 +43,12 @@ async def decay_urgency() -> dict:
 @router.post("/process-conversation")
 async def process_conversation(request: ProcessConversationRequest) -> dict:
     trace_id = str(uuid.uuid4())
-    _log.info("job.start", job="process_conversation", trace_id=trace_id, user_id=request.user_id)
+    _log.info(
+        "job.start",
+        job="process_conversation",
+        trace_id=trace_id,
+        user_id=request.user_id,
+    )
     result = await run_process_conversation(request.user_id, request.message_ids)
     _log.info("job.done", job="process_conversation", trace_id=trace_id)
     return result

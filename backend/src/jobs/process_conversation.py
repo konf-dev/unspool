@@ -1,5 +1,7 @@
 import re
 
+from src.telemetry.langfuse_integration import observe
+
 from src.db.supabase import (
     get_items_without_embeddings,
     get_messages_by_ids,
@@ -22,6 +24,7 @@ _PLACE_PATTERN = re.compile(
 )
 
 
+@observe("job.process_conversation")
 async def run_process_conversation(user_id: str, message_ids: list[str]) -> dict:
     _log.info(
         "process_conversation.start",
@@ -38,7 +41,9 @@ async def run_process_conversation(user_id: str, message_ids: list[str]) -> dict
         items = await get_items_without_embeddings(user_id)
         for item in items:
             try:
-                text = f"{item.get('interpreted_action', '')} {item.get('raw_text', '')}"
+                text = (
+                    f"{item.get('interpreted_action', '')} {item.get('raw_text', '')}"
+                )
                 embedding = await embedder.embed(text)
                 await update_item_embedding(str(item["id"]), user_id, embedding)
                 await save_item_event(
@@ -71,7 +76,9 @@ async def run_process_conversation(user_id: str, message_ids: list[str]) -> dict
                 await save_entity(user_id, name, "person", content[:200])
                 entity_count += 1
             except Exception:
-                _log.warning("process_conversation.save_entity_failed", name=name, exc_info=True)
+                _log.warning(
+                    "process_conversation.save_entity_failed", name=name, exc_info=True
+                )
 
         for match in _PLACE_PATTERN.finditer(content):
             place = match.group(1)
@@ -79,19 +86,26 @@ async def run_process_conversation(user_id: str, message_ids: list[str]) -> dict
                 await save_entity(user_id, place, "place", content[:200])
                 entity_count += 1
             except Exception:
-                _log.warning("process_conversation.save_entity_failed", name=place, exc_info=True)
+                _log.warning(
+                    "process_conversation.save_entity_failed", name=place, exc_info=True
+                )
 
     # Phase 3: Extract memories via LLM
     user_texts = [m.get("content", "") for m in relevant if m.get("role") == "user"]
     memory_count = 0
     if user_texts:
         try:
-            rendered = render_prompt("extract_memories.md", {"user_messages": user_texts[-5:]})
+            rendered = render_prompt(
+                "extract_memories.md", {"user_messages": user_texts[-5:]}
+            )
             provider = get_llm_provider()
             result = await provider.generate(
                 messages=[
                     {"role": "system", "content": rendered},
-                    {"role": "user", "content": "Extract facts from the messages above."},
+                    {
+                        "role": "user",
+                        "content": "Extract facts from the messages above.",
+                    },
                 ],
             )
             facts_text = result.content

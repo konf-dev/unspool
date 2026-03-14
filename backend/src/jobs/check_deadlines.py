@@ -7,6 +7,7 @@ from src.db.supabase import (
 )
 from src.integrations.push import send_push_notification
 from src.orchestrator.config_loader import load_config
+from src.telemetry.langfuse_integration import observe
 from src.telemetry.logger import get_logger
 
 _log = get_logger("jobs.check_deadlines")
@@ -28,6 +29,7 @@ def _in_quiet_hours(tz_name: str | None, start: int, end: int) -> bool:
     return local_hour >= start or local_hour < end
 
 
+@observe("job.check_deadlines")
 async def run_check_deadlines() -> dict:
     try:
         config = load_config("scoring")
@@ -39,8 +41,13 @@ async def run_check_deadlines() -> dict:
     quiet_end = notif_config.get("quiet_hours_end", 7)
     deadline_hours = notif_config.get("deadline_window_hours", 24)
     title = notif_config.get("title", "unspool")
-    body_single_template = notif_config.get("body_single", "Deadline approaching: {action}")
-    body_multiple_template = notif_config.get("body_multiple", "You have {count} items with deadlines in the next {hours} hours")
+    body_single_template = notif_config.get(
+        "body_single", "Deadline approaching: {action}"
+    )
+    body_multiple_template = notif_config.get(
+        "body_multiple",
+        "You have {count} items with deadlines in the next {hours} hours",
+    )
 
     users = await get_users_with_urgent_deadlines(hours=deadline_hours)
     _log.info("check_deadlines.start", user_count=len(users))
@@ -78,7 +85,9 @@ async def run_check_deadlines() -> dict:
                 action = items[0].get("interpreted_action", "upcoming deadline")
                 body = body_single_template.format(action=action)
             else:
-                body = body_multiple_template.format(count=len(items), hours=deadline_hours)
+                body = body_multiple_template.format(
+                    count=len(items), hours=deadline_hours
+                )
 
             for sub in subscriptions:
                 await send_push_notification(

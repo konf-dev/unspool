@@ -3,9 +3,9 @@
 
 Run: python -m scripts.config_map
 """
+
 import hashlib
 import subprocess
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -23,11 +23,15 @@ def _hash(path: Path) -> str:
 
 def _git_sha() -> str:
     try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"],
-            stderr=subprocess.DEVNULL,
-            cwd=ROOT,
-        ).decode().strip()
+        return (
+            subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                stderr=subprocess.DEVNULL,
+                cwd=ROOT,
+            )
+            .decode()
+            .strip()
+        )
     except Exception:
         return "unknown"
 
@@ -54,7 +58,9 @@ def main() -> None:
     lines: list[str] = []
     lines.append("# Config Map (auto-generated — do not edit)")
     lines.append("")
-    lines.append(f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} | Git: {_git_sha()}")
+    lines.append(
+        f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} | Git: {_git_sha()}"
+    )
     lines.append("")
     lines.append(f"Intents config: `config/intents.yaml` ({_hash(intents_path)})")
     lines.append(f"Context rules: `config/context_rules.yaml` ({_hash(context_path)})")
@@ -74,12 +80,16 @@ def main() -> None:
             lines.append("")
 
         if not pipeline_path.exists():
-            lines.append(f"Pipeline: `config/pipelines/{pipeline_name}.yaml` — **NOT FOUND**")
+            lines.append(
+                f"Pipeline: `config/pipelines/{pipeline_name}.yaml` — **NOT FOUND**"
+            )
             lines.append("")
             continue
 
         pipeline_hash = _hash(pipeline_path)
-        lines.append(f"Pipeline: `config/pipelines/{pipeline_name}.yaml` ({pipeline_hash})")
+        lines.append(
+            f"Pipeline: `config/pipelines/{pipeline_name}.yaml` ({pipeline_hash})"
+        )
         lines.append("")
 
         # Context
@@ -151,7 +161,9 @@ def main() -> None:
     if orphaned:
         lines.append("## Unreferenced Prompts")
         lines.append("")
-        lines.append("These prompt files exist in `prompts/` but are not referenced by any pipeline:")
+        lines.append(
+            "These prompt files exist in `prompts/` but are not referenced by any pipeline:"
+        )
         lines.append("")
         for p in orphaned:
             prompt_path = PROMPTS_DIR / p
@@ -167,7 +179,9 @@ def main() -> None:
     for config_file in sorted(CONFIG_DIR.glob("*.yaml")):
         lines.append(f"| `config/{config_file.name}` | {_hash(config_file)} |")
     for config_file in sorted((CONFIG_DIR / "pipelines").glob("*.yaml")):
-        lines.append(f"| `config/pipelines/{config_file.name}` | {_hash(config_file)} |")
+        lines.append(
+            f"| `config/pipelines/{config_file.name}` | {_hash(config_file)} |"
+        )
 
     lines.append("")
 

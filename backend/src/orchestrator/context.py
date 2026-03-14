@@ -2,6 +2,7 @@ from collections.abc import Callable
 from typing import Any
 
 from src.orchestrator.config_loader import load_config
+from src.telemetry.langfuse_integration import observe
 from src.orchestrator.types import Context
 from src.tools.context_tools import (
     fetch_calendar_events,
@@ -35,6 +36,7 @@ _LOADER_KWARGS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
 }
 
 
+@observe("assemble_context")
 async def assemble_context(
     user_id: str,
     trace_id: str,

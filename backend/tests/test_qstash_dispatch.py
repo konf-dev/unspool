@@ -1,5 +1,5 @@
 """Tests for QStash client wrapper — dispatch, scheduling, URL construction, error handling."""
-import asyncio
+
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -7,7 +7,6 @@ import pytest
 
 from src.integrations.qstash import (
     _build_url,
-    _get_client,
     dispatch_at,
     dispatch_job,
     schedule_cron,
@@ -38,6 +37,7 @@ class TestDispatchJob:
     @pytest.fixture(autouse=True)
     def _reset_client(self) -> None:
         import src.integrations.qstash as mod
+
         mod._client = None
 
     @pytest.mark.asyncio
@@ -101,7 +101,9 @@ class TestDispatchJob:
     @pytest.mark.asyncio
     async def test_dispatch_failure_returns_none(self) -> None:
         mock_client = MagicMock()
-        mock_client.message.publish_json = AsyncMock(side_effect=ConnectionError("timeout"))
+        mock_client.message.publish_json = AsyncMock(
+            side_effect=ConnectionError("timeout")
+        )
 
         with (
             patch("src.integrations.qstash._get_client", return_value=mock_client),
@@ -134,6 +136,7 @@ class TestScheduleCron:
     @pytest.fixture(autouse=True)
     def _reset_client(self) -> None:
         import src.integrations.qstash as mod
+
         mod._client = None
 
     @pytest.mark.asyncio
@@ -174,6 +177,7 @@ class TestDispatchAt:
     @pytest.fixture(autouse=True)
     def _reset_client(self) -> None:
         import src.integrations.qstash as mod
+
         mod._client = None
 
     @pytest.mark.asyncio

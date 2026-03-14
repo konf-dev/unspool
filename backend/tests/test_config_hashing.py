@@ -1,5 +1,4 @@
 """Tests for config versioning: content hashing in config_loader and prompt_renderer."""
-import pytest
 
 from src.orchestrator.config_loader import (
     get_all_config_hashes,
@@ -33,6 +32,7 @@ class TestConfigHashing:
         h1 = get_config_hash("pipeline:brain_dump")
         # Force re-load by clearing cache
         from src.orchestrator.config_loader import _pipeline_cache
+
         _pipeline_cache.pop("brain_dump", None)
         load_pipeline("brain_dump")
         h2 = get_config_hash("pipeline:brain_dump")
@@ -50,35 +50,53 @@ class TestConfigHashing:
 
     def test_all_pipelines_produce_hashes(self) -> None:
         names = [
-            "brain_dump", "conversation", "emotional", "meta",
-            "onboarding", "query_next", "query_search",
-            "query_upcoming", "status_cant", "status_done",
+            "brain_dump",
+            "conversation",
+            "emotional",
+            "meta",
+            "onboarding",
+            "query_next",
+            "query_search",
+            "query_upcoming",
+            "status_cant",
+            "status_done",
         ]
         for name in names:
             load_pipeline(name)
-            assert get_config_hash(f"pipeline:{name}") is not None, f"No hash for {name}"
+            assert get_config_hash(f"pipeline:{name}") is not None, (
+                f"No hash for {name}"
+            )
 
 
 class TestPromptHashing:
     def test_prompt_hash_populated_after_render(self) -> None:
-        render_prompt("classify_intent.md", {
-            "user_message": "test",
-            "recent_messages": [],
-        })
+        render_prompt(
+            "classify_intent.md",
+            {
+                "user_message": "test",
+                "recent_messages": [],
+            },
+        )
         h = get_prompt_hash("classify_intent.md")
         assert h is not None
         assert len(h) == 12
 
     def test_prompt_hash_deterministic(self) -> None:
-        render_prompt("classify_intent.md", {
-            "user_message": "a",
-            "recent_messages": [],
-        })
+        render_prompt(
+            "classify_intent.md",
+            {
+                "user_message": "a",
+                "recent_messages": [],
+            },
+        )
         h1 = get_prompt_hash("classify_intent.md")
-        render_prompt("classify_intent.md", {
-            "user_message": "b",
-            "recent_messages": [],
-        })
+        render_prompt(
+            "classify_intent.md",
+            {
+                "user_message": "b",
+                "recent_messages": [],
+            },
+        )
         h2 = get_prompt_hash("classify_intent.md")
         # Same file, different variables — hash should be the same
         assert h1 == h2
@@ -87,10 +105,13 @@ class TestPromptHashing:
         assert get_prompt_hash("nonexistent_xyz.md") is None
 
     def test_prompt_meta_parsed_from_frontmatter(self) -> None:
-        render_prompt("classify_intent.md", {
-            "user_message": "test",
-            "recent_messages": [],
-        })
+        render_prompt(
+            "classify_intent.md",
+            {
+                "user_message": "test",
+                "recent_messages": [],
+            },
+        )
         meta = get_prompt_meta("classify_intent.md")
         # classify_intent.md has frontmatter with at least a name field
         assert isinstance(meta, dict)

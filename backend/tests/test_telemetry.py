@@ -1,4 +1,5 @@
 """Tests for telemetry: middleware GIT_SHA, events, structured errors."""
+
 import hashlib
 
 from src.telemetry.events import log_message_completed, log_step_error

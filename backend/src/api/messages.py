@@ -40,12 +40,15 @@ def register_condition(name: str) -> Callable[[ConditionEvaluator], ConditionEva
     def decorator(fn: ConditionEvaluator) -> ConditionEvaluator:
         _CONDITION_EVALUATORS[name] = fn
         return fn
+
     return decorator
 
 
 @register_condition("urgent_items")
 async def _eval_urgent_items(
-    params: dict[str, Any], user_id: str, profile: dict[str, Any] | None,
+    params: dict[str, Any],
+    user_id: str,
+    profile: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     hours = params.get("hours", 24)
     items = await db.get_proactive_items(user_id, hours=hours)
@@ -56,7 +59,9 @@ async def _eval_urgent_items(
 
 @register_condition("days_absent")
 async def _eval_days_absent(
-    params: dict[str, Any], user_id: str, profile: dict[str, Any] | None,
+    params: dict[str, Any],
+    user_id: str,
+    profile: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     min_days = params.get("min_days", 3)
     last_interaction = await db.get_last_interaction(user_id)
@@ -74,7 +79,9 @@ async def _eval_days_absent(
 
 @register_condition("recent_completions")
 async def _eval_recent_completions(
-    params: dict[str, Any], user_id: str, profile: dict[str, Any] | None,
+    params: dict[str, Any],
+    user_id: str,
+    profile: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     min_completions = params.get("min_completions", 3)
     lookback = params.get("lookback_hours", 24)
@@ -86,7 +93,9 @@ async def _eval_recent_completions(
 
 @register_condition("slipped_items")
 async def _eval_slipped_items(
-    params: dict[str, Any], user_id: str, profile: dict[str, Any] | None,
+    params: dict[str, Any],
+    user_id: str,
+    profile: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     min_absent = params.get("min_absent_days", 3)
     last_interaction = await db.get_last_interaction(user_id)
@@ -122,7 +131,9 @@ async def _evaluate_trigger(
 
     evaluator = _CONDITION_EVALUATORS.get(condition)
     if not evaluator:
-        _log.warning("proactive.unknown_condition", condition=condition, trigger=trigger_name)
+        _log.warning(
+            "proactive.unknown_condition", condition=condition, trigger=trigger_name
+        )
         return None
 
     return await evaluator(params, user_id, profile)
@@ -152,7 +163,9 @@ async def _check_proactive(user_id: str) -> dict[str, Any] | None:
         if not trigger_config.get("enabled", True):
             continue
 
-        template_vars = await _evaluate_trigger(trigger_name, trigger_config, user_id, profile)
+        template_vars = await _evaluate_trigger(
+            trigger_name, trigger_config, user_id, profile
+        )
         if template_vars is None:
             continue
 

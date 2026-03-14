@@ -7,9 +7,7 @@ _log = get_logger("llm.embedding")
 
 
 class OpenAIEmbedding:
-    def __init__(
-        self, api_key: str | None = None, model: str | None = None
-    ) -> None:
+    def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
         settings = get_settings()
         self._client = AsyncOpenAI(api_key=api_key or settings.EMBEDDING_API_KEY)
         self._model = model or settings.EMBEDDING_MODEL

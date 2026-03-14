@@ -2,11 +2,13 @@ from datetime import datetime, timezone
 
 from src.db.supabase import batch_update_items, get_all_open_items_for_decay
 from src.orchestrator.config_loader import load_config
+from src.telemetry.langfuse_integration import observe
 from src.telemetry.logger import get_logger
 
 _log = get_logger("jobs.decay_urgency")
 
 
+@observe("job.decay_urgency")
 async def run_decay_urgency() -> dict:
     try:
         config = load_config("scoring")
@@ -45,24 +47,42 @@ async def run_decay_urgency() -> dict:
             if hours_until <= 0:
                 new_urgency = ramp_overdue
             elif hours_until <= 24:
-                new_urgency = min(1.0, ramp_24h_base + (24 - hours_until) / ramp_24h_divisor)
+                new_urgency = min(
+                    1.0, ramp_24h_base + (24 - hours_until) / ramp_24h_divisor
+                )
             elif hours_until <= 72:
-                new_urgency = max(urgency, ramp_72h_base + (72 - hours_until) / ramp_72h_divisor)
+                new_urgency = max(
+                    urgency, ramp_72h_base + (72 - hours_until) / ramp_72h_divisor
+                )
             else:
                 new_urgency = urgency
             if abs(new_urgency - urgency) > 0.01:
-                updates.append({"id": item_id, "user_id": item_user_id, "urgency_score": new_urgency})
+                updates.append(
+                    {
+                        "id": item_id,
+                        "user_id": item_user_id,
+                        "urgency_score": new_urgency,
+                    }
+                )
 
         elif deadline_type == "soft" and deadline_at:
             if deadline_at < now:
                 new_urgency = urgency * soft_decay_factor
-                updates.append({"id": item_id, "user_id": item_user_id, "urgency_score": new_urgency})
+                updates.append(
+                    {
+                        "id": item_id,
+                        "user_id": item_user_id,
+                        "urgency_score": new_urgency,
+                    }
+                )
 
         else:
             if created_at:
                 age_days = (now - created_at).days
                 if age_days > auto_expire_days and urgency < auto_expire_threshold:
-                    updates.append({"id": item_id, "user_id": item_user_id, "status": "expired"})
+                    updates.append(
+                        {"id": item_id, "user_id": item_user_id, "status": "expired"}
+                    )
                     expired += 1
 
     if updates:

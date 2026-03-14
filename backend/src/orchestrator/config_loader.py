@@ -52,21 +52,23 @@ def load_pipeline(name: str) -> Pipeline:
 
     steps = []
     for step_raw in raw.get("steps", []):
-        steps.append(Step(
-            id=step_raw["id"],
-            type=step_raw["type"],
-            prompt=step_raw.get("prompt"),
-            model=step_raw.get("model"),
-            tool=step_raw.get("tool"),
-            query=step_raw.get("query"),
-            operation=step_raw.get("operation"),
-            input=step_raw.get("input"),
-            output_schema=step_raw.get("output_schema"),
-            stream=step_raw.get("stream", False),
-            conditions=step_raw.get("conditions"),
-            transform=step_raw.get("transform"),
-            retry=step_raw.get("retry"),
-        ))
+        steps.append(
+            Step(
+                id=step_raw["id"],
+                type=step_raw["type"],
+                prompt=step_raw.get("prompt"),
+                model=step_raw.get("model"),
+                tool=step_raw.get("tool"),
+                query=step_raw.get("query"),
+                operation=step_raw.get("operation"),
+                input=step_raw.get("input"),
+                output_schema=step_raw.get("output_schema"),
+                stream=step_raw.get("stream", False),
+                conditions=step_raw.get("conditions"),
+                transform=step_raw.get("transform"),
+                retry=step_raw.get("retry"),
+            )
+        )
 
     post = None
     if "post_processing" in raw:

@@ -1,4 +1,5 @@
 """Tests for context assembly — config limits, loader registry, field mapping."""
+
 from src.orchestrator.config_loader import load_config
 from src.orchestrator.context import _LOADERS, _LOADER_KWARGS
 
@@ -36,7 +37,9 @@ class TestContextRulesConfig:
             all_fields.update(rule.get("optional", []))
 
         for field in all_fields:
-            assert field in _LOADERS, f"Field '{field}' referenced in context_rules but has no loader"
+            assert field in _LOADERS, (
+                f"Field '{field}' referenced in context_rules but has no loader"
+            )
 
 
 class TestLoaderKwargs:

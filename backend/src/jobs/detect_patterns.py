@@ -1,6 +1,8 @@
 import json
 from datetime import datetime, timezone
 
+from src.telemetry.langfuse_integration import observe
+
 from src.db.supabase import (
     _get_pool,
     get_active_users,
@@ -27,12 +29,15 @@ _DATA_GATHERERS: dict[str, str] = {
 }
 
 
+@observe("job.detect_patterns")
 async def run_detect_patterns() -> dict:
     try:
         config = load_config("patterns")
     except FileNotFoundError:
         _log.warning("detect_patterns.no_config")
-        config = {"analyses": {"completion_stats": {"type": "db_only", "enabled": True}}}
+        config = {
+            "analyses": {"completion_stats": {"type": "db_only", "enabled": True}}
+        }
 
     analyses = config.get("analyses", {})
     users = await get_active_users(days=30)
@@ -73,6 +78,7 @@ async def run_detect_patterns() -> dict:
             existing_patterns = existing_profile.get("patterns") or {}
             if isinstance(existing_patterns, str):
                 import json as _json
+
                 existing_patterns = _json.loads(existing_patterns)
         except Exception:
             existing_patterns = {}
@@ -118,7 +124,9 @@ async def _has_enough_data(user_id: str, analysis: dict) -> bool:
 
 
 async def _run_llm_analysis(
-    user_id: str, analysis_name: str, analysis: dict,
+    user_id: str,
+    analysis_name: str,
+    analysis: dict,
 ) -> dict | None:
     prompt_name = analysis.get("prompt")
     if not prompt_name:
@@ -134,16 +142,19 @@ async def _run_llm_analysis(
     try:
         rendered = render_prompt(prompt_name, variables)
         provider = get_llm_provider()
-        result = await provider.generate([
-            {"role": "system", "content": rendered},
-            {"role": "user", "content": "Analyze and return results as JSON."},
-        ])
+        result = await provider.generate(
+            [
+                {"role": "system", "content": rendered},
+                {"role": "user", "content": "Analyze and return results as JSON."},
+            ]
+        )
 
         parsed = json.loads(result.content)
 
         if "patterns" in parsed:
             parsed["patterns"] = [
-                p for p in parsed["patterns"]
+                p
+                for p in parsed["patterns"]
                 if p.get("confidence", 0) >= confidence_threshold
             ]
 
@@ -170,13 +181,17 @@ async def _run_llm_analysis(
 
 
 async def _gather_data(
-    user_id: str, data_type: str, lookback_days: int,
+    user_id: str,
+    data_type: str,
+    lookback_days: int,
 ) -> dict:
     variables: dict = {"lookback_days": lookback_days}
 
     if data_type == "behavioral":
         variables["completion_data"] = await get_completion_stats(user_id)
-        variables["message_activity"] = await get_message_activity(user_id, days=lookback_days)
+        variables["message_activity"] = await get_message_activity(
+            user_id, days=lookback_days
+        )
         try:
             profile = await get_profile(user_id)
             variables["current_patterns"] = profile.get("patterns", {})
@@ -185,7 +200,9 @@ async def _gather_data(
 
     elif data_type == "preferences":
         variables["messages"] = await get_user_messages_text(
-            user_id, days=lookback_days, limit=50,
+            user_id,
+            days=lookback_days,
+            limit=50,
         )
         try:
             profile = await get_profile(user_id)

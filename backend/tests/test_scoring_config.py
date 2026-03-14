@@ -80,4 +80,6 @@ class TestProactiveConfig:
         prompts_dir = Path(__file__).parent.parent / "prompts"
         for name, trigger in config["triggers"].items():
             prompt_file = prompts_dir / trigger["prompt"]
-            assert prompt_file.exists(), f"Trigger {name} references missing prompt: {trigger['prompt']}"
+            assert prompt_file.exists(), (
+                f"Trigger {name} references missing prompt: {trigger['prompt']}"
+            )

@@ -15,7 +15,10 @@ def log_message_received(trace_id: str, user_id: str, message_length: int) -> No
 
 
 def log_step_started(
-    trace_id: str, step_id: str, step_type: str, **kwargs: Any,
+    trace_id: str,
+    step_id: str,
+    step_type: str,
+    **kwargs: Any,
 ) -> None:
     _log.info(
         "step.started",
@@ -27,7 +30,10 @@ def log_step_started(
 
 
 def log_step_completed(
-    trace_id: str, step_id: str, latency_ms: float, **kwargs: Any,
+    trace_id: str,
+    step_id: str,
+    latency_ms: float,
+    **kwargs: Any,
 ) -> None:
     _log.info(
         "step.completed",
@@ -90,6 +96,7 @@ async def log_llm_usage(
     )
     try:
         from src.db.supabase import save_llm_usage
+
         await save_llm_usage(
             trace_id=trace_id,
             user_id=user_id,
@@ -142,6 +149,7 @@ def log_message_completed(
     combined_hash: str | None = None
     if config_snapshot:
         import hashlib
+
         joined = "|".join(f"{k}={v}" for k, v in sorted(config_snapshot.items()))
         combined_hash = hashlib.sha256(joined.encode()).hexdigest()[:12]
 

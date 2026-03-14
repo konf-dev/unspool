@@ -4,6 +4,7 @@ from typing import Any
 
 from src.db import supabase as db
 from src.tools.registry import register_tool
+from src.telemetry.langfuse_integration import observe
 from src.telemetry.logger import get_logger
 
 _log = get_logger("tools.query")
@@ -35,7 +36,10 @@ def _parse_timeframe(timeframe: str | None) -> datetime | None:
 
 
 @register_tool("smart_fetch")
-async def smart_fetch(user_id: str, query_spec: dict[str, Any] | str | None) -> dict[str, Any]:
+@observe("smart_fetch")
+async def smart_fetch(
+    user_id: str, query_spec: dict[str, Any] | str | None
+) -> dict[str, Any]:
     """Dynamically fetch data based on LLM-analyzed query specification.
 
     query_spec schema (dict):
@@ -68,7 +72,9 @@ async def smart_fetch(user_id: str, query_spec: dict[str, Any] | str | None) -> 
     if entity_name:
         entity_id = await db.resolve_entity(user_id, entity_name)
         if not entity_id:
-            _log.info("smart_fetch.entity_not_found", entity=entity_name, user_id=user_id)
+            _log.info(
+                "smart_fetch.entity_not_found", entity=entity_name, user_id=user_id
+            )
 
     for source in sources:
         try:

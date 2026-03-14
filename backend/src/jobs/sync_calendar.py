@@ -5,6 +5,7 @@ from src.db.supabase import (
     upsert_calendar_events,
 )
 from src.integrations.google_calendar import fetch_calendar_events, refresh_access_token
+from src.telemetry.langfuse_integration import observe
 from src.telemetry.logger import get_logger
 
 _log = get_logger("jobs.sync_calendar")
@@ -14,6 +15,7 @@ _log = get_logger("jobs.sync_calendar")
 _MAX_REFRESH_FAILURES = 3
 
 
+@observe("job.sync_calendar")
 async def run_sync_calendar() -> dict:
     users = await get_calendar_connected_users()
     _log.info("sync_calendar.start", user_count=len(users))

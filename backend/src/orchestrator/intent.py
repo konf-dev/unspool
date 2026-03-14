@@ -2,6 +2,7 @@ import json
 from typing import Any
 
 from src.llm.registry import get_llm_provider
+from src.telemetry.langfuse_integration import observe
 from src.orchestrator.config_loader import load_config
 from src.orchestrator.prompt_renderer import render_prompt
 from src.orchestrator.types import Context
@@ -10,13 +11,16 @@ from src.telemetry.logger import get_logger
 _log = get_logger("orchestrator.intent")
 
 
+@observe("classify_intent")
 async def classify_intent(
     message: str,
     context: Context,
 ) -> tuple[str, str, float]:
     intents_config = load_config("intents")
     fallback = intents_config.get("fallback_intent", "conversation")
-    fallback_pipeline = intents_config.get("intents", {}).get(fallback, {}).get("pipeline", fallback)
+    fallback_pipeline = (
+        intents_config.get("intents", {}).get(fallback, {}).get("pipeline", fallback)
+    )
 
     try:
         provider = get_llm_provider()

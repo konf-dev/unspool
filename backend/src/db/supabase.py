@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from typing import Any
 
 import asyncpg
@@ -112,7 +113,8 @@ async def get_messages(
 
 
 async def get_messages_by_ids(
-    user_id: str, message_ids: list[str],
+    user_id: str,
+    message_ids: list[str],
 ) -> list[dict[str, Any]]:
     if not message_ids:
         return []
@@ -197,27 +199,54 @@ async def get_urgent_items(user_id: str, hours: int = 48) -> list[dict[str, Any]
     return [dict(r) for r in rows]
 
 
-_ITEM_ALLOWED_COLUMNS = frozenset({
-    "raw_text", "interpreted_action", "deadline_type", "deadline_at",
-    "urgency_score", "energy_estimate", "status", "last_surfaced_at",
-    "nudge_after", "embedding", "recurrence_id", "entity_ids",
-    "source_message_id",
-})
+_ITEM_ALLOWED_COLUMNS = frozenset(
+    {
+        "raw_text",
+        "interpreted_action",
+        "deadline_type",
+        "deadline_at",
+        "urgency_score",
+        "energy_estimate",
+        "status",
+        "last_surfaced_at",
+        "nudge_after",
+        "embedding",
+        "recurrence_id",
+        "entity_ids",
+        "source_message_id",
+    }
+)
 
-_PROFILE_ALLOWED_COLUMNS = frozenset({
-    "display_name", "timezone", "tone_preference", "length_preference",
-    "pushiness_preference", "uses_emoji", "primary_language",
-    "google_calendar_connected", "notification_sent_today",
-    "last_interaction_at", "patterns",
-})
+_PROFILE_ALLOWED_COLUMNS = frozenset(
+    {
+        "display_name",
+        "timezone",
+        "tone_preference",
+        "length_preference",
+        "pushiness_preference",
+        "uses_emoji",
+        "primary_language",
+        "google_calendar_connected",
+        "notification_sent_today",
+        "last_interaction_at",
+        "patterns",
+    }
+)
 
-_SUBSCRIPTION_ALLOWED_COLUMNS = frozenset({
-    "tier", "stripe_customer_id", "stripe_subscription_id",
-    "status", "current_period_end",
-})
+_SUBSCRIPTION_ALLOWED_COLUMNS = frozenset(
+    {
+        "tier",
+        "stripe_customer_id",
+        "stripe_subscription_id",
+        "status",
+        "current_period_end",
+    }
+)
 
 
-def _validate_columns(fields: dict[str, Any], allowed: frozenset[str], context: str) -> None:
+def _validate_columns(
+    fields: dict[str, Any], allowed: frozenset[str], context: str
+) -> None:
     invalid = set(fields.keys()) - allowed
     if invalid:
         raise ValueError(f"Disallowed columns in {context}: {invalid}")
@@ -239,7 +268,7 @@ async def update_item(item_id: str, user_id: str, **fields: Any) -> dict[str, An
     params.append(item_id)
     params.append(user_id)
     query = f"""
-        UPDATE items SET {', '.join(set_clauses)}
+        UPDATE items SET {", ".join(set_clauses)}
         WHERE id = ${len(params) - 1}::uuid AND user_id = ${len(params)}
         RETURNING *
     """
@@ -350,7 +379,7 @@ async def update_profile(user_id: str, **fields: Any) -> dict[str, Any]:
 
     params.append(user_id)
     query = f"""
-        UPDATE user_profiles SET {', '.join(set_clauses)}
+        UPDATE user_profiles SET {", ".join(set_clauses)}
         WHERE id = ${len(params)}::uuid
         RETURNING *
     """
@@ -655,7 +684,7 @@ async def batch_update_items(updates: list[dict[str, Any]]) -> None:
                 params.append(item_id)
                 params.append(user_id)
                 query = f"""
-                    UPDATE items SET {', '.join(set_clauses)}
+                    UPDATE items SET {", ".join(set_clauses)}
                     WHERE id = ${len(params) - 1}::uuid AND user_id = ${len(params)}
                 """
                 await conn.execute(query, *params)
@@ -673,7 +702,9 @@ async def get_items_without_embeddings(user_id: str) -> list[dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
-async def update_item_embedding(item_id: str, user_id: str, embedding: list[float]) -> None:
+async def update_item_embedding(
+    item_id: str, user_id: str, embedding: list[float]
+) -> None:
     pool = _get_pool()
     await pool.execute(
         "UPDATE items SET embedding = $3::vector WHERE id = $1::uuid AND user_id = $2",
@@ -833,7 +864,9 @@ async def get_message_activity(user_id: str, days: int = 30) -> list[dict[str, A
 
 
 async def get_user_messages_text(
-    user_id: str, days: int = 30, limit: int = 50,
+    user_id: str,
+    days: int = 30,
+    limit: int = 50,
 ) -> list[str]:
     pool = _get_pool()
     rows = await pool.fetch(
@@ -868,7 +901,7 @@ async def get_user_first_interaction(user_id: str) -> str | None:
 async def get_items_filtered(
     user_id: str,
     entity_id: str | None = None,
-    since: "datetime | None" = None,
+    since: datetime | None = None,
     status: str | None = None,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
@@ -904,7 +937,7 @@ async def get_items_filtered(
 
 async def get_memories_filtered(
     user_id: str,
-    since: "datetime | None" = None,
+    since: datetime | None = None,
     search_text: str | None = None,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
@@ -936,7 +969,7 @@ async def get_memories_filtered(
 
 async def get_messages_filtered(
     user_id: str,
-    since: "datetime | None" = None,
+    since: datetime | None = None,
     search_text: str | None = None,
     role: str | None = None,
     limit: int = 10,
@@ -952,7 +985,9 @@ async def get_messages_filtered(
         idx += 1
     if search_text:
         conditions.append(f"content ILIKE ${idx} ESCAPE '\\'")
-        escaped = search_text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        escaped = (
+            search_text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        )
         params.append(f"%{escaped}%")
         idx += 1
     if role:
@@ -974,8 +1009,8 @@ async def get_messages_filtered(
 
 async def get_calendar_events_filtered(
     user_id: str,
-    since: "datetime | None" = None,
-    until: "datetime | None" = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
     limit: int = 20,
 ) -> list[dict[str, Any]]:
     pool = _get_pool()
@@ -1071,7 +1106,7 @@ async def update_subscription(user_id: str, **fields: Any) -> dict[str, Any]:
 
     params.append(user_id)
     query = f"""
-        UPDATE subscriptions SET {', '.join(set_clauses)}, updated_at = now()
+        UPDATE subscriptions SET {", ".join(set_clauses)}, updated_at = now()
         WHERE user_id = ${len(params)}
         RETURNING *
     """
@@ -1117,14 +1152,16 @@ async def delete_user_data(user_id: str) -> dict[str, int]:
         async with conn.transaction():
             for table in tables_with_user_id:
                 result = await conn.execute(
-                    f"DELETE FROM {table} WHERE user_id = $1", uid,
+                    f"DELETE FROM {table} WHERE user_id = $1",
+                    uid,
                 )
                 count = int(result.split()[-1]) if result else 0
                 counts[table] = count
 
             # user_profiles uses `id` as PK, not `user_id`
             result = await conn.execute(
-                "DELETE FROM user_profiles WHERE id = $1", uid,
+                "DELETE FROM user_profiles WHERE id = $1",
+                uid,
             )
             counts["user_profiles"] = int(result.split()[-1]) if result else 0
 

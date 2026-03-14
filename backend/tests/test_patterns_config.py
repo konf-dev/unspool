@@ -1,4 +1,5 @@
 """Tests for patterns.yaml config and detect_patterns job structure."""
+
 import pytest
 
 from src.orchestrator.config_loader import load_config
@@ -44,7 +45,9 @@ class TestPatternsConfig:
                 result = render_prompt(prompt_name, variables)
                 assert len(result) > 0
             except FileNotFoundError:
-                pytest.fail(f"Analysis '{name}' references missing prompt '{prompt_name}'")
+                pytest.fail(
+                    f"Analysis '{name}' references missing prompt '{prompt_name}'"
+                )
 
     def test_confidence_thresholds_in_valid_range(self) -> None:
         config = load_config("patterns")

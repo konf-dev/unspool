@@ -67,6 +67,8 @@ async def stripe_webhook(request: Request) -> dict:
         result = await handle_webhook(payload, signature)
     except Exception as exc:
         _log.warning("stripe.webhook_error", error=str(exc))
-        raise HTTPException(status_code=400, detail="Webhook verification failed") from exc
+        raise HTTPException(
+            status_code=400, detail="Webhook verification failed"
+        ) from exc
 
     return result

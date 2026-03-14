@@ -1,4 +1,5 @@
 """Tests for smart_fetch tool — timeframe parsing, entity resolution, query construction, security."""
+
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
@@ -160,7 +161,9 @@ class TestSmartFetch:
 
     @pytest.mark.asyncio
     async def test_calendar_source(self) -> None:
-        mock_events = [{"summary": "Meeting with Chen", "start_at": "2026-03-20T14:00:00Z"}]
+        mock_events = [
+            {"summary": "Meeting with Chen", "start_at": "2026-03-20T14:00:00Z"}
+        ]
 
         with patch("src.tools.query_tools.db") as mock_db:
             mock_db.resolve_entity = AsyncMock(return_value=None)
@@ -179,7 +182,9 @@ class TestSmartFetch:
         """If one source fails, others should still work."""
         with patch("src.tools.query_tools.db") as mock_db:
             mock_db.resolve_entity = AsyncMock(return_value=None)
-            mock_db.get_items_filtered = AsyncMock(side_effect=ConnectionError("DB down"))
+            mock_db.get_items_filtered = AsyncMock(
+                side_effect=ConnectionError("DB down")
+            )
             mock_db.get_memories_filtered = AsyncMock(return_value=[{"id": "m1"}])
 
             result = await smart_fetch(

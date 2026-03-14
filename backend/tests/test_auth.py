@@ -52,13 +52,17 @@ def _mock_jwk_client():
 
 class TestVerifyJwt:
     def test_valid_token(self) -> None:
-        with patch("src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()):
+        with patch(
+            "src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()
+        ):
             token = _make_token(sub="abc-123")
             user_id = verify_jwt(token)
             assert user_id == "abc-123"
 
     def test_expired_token(self) -> None:
-        with patch("src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()):
+        with patch(
+            "src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()
+        ):
             token = _make_token(exp_offset=-10)
             with pytest.raises(HTTPException) as exc_info:
                 verify_jwt(token)
@@ -77,7 +81,9 @@ class TestVerifyJwt:
             algorithm="ES256",
             headers={"kid": _kid},
         )
-        with patch("src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()):
+        with patch(
+            "src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()
+        ):
             with pytest.raises(HTTPException) as exc_info:
                 verify_jwt(token)
             assert exc_info.value.status_code == 401
@@ -94,30 +100,42 @@ class TestVerifyJwt:
             algorithm="ES256",
             headers={"kid": _kid},
         )
-        with patch("src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()):
+        with patch(
+            "src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()
+        ):
             with pytest.raises(HTTPException) as exc_info:
                 verify_jwt(token)
             assert exc_info.value.status_code == 401
 
     def test_wrong_audience(self) -> None:
-        with patch("src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()):
+        with patch(
+            "src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()
+        ):
             token = _make_token(aud="wrong-audience")
             with pytest.raises(HTTPException) as exc_info:
                 verify_jwt(token)
             assert exc_info.value.status_code == 401
 
     def test_wrong_issuer(self) -> None:
-        with patch("src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()):
+        with patch(
+            "src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()
+        ):
             token = _make_token(iss="https://evil.supabase.co/auth/v1")
             with pytest.raises(HTTPException) as exc_info:
                 verify_jwt(token)
             assert exc_info.value.status_code == 401
 
     def test_garbage_token(self) -> None:
-        with patch("src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()):
+        with patch(
+            "src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()
+        ):
             mock_client = _mock_jwk_client()
-            mock_client.get_signing_key_from_jwt.side_effect = pyjwt.InvalidTokenError("bad")
-            with patch("src.auth.supabase_auth._get_jwk_client", return_value=mock_client):
+            mock_client.get_signing_key_from_jwt.side_effect = pyjwt.InvalidTokenError(
+                "bad"
+            )
+            with patch(
+                "src.auth.supabase_auth._get_jwk_client", return_value=mock_client
+            ):
                 with pytest.raises(HTTPException) as exc_info:
                     verify_jwt("not.a.real.token")
                 assert exc_info.value.status_code == 401
@@ -135,7 +153,9 @@ class TestVerifyJwt:
             "some-secret",
             algorithm="HS256",
         )
-        with patch("src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()):
+        with patch(
+            "src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()
+        ):
             with pytest.raises(HTTPException) as exc_info:
                 verify_jwt(token)
             assert exc_info.value.status_code == 401
@@ -167,6 +187,8 @@ class TestGetCurrentUser:
         class FakeRequest:
             headers = {"Authorization": f"Bearer {token}"}
 
-        with patch("src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()):
+        with patch(
+            "src.auth.supabase_auth._get_jwk_client", return_value=_mock_jwk_client()
+        ):
             user_id = await get_current_user(FakeRequest())  # type: ignore[arg-type]
             assert user_id == "user-456"
