@@ -218,7 +218,7 @@ Set `VITE_USE_MOCKS=true` in `frontend/.env.development` to run the frontend wit
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/chat` | Send message, receive SSE streaming response |
+| POST | `/api/chat` | Send message, receive SSE streaming response (60s timeout) |
 | GET | `/api/messages` | Chat history (cursor pagination: `?limit=50&before=<id>`) |
 | POST | `/api/auth/store-token` | Store Google OAuth refresh token for calendar sync |
 | POST | `/api/subscribe` | Create Stripe checkout session |
@@ -244,6 +244,7 @@ Set `VITE_USE_MOCKS=true` in `frontend/.env.development` to run the frontend wit
 - **Health:** `GET /health` returns `{"status": "ok"}`
 - **Logs:** Structured JSON via structlog — Railway captures stdout automatically
 - **Errors:** Each request gets a `trace_id` in the `X-Trace-Id` response header
+- **Failed responses:** Query `messages` table for `metadata->>'error' = 'true'` to find pipeline crashes and timeouts
 
 ---
 

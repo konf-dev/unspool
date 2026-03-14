@@ -48,9 +48,15 @@ User Message
        │
        ▼
 ┌──────────────────┐
-│   POST-PROCESS   │ ── Update profile, schedule notifications,
-│                  │    recalculate urgency, log interaction
+│   POST-PROCESS   │ ── Embeddings, entity extraction, memory extraction
+│                  │    (dispatched via QStash after response saved)
 └──────────────────┘
+
+Error handling:
+  ├── Pipeline crash → user sees "sorry, something went wrong"
+  ├── Timeout (60s) → user sees "sorry, that took too long"
+  ├── LLM API down → falls back to conversation intent
+  └── Redis down → rate limiting skipped (fail open)
 ```
 
 ---
