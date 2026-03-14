@@ -31,7 +31,7 @@ Single FastAPI server (Railway)
      ├── Supabase (Postgres + pgvector + Auth)
      ├── Upstash Redis (session cache)
      ├── Upstash QStash (cron + job queue)
-     ├── LLM API (TBD — Claude or OpenAI)
+     ├── LLM API (Claude via Anthropic + OpenAI fallback)
      ├── Google Calendar API (read-only)
      └── Stripe (payments, post-MVP)
 ```
@@ -65,13 +65,16 @@ unspool/
 ├── docs/
 │   ├── PRODUCT_SPEC.md    # Full product specification
 │   ├── ORCHESTRATOR_FLOW.md # Message processing pipeline
-│   ├── ORCHESTRATOR_FLOW.md # Message processing pipeline
 │   ├── FRONTEND_SPEC.md   # Detailed frontend specification
 │   ├── SCHEMA.md          # Database schema reference
 │   ├── PIPELINE_FORMAT.md # Pipeline YAML format spec
+│   ├── CONFIG_MAP.md      # Config file relationships and flow
+│   ├── CHAT_INTERACTIONS.md # Example conversation flows
 │   ├── DEPLOY.md          # Deployment guide
+│   ├── DEPLOYMENT_LOG.md  # Exact steps followed, issues hit, current state
 │   ├── OBSERVABILITY.md   # Admin API, Langfuse, debugging guide
-│   └── TOOLS.md           # Tool registry reference
+│   ├── TOOLS.md           # Tool registry reference
+│   └── ROADMAP.md         # Phased roadmap (1.5 → 5)
 ├── frontend/              # React + Vite PWA
 │   ├── public/
 │   │   ├── fonts/         # Satoshi Variable (self-hosted woff2)
@@ -139,7 +142,7 @@ unspool/
 - **Dark theme only.** No light mode in v0.1. Background: #0D0D0F (warm dark gray, not pure black).
 - **No component library.** Custom chat components — they're simple enough.
 - **No state management library.** React useState/useContext only. ~7 pieces of state total.
-- **Font:** NOT Inter, NOT Roboto, NOT system default. Choose Satoshi, General Sans, Switzer, or Cabinet Grotesk.
+- **Font:** Satoshi Variable (self-hosted woff2). NOT Inter, NOT Roboto, NOT system default.
 - **Accent color:** Muted teal or dusty sage. NOT blue (every app is blue).
 - **100dvh not 100vh.** Mobile Safari viewport fix.
 - **16px minimum font on inputs.** Prevents iOS auto-zoom.
@@ -294,6 +297,9 @@ API_URL=http://localhost:8000
 - **Multiple context managers from a list:** Use `contextlib.ExitStack`, not `with (*list)` — tuple unpacking doesn't work in `with` statements.
 - **Langfuse instrumentation:** When adding `@observe` to a function that makes LLM calls, also call `update_current_observation(model=..., input=..., output=..., usage=...)` to report the actual LLM data. The decorator alone only captures timing.
 - **Test data shapes:** When testing Jinja2 templates, use realistic data that matches actual pipeline output shapes. Empty dicts/lists miss collisions like `results.items` (dict method vs data key).
+- **Test file naming:** One test file per source module: `test_<module>.py`. Tests live flat in `backend/tests/` (no subdirectories). Test functions: `test_<what_it_tests>`.
+- **Test fixtures:** Shared fixtures go in `conftest.py`. Use `app.dependency_overrides` for FastAPI deps, not `unittest.mock.patch`.
+- **SQL migrations:** Sequential numbering `00NNN_<description>.sql` in `backend/supabase/migrations/`. Always include `IF NOT EXISTS` / `IF EXISTS` guards so migrations are idempotent. Never modify an existing migration file — always create a new one.
 
 ### TypeScript (frontend)
 - **Functional components only.** No class components.
@@ -332,9 +338,30 @@ Read these before making architectural decisions:
 - `docs/PRODUCT_SPEC.md` — Full product specification, pricing, tech stack
 - `docs/ORCHESTRATOR_FLOW.md` — Every message processing path
 - `docs/FRONTEND_SPEC.md` — Detailed UI/UX spec with platform compatibility notes
+- `docs/PIPELINE_FORMAT.md` — Pipeline YAML format spec (read before adding/editing pipelines)
+- `docs/CONFIG_MAP.md` — How config files relate to each other and the engine
+- `docs/TOOLS.md` — Tool registry reference (read before adding tools)
+- `docs/SCHEMA.md` — Database schema reference (read before writing migrations)
 - `docs/DEPLOY.md` — Infrastructure setup and deployment procedures
 - `docs/OBSERVABILITY.md` — Admin API, Langfuse tracing, debugging workflows
 - `docs/DEPLOYMENT_LOG.md` — Exact steps followed, issues hit, and current production state
+- `docs/ROADMAP.md` — Phased roadmap with current status of all work items
+
+## Parallel Workstreams
+
+Multiple Claude sessions may work on different roadmap items simultaneously. Follow these rules to avoid conflicts:
+
+- **Always work on a feature branch.** Never commit directly to `main`. Branch naming: `<phase>/<short-description>` (e.g., `2a/prompt-injection`, `2b/pick-next-tests`, `2c/stripe-checkout`).
+- **Keep changes scoped.** Only modify files directly related to your task. If you notice an unrelated issue, note it in a commit message or comment — don't fix it in your branch.
+- **Shared files require extra care.** These files are touched by many features — minimize changes and keep diffs small:
+  - `backend/src/main.py` — only add routes/middleware, don't restructure
+  - `backend/src/api/chat.py` — the SSE pipeline, changes here affect everything
+  - `backend/src/orchestrator/engine.py` — the core engine, rarely needs changes
+  - `backend/src/config.py` — env vars, only add new ones
+  - `frontend/src/App.tsx` — top-level routing
+- **One migration per branch.** If your feature needs schema changes, create exactly one migration file. Never modify existing migration files.
+- **Run the full test suite before committing.** `cd backend && pytest -x --timeout=30`. If tests fail, fix them — don't skip them.
+- **Run ruff before committing.** `cd backend && ruff check . && ruff format .`
 
 ## Git Rules
 
