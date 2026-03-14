@@ -7,35 +7,79 @@
   justify-content: flex-end;
 }
 
+.message-row.user > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 80%;
+}
+
 .message-row.assistant {
   justify-content: flex-start;
+}
+
+.message-row.assistant > div {
+  max-width: 88%;
+}
+
+.message-row.system {
+  justify-content: center;
+}
+
+.system-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.system-message-content {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  line-height: 1.4;
 }
 
 .message-bubble {
   padding: var(--spacing-md) var(--spacing-lg);
   border-radius: var(--radius-bubble);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
   line-height: 1.5;
   font-size: 0.9375rem;
   cursor: pointer;
   position: relative;
+  transition: transform var(--duration-fast) ease;
+}
+
+.message-bubble:active {
+  transform: scale(0.98);
 }
 
 .message-bubble.user {
   background: var(--glass-user-bg);
   border: 1px solid var(--glass-user-border);
-  max-width: 80%;
+  box-shadow: var(--glass-glow-user);
 }
 
 .message-bubble.assistant {
   background: var(--glass-ai-bg);
   border: 1px solid var(--glass-ai-border);
-  max-width: 88%;
+  box-shadow: var(--glass-glow-ai);
+}
+
+.message-bubble.error {
+  border-color: rgba(196, 115, 109, 0.3);
+  box-shadow: 0 0 12px rgba(196, 115, 109, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .message-bubble.latest {
-  animation: fadeSlideIn 150ms ease-out;
+  animation: messageEnter 250ms var(--ease-spring) both;
+}
+
+.message-bubble.latest.user {
+  animation-name: messageEnterUser;
 }
 
 .message-timestamp {
@@ -60,17 +104,21 @@
 }
 
 .action-btn {
-  padding: var(--spacing-xs) var(--spacing-md);
+  min-height: 44px;
+  padding: var(--spacing-sm) var(--spacing-md);
   background: var(--glass-ai-bg);
   border: 1px solid var(--glass-ai-border);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: var(--radius-bubble);
   color: var(--color-accent);
   font-family: inherit;
   font-size: 0.8125rem;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    background var(--duration-normal) ease,
+    border-color var(--duration-normal) ease,
+    transform var(--duration-fast) ease;
 }
 
 .action-btn:hover {
@@ -80,6 +128,12 @@
 
 .action-btn:active {
   background: rgba(93, 202, 165, 0.15);
+  transform: scale(0.94);
+}
+
+.message-bubble.latest .action-buttons .action-btn {
+  animation: messageEnter 200ms var(--ease-spring) both;
+  animation-delay: 80ms;
 }
 
 .done-dot {
@@ -108,32 +162,101 @@
   }
 }
 
-@keyframes fadeSlideIn {
+@keyframes messageEnter {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(12px) scale(0.97);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
+}
+
+@keyframes messageEnterUser {
+  from {
+    opacity: 0;
+    transform: translateY(12px) translateX(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) translateX(0) scale(1);
+  }
+}
+
+/* Markdown typography */
+.markdown-content p {
+  margin: 0;
+}
+
+.markdown-content p + p {
+  margin-top: 0.6em;
+}
+
+.markdown-content strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.markdown-content em {
+  font-style: italic;
+}
+
+.markdown-content code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.85em;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 0.4em 0;
+  padding-left: 1.4em;
+}
+
+.markdown-content li {
+  margin: 0.2em 0;
+}
+
+.markdown-content li::marker {
+  color: var(--color-accent);
+}
+
+.markdown-content a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
+.markdown-content a:hover {
+  opacity: 0.8;
 }
 
 @supports not (backdrop-filter: blur(1px)) {
   .message-bubble.user {
-    background: rgba(40, 80, 65, 0.9);
+    background: rgba(40, 80, 65, 0.92);
   }
   .message-bubble.assistant {
-    background: rgba(30, 30, 40, 0.9);
+    background: rgba(30, 30, 40, 0.92);
   }
   .action-btn {
-    background: rgba(30, 30, 40, 0.9);
+    background: rgba(30, 30, 40, 0.92);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .message-bubble.latest {
+  .message-bubble.latest,
+  .message-bubble.latest.user {
     animation: none;
+  }
+  .message-bubble.latest .action-buttons .action-btn {
+    animation: none;
+  }
+  .message-bubble {
+    transition: none;
   }
   .message-timestamp {
     transition: none;

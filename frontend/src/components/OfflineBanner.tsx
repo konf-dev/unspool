@@ -5,10 +5,12 @@ interface OfflineBannerProps {
 }
 
 export function OfflineBanner({ visible }: OfflineBannerProps) {
-  if (!visible) return null
-
   return (
-    <div className="offline-banner" role="alert">
+    <div
+      className={`offline-banner ${visible ? 'visible' : ''}`}
+      role="alert"
+      aria-hidden={!visible}
+    >
       <span className="offline-banner-dot" />
       offline — messages will send when you're back
     </div>

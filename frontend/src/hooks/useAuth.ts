@@ -22,13 +22,8 @@ export function useAuth(): UseAuthReturn {
 
   useEffect(() => {
     if (isMockMode) {
-      const timer = setTimeout(() => {
-        setIsAuthenticated(true)
-        setUserId('mock-user')
-        setToken('mock-token')
-        setIsLoading(false)
-      }, 100)
-      return () => clearTimeout(timer)
+      setIsLoading(false)
+      return
     }
 
     if (!supabase) return
@@ -76,7 +71,13 @@ export function useAuth(): UseAuthReturn {
   }, [])
 
   const signInWithGoogle = useCallback(async () => {
-    if (isMockMode || !supabase) return
+    if (isMockMode) {
+      setIsAuthenticated(true)
+      setUserId('mock-user')
+      setToken('mock-token')
+      return
+    }
+    if (!supabase) return
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',

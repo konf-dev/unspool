@@ -1,3 +1,4 @@
+import Markdown from 'markdown-to-jsx'
 import './StreamingText.css'
 
 interface StreamingTextProps {
@@ -6,9 +7,9 @@ interface StreamingTextProps {
 
 export function StreamingText({ content }: StreamingTextProps) {
   return (
-    <span className="streaming-text">
-      {content}
+    <div className="streaming-text markdown-content">
+      <Markdown>{content}</Markdown>
       <span className="streaming-cursor" />
-    </span>
+    </div>
   )
 }

@@ -9,16 +9,35 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: border-color 0.15s ease;
+  position: relative;
+  transition:
+    border-color var(--duration-normal) ease,
+    background var(--duration-normal) ease,
+    transform var(--duration-fast) ease;
 }
 
 .voice-input-btn:hover {
   border-color: rgba(255, 255, 255, 0.15);
 }
 
+.voice-input-btn:active {
+  transform: scale(0.92);
+}
+
 .voice-input-btn.recording {
+  background: rgba(93, 202, 165, 0.2);
   border-color: var(--color-accent);
   animation: voicePulse 2s ease infinite;
+}
+
+.voice-input-btn.recording::after {
+  content: '';
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(93, 202, 165, 0.3);
+  animation: voiceRing 1.5s ease-out infinite;
 }
 
 @keyframes voicePulse {
@@ -26,14 +45,29 @@
     box-shadow: 0 0 0 0 rgba(93, 202, 165, 0.3);
   }
   50% {
-    box-shadow: 0 0 12px 4px rgba(93, 202, 165, 0.15);
+    box-shadow: 0 0 16px 6px rgba(93, 202, 165, 0.15);
+  }
+}
+
+@keyframes voiceRing {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .voice-input-btn.recording {
     animation: none;
-    box-shadow: none;
+    box-shadow: 0 0 8px 2px rgba(93, 202, 165, 0.15);
+  }
+  .voice-input-btn.recording::after {
+    animation: none;
+    display: none;
   }
   .voice-input-btn {
     transition: none;

@@ -80,6 +80,7 @@ Think: iMessage with one contact, fullscreen, dark theme, nothing else.
 - Different subtle background color or no background (just text)
 - Rounded corners
 - No avatar, no bot icon, no "AI" label — it's just the other side of the conversation
+- Content rendered as markdown via `markdown-to-jsx` (headings, bold, lists, code, etc.)
 - Streaming: text appears word by word / chunk by chunk as it arrives from the API
 - While streaming: subtle blinking cursor at the end of the message
 - After streaming complete: cursor disappears
@@ -90,12 +91,21 @@ Think: iMessage with one contact, fullscreen, dark theme, nothing else.
 - The message bubble grows as text arrives
 - Scroll follows the growing message automatically
 - User can still scroll up while AI is responding (scroll lock disengages)
-- If user scrolls up during streaming, show a "↓ new message" pill at the bottom to jump back
+- If user scrolls up during streaming, show a circular glass button with chevron SVG at the bottom to jump back
+- Scroll uses native `overflow-y: auto` with `overscroll-behavior: none` (no virtualization library)
 
 **Typing indicator:**
 - Before first token arrives: show a subtle animated indicator (3 dots pulsing, or a minimal wave)
 - Replaces with actual text once streaming begins
 - Duration: typically 200-500ms before first token arrives
+
+**Error states:**
+- Failed messages: red-tinted border on the message bubble with a "retry" action button
+- SSE connection failures: inline error message — "couldn't reach the server — try again?" with retry button
+- No modal dialogs or toast notifications for errors
+
+**System messages:**
+- Non-chat messages (status updates, prompts, hints) use a distinct visual pattern: centered text, muted color, smaller font, no bubble
 
 ### Input Bar
 
@@ -112,19 +122,20 @@ Think: iMessage with one contact, fullscreen, dark theme, nothing else.
 - Submit on Enter (desktop), Shift+Enter for new line
 - On mobile: respects virtual keyboard (input bar pushes up above keyboard, not hidden behind it)
 - Clear input after send
-- Disable while AI is streaming (prevent double-sends)
+- Input is ALWAYS enabled, even while AI is streaming
+- During streaming, typed messages are queued and sent automatically after the current stream completes
+- When streaming and input is empty, the send button is replaced by a stop button (square icon) that aborts the stream via AbortController
 
 **Send button:**
 - Only appears when input has text (not visible when empty, microphone shows instead)
+- During streaming with no text entered: replaced by a stop button (square icon) to abort the stream
 - Subtle animation on tap
-- Disabled + loading state while waiting for response
 
 **Microphone / Voice Input button:**
 - Visible when text input is empty
 - On tap: begins recording using Web Speech API (SpeechRecognition) or Whisper API
 - Visual feedback while recording:
-  - Microphone icon changes state (pulsing, color change, or waveform animation)
-  - Small waveform or pulse animation near the input bar
+  - Mic button gets solid accent background + expanding ring animation
   - Clear "recording" state that's obviously different from idle
 - On stop (tap again or silence detection):
   - Transcribed text appears in the input field (user can review/edit before sending)
@@ -154,7 +165,13 @@ No special greeting. The chat just shows previous messages. If something urgent 
 
 ### Aesthetic Direction: "quiet dark room"
 
-This is NOT a bright, cheerful productivity app. It's not neon. It's not glassmorphism. It's not gradient-heavy. It's a calm, dark, quiet space where you dump your thoughts. Think: a journal by lamplight, not a mission control center.
+This is NOT a bright, cheerful productivity app. It's not neon. It's not gradient-heavy. It's a calm, dark, quiet space where you dump your thoughts. Think: a journal by lamplight, not a mission control center.
+
+**Glass-morphism (used on input bar, buttons, banners):**
+- `backdrop-filter: blur(16px) saturate(120%)`
+- Inner highlight: `box-shadow: inset 0 1px 0 rgba(255,255,255,0.06)`
+- Outer glow via box-shadow on all glass elements
+- Keep backgrounds semi-transparent so the blur is visible
 
 **Theme: Dark by default, no light mode in v0.1**
 
@@ -183,13 +200,16 @@ This is NOT a bright, cheerful productivity app. It's not neon. It's not glassmo
 - On desktop: center the chat area with max-width (~600-700px) so it doesn't stretch across a 27" monitor
 
 **Animations & Motion (subtle, not flashy):**
-- New messages: gentle fade-in + slight slide up (100-200ms, ease-out)
+- New messages: 250ms entrance with spring easing `cubic-bezier(0.34, 1.56, 0.64, 1)`, translateY(12px) + scale(0.97). User messages animate from bottom-right.
+- Action buttons: stagger 80ms after parent message entrance
+- Landing page elements: stagger 150ms apart with ease-out-expo
 - Typing indicator: gentle pulse, not bouncy
 - Send button: subtle scale on press
-- Microphone recording: gentle pulse glow on the icon
-- No page transitions (there's only one page)
+- Microphone recording: solid accent background + expanding ring animation
+- Page transitions: View Transitions API (`document.startViewTransition()`) where available (Chrome 111+, Safari 18+), fallback to CSS opacity fade
 - No skeleton loaders — if loading, show the typing indicator
 - Scroll behavior: smooth, inertial
+- Offline banner: always rendered in DOM, visibility toggled via CSS transition (animates both in and out)
 
 **Border & Shadows:**
 - Minimal to none. No card shadows, no heavy borders.
