@@ -28,24 +28,24 @@ Goal: Someone landing on unspool.life immediately understands what this is and w
 Goal: Sleep-at-night security and reliability before anyone else touches this. Blocks real users beyond dogfooding.
 
 **Safety:**
-- [ ] **Prompt injection protection** — `<user_input>` boundary markers in all 26 Jinja2 templates + system prompt instruction to treat tagged content as untrusted
-- [ ] **Pydantic validation on LLM JSON outputs** — Schema models for intent classification, item extraction, query analysis outputs; validate in `engine.py` before acting; fallback gracefully on validation failure
-- [ ] **Content filtering/logging** — Detect injection-adjacent patterns ("ignore previous", "system prompt"), log to Langfuse with tag, don't block
+- [x] **Prompt injection protection** — `<user_input>` boundary markers in all 26 Jinja2 templates (direct user input + stored user-derived data) + system prompt instruction to treat tagged content as untrusted
+- [x] **Pydantic validation on LLM JSON outputs** — Schema models for intent classification, item extraction, query analysis, emotional detection; validate in `engine.py` after `_extract_json()`; log warning + fallback to raw dict on validation failure
+- [x] ~~**Content filtering/logging**~~ — SKIPPED: regex-based detection provides false security; `<user_input>` tags are the real defense
 
 **Reliability:**
-- [ ] **Atomic rate limiting** — Current INCR + EXPIRE in `redis.py:52-60` is non-atomic; replace with Lua script or `SET EX NX` pattern
-- [ ] **Fix free tier rate limit** — `gate.yaml` has 1000 msgs/day (raised for debugging), must be 10 before real users
-- [ ] **Streaming response save reliability** — `finally` block `await` in `chat.py` wrapped_stream() is unreliable on client disconnect; restructure to BackgroundTasks or separate save path
+- [x] **Atomic rate limiting** — `SET key 0 EX 86400 NX` then `INCR` — expiry always set atomically with key creation
+- [ ] **Lower free tier rate limit** — `gate.yaml` has 1000 msgs/day (kept high for pre-launch testing). Lower to 10 when Stripe subscriptions are live
+- [x] **Streaming response save reliability** — `finally` block in generator ensures save even on client disconnect; mutable `stream_state` dict tracks completion/failure; `metadata.partial=true` on incomplete streams
 
 **Security:**
-- [ ] **Security headers** — Create `frontend/vercel.json` with CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy
-- [ ] **Multi-stage Dockerfile** — Pin to `python:3.11-slim-bookworm`, separate builder from runtime
-- [ ] **Dependency pinning with hashes** — Switch to pip-tools (`pip-compile --generate-hashes`). Separate `requirements.in` (runtime) from `requirements-dev.in` (adds ruff, pytest). Hashes prevent supply-chain attacks where a pinned version's contents are swapped on PyPI
-- [ ] **Dependency vulnerability scanning** — Add `pip-audit` to CI, checks pinned deps against Python Packaging Advisory Database
+- [x] **Security headers** — `frontend/vercel.json` with CSP (including img-src for Google avatars, worker-src for PWA), HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy (microphone allowed)
+- [x] **Multi-stage Dockerfile** — `python:3.11-slim-bookworm`, separate builder/runtime stages, non-root `appuser`, HEALTHCHECK, `.dockerignore`
+- [x] **Dependency pinning** — `pip-compile` with `requirements.in`/`requirements-dev.in`. Versions fully pinned (hashes removed for cross-platform CI compat)
+- [x] **Dependency vulnerability scanning** — `pip-audit` in CI, checks pinned deps against Python Packaging Advisory Database
 
 **Config validation:**
-- [ ] **Pydantic models for all config files** — Convert `types.py` dataclasses to Pydantic `BaseModel` with `extra="forbid"`. A typo like `promt:` instead of `prompt:` currently becomes silent `None`; with `extra="forbid"` it raises immediately. Validate all configs during FastAPI lifespan — server refuses to start if config is broken
-- [ ] **Cross-reference validation at startup** — Pipeline step references `tool: enrich_items` → verify tool exists in registry. Step references `prompt: brain_dump_extract.md` → verify file exists in `prompts/`. Both registries exist; just add the cross-check during config loading
+- [x] **Pydantic models for all config files** — `types.py` dataclasses → Pydantic `BaseModel` with `extra="forbid"`. `config_models.py` covers all 7 YAML configs. Server refuses to start on validation failure
+- [x] **Cross-reference validation at startup** — Intents → pipeline files, pipeline steps → tools + prompts. Runs after tool auto-discovery in `main.py` lifespan
 
 ---
 
@@ -62,15 +62,15 @@ Goal: Iterate on prompts and scoring without praying. Every change is regression
 - [ ] **pick_next scoring tests** — Crafted item lists asserting correct selection (all same urgency, hard deadline today vs high-urgency soft, never-surfaced boost, etc.) — pure unit, no LLM
 - [ ] **pick_next per-boost breakdown logging** — Log `urgency_base`, `deadline_boost`, `energy_boost`, `surfaced_boost` per item in `momentum_tools.py`, link to trace_id
 - [ ] **Frontend testing setup** — Add vitest, test critical paths: SSE stream parsing in `api.ts`, auth state transitions in `useAuth.ts`, message send/receive flow
-- [ ] **OpenAPI snapshot test** — Test that calls `app.openapi()` and compares against a committed JSON snapshot. Any route, parameter, or response shape change shows up as a diff. Catches API contract breakage between frontend and backend, especially when multiple agents modify endpoints
-- [ ] **Config loading test** — Pytest that calls `load_pipeline(name)` for every YAML file in `config/pipelines/`, plus `load_config()` for every other config file. Catches config breakage before deploy
+- [x] **OpenAPI snapshot test** — `test_openapi_snapshot.py` compares `app.openapi()` against committed snapshot; `UPDATE_SNAPSHOTS=1` to regenerate; fails in CI if snapshot missing
+- [x] **Config loading test** — Parametrized pytest for all pipeline YAMLs (dynamically discovered) + all config files via Pydantic models + cross-reference validation
 
 **Dev tooling:**
-- [ ] **Pre-commit hooks** — `.pre-commit-config.yaml` with: ruff lint + format (milliseconds, Rust-based), `check-yaml` (catches YAML syntax errors), `no-commit-to-branch --branch main` (mechanically enforces feature branch rule), `check-added-large-files`. Keep total under 5 seconds; tests and type checking belong in CI
-- [ ] **Pre-push git hook** — `.husky/pre-push` runs `ruff check . && pytest -x --timeout=30` before any push
-- [ ] **Claude Code hooks** — `PostToolUse`: auto-run `ruff format` after every file edit so agents never produce unformatted code. `PreToolUse`: block writes to existing migration files and `.env`. `Stop`: run `pytest -x --timeout=30` before the agent can declare "done"
-- [ ] **Type checker in CI** — Add `pyright` or `mypy` to GitHub Actions. Type hints are required on all signatures but never actually checked; a type checker catches when AI agents generate code that violates Protocols or Pydantic models
-- [ ] **Dependabot** — `.github/dependabot.yml` for pip + npm, weekly
+- [x] **Pre-commit hooks** — `.pre-commit-config.yaml`: ruff check --fix, ruff format, check-yaml, no-commit-to-branch (main), check-added-large-files
+- [x] **Pre-push hook** — Runs `pytest -x --timeout=30` on backend changes before push
+- [x] **Claude Code hooks** — `PostToolUse`: ruff format on .py edits. `PreToolUse`: block migration/env writes. `Stop`: run test suite
+- [x] **Pyright in CI** — `npx pyright@1.1.408` with `pyrightconfig.json` (basic mode). All type errors fixed properly
+- [x] **Dependabot** — `.github/dependabot.yml` for pip, npm, and github-actions; weekly; grouped minor+patch
 
 ---
 
@@ -82,6 +82,7 @@ Goal: Every feature in PRODUCT_SPEC.md actually works end-to-end. v0.1 spec fulf
 - [ ] **Google Calendar OAuth user flow** — User-facing consent from within chat (meta intent), sync backend already exists
 - [ ] **Push notification e2e** — Verify VAPID on real devices (iOS 16.4+, Android Chrome), test check-deadlines → proactive message → device notification path
 - [ ] **Concurrent message handling** — Users send while AI processes; queue in InputBar, pending visual state, message ordering guarantees, context assembly for in-flight messages
+- [ ] **Frontend 429 error handling** — Chat shows generic "couldn't reach the server" on rate limit. Should parse 429 response body and show the actual message ("You've reached your daily message limit"). Also show upgrade prompt for free tier users
 - [ ] **UI polish pass** — Animation jank, responsive edge cases, sent-while-offline indicator (clock icon on queued messages)
 - [ ] **PWA install prompt** — Device-aware "add to home screen" suggestion, detect iOS Safari/Android Chrome/desktop, trigger once after 3+ interactions
 - [ ] **Account deletion via chat** — Meta intent with confirmation step, uses existing `DELETE /api/account`
@@ -99,8 +100,8 @@ Goal: Handle 50+ concurrent users without things breaking.
 - [ ] **Batch update SQL** — `batch_update_items()` runs N individual queries; refactor to `UPDATE ... FROM (VALUES ...)`
 - [ ] **Async Redis client** — Current synchronous upstash_redis wrapped in `asyncio.to_thread()` spawns threads; migrate to async client
 - [ ] **Connection pool tuning** — asyncpg `max_size=10`; add `pool.acquire(timeout=5)`, consider raising pool size
-- [ ] **ASGI middleware for tracing** — Replace BaseHTTPMiddleware (known streaming buffering issues) with raw ASGI middleware
-- [ ] **Prompt file caching** — `prompt_renderer.py` reads from disk every call; add mtime-based cache (same pattern as config_loader)
+- [x] **ASGI middleware for tracing** — Raw ASGI middleware replacing BaseHTTPMiddleware; fixes SSE streaming buffering; `scope["state"]["trace_id"]` + `send_wrapper` for header injection
+- [x] **Prompt file caching** — `_env.get_template()` with Jinja2's built-in mtime cache; frontmatter stripped in `_PromptLoader.get_source()`; eager hash computation in `get_prompt_hash()`
 - [ ] **Timezone-aware operations** — Rate limiting resets at user's local midnight, but also deadline calculations (check_deadlines job, proactive triggers, urgency decay) need user timezone for correct "24 hours away" / quiet hours logic
 - [ ] **Migration rollback scripts** — Write a paired `00NNN_<name>.down.sql` for every migration. Two-phase destructive DDL: before dropping a column, (1) deploy code that stops reading it, (2) confirm stable, (3) drop in the next migration
 
