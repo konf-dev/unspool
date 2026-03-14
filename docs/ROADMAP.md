@@ -23,10 +23,10 @@ Goal: Make the app solid enough that all future work is config/prompts/tools cha
 ### Hardening
 
 - [ ] **CSP headers**
-- [ ] **Error tracking** — Sentry or similar
+- [x] **Error tracking** — Langfuse tracing on all LLM calls, tool steps, jobs. Admin API for error inspection. Done in testing-observability branch.
 - [ ] **Service worker cache strategy**
 - [ ] **Streaming response save reliability** — `finally` block `await` in the SSE generator is unreliable on client disconnect. Restructure to use FastAPI `BackgroundTasks` or a separate save path so assistant messages and post-processing dispatch survive disconnects.
-- [ ] **LLM streaming timeout** — No timeout on LLM token streaming. If the LLM hangs, the request hangs forever holding a connection. Add `asyncio.timeout()` around stream iteration in `engine.py`.
+- [x] **LLM streaming timeout** — 60s `asyncio.timeout()` wraps the entire pipeline (classify + assemble + execute). Done in earlier commit.
 - [ ] **Connection pool tuning** — `asyncpg` pool is `max_size=10`. Under concurrent chat + background jobs, pool exhaustion causes all requests to hang. Needs load testing and possibly per-request acquire timeout (`pool.acquire(timeout=5)`).
 - [ ] **Decay job pagination** — `get_all_open_items_for_decay()` loads ALL open items across ALL users into memory with no LIMIT. Needs cursor-based pagination or per-user batching before user count grows.
 - [ ] **Batch update SQL** — `batch_update_items()` runs N individual queries in one transaction, holding a connection for the entire duration. Refactor to batched SQL (`UPDATE ... FROM (VALUES ...)`) for constant connection time.
