@@ -1,3 +1,4 @@
+import asyncio
 import json
 import uuid
 from collections.abc import AsyncIterator
@@ -62,6 +63,11 @@ async def _check_gate(user_id: str) -> None:
         raise HTTPException(status_code=429, detail=message)
 
 
+# Total timeout for the entire chat pipeline (classify + assemble + execute).
+# If the LLM hangs or a tool stalls, the user gets an error after this duration.
+_PIPELINE_TIMEOUT_SECONDS = 60
+
+
 async def _stream_response(
     user_id: str,
     message: str,
@@ -73,23 +79,25 @@ async def _stream_response(
         trace_id=trace_id,
         user_message=message,
     )
-    intent_name, pipeline_name, confidence = await classify_intent(message, context)
 
-    context = await assemble_context(user_id, trace_id, message, intent_name)
+    async with asyncio.timeout(_PIPELINE_TIMEOUT_SECONDS):
+        intent_name, pipeline_name, confidence = await classify_intent(message, context)
 
-    _log.info(
-        "chat.pipeline_start",
-        trace_id=trace_id,
-        intent=intent_name,
-        pipeline=pipeline_name,
-        confidence=confidence,
-    )
+        context = await assemble_context(user_id, trace_id, message, intent_name)
 
-    tool_registry = get_tool_registry()
+        _log.info(
+            "chat.pipeline_start",
+            trace_id=trace_id,
+            intent=intent_name,
+            pipeline=pipeline_name,
+            confidence=confidence,
+        )
 
-    async for token in execute_pipeline(pipeline_name, context, tool_registry):
-        event = json.dumps({"type": "token", "content": token})
-        yield f"data: {event}\n\n"
+        tool_registry = get_tool_registry()
+
+        async for token in execute_pipeline(pipeline_name, context, tool_registry):
+            event = json.dumps({"type": "token", "content": token})
+            yield f"data: {event}\n\n"
 
     context_out.append(context)
 
@@ -165,6 +173,21 @@ async def chat(
                     except (json.JSONDecodeError, KeyError):
                         pass
                 yield chunk
+        except TimeoutError:
+            pipeline_failed = True
+            _log.error(
+                "chat.pipeline_timeout",
+                trace_id=trace_id,
+                user_id=user_id,
+                timeout_seconds=_PIPELINE_TIMEOUT_SECONDS,
+            )
+            error_msg = "sorry, that took too long. try again?"
+            error_event = json.dumps({"type": "token", "content": error_msg})
+            yield f"data: {error_event}\n\n"
+            collected_tokens.append(error_msg)
+
+            done_event = json.dumps({"type": "done"})
+            yield f"data: {done_event}\n\n"
         except Exception:
             pipeline_failed = True
             _log.error(
@@ -173,8 +196,6 @@ async def chat(
                 user_id=user_id,
                 exc_info=True,
             )
-            # Send a user-friendly error response via SSE so the frontend
-            # shows something instead of silently failing
             error_msg = "sorry, something went wrong on my end. try again?"
             error_event = json.dumps({"type": "token", "content": error_msg})
             yield f"data: {error_event}\n\n"
