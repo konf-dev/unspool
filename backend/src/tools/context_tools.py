@@ -15,8 +15,8 @@ async def fetch_profile(user_id: str) -> dict[str, Any]:
 
 
 @register_tool("fetch_items")
-async def fetch_items(user_id: str) -> list[dict[str, Any]]:
-    return await db.get_open_items(user_id)
+async def fetch_items(user_id: str, limit: int = 50) -> list[dict[str, Any]]:
+    return await db.get_open_items(user_id, limit=limit)
 
 
 @register_tool("fetch_urgent_items")

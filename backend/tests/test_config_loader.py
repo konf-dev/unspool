@@ -33,8 +33,8 @@ class TestLoadPipeline:
     def test_load_query_search(self) -> None:
         pipeline = load_pipeline("query_search")
         step_ids = [s.id for s in pipeline.steps]
-        assert "embed_query" in step_ids
-        assert "search" in step_ids
+        assert "analyze" in step_ids
+        assert "fetch" in step_ids
         assert "respond" in step_ids
 
     def test_all_pipelines_load(self) -> None:

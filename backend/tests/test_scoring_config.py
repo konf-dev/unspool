@@ -9,18 +9,6 @@ def scoring_config() -> dict:
 
 
 class TestScoringConfig:
-    def test_urgency_weights_sum_to_one(self, scoring_config: dict) -> None:
-        weights = scoring_config["urgency_weights"]
-        total = sum(weights.values())
-        assert abs(total - 1.0) < 0.01, f"Urgency weights sum to {total}, expected 1.0"
-
-    def test_urgency_breakpoints_present(self, scoring_config: dict) -> None:
-        bp = scoring_config["urgency_breakpoints"]
-        assert "overdue" in bp
-        assert "imminent" in bp
-        assert "approaching" in bp
-        assert "distant" in bp
-
     def test_decay_config_present(self, scoring_config: dict) -> None:
         decay = scoring_config["decay"]
         assert "soft_decay_factor" in decay
@@ -28,13 +16,6 @@ class TestScoringConfig:
         assert "auto_expire_threshold" in decay
         assert "hard_ramp" in decay
         assert 0 < decay["soft_decay_factor"] < 1
-
-    def test_energy_levels_have_patterns(self, scoring_config: dict) -> None:
-        levels = scoring_config["energy_levels"]
-        for level_name in ("low", "medium", "high"):
-            assert level_name in levels, f"Missing energy level: {level_name}"
-            assert "patterns" in levels[level_name], f"{level_name} missing patterns"
-            assert len(levels[level_name]["patterns"]) > 0
 
     def test_momentum_config(self, scoring_config: dict) -> None:
         m = scoring_config["momentum"]
@@ -52,11 +33,27 @@ class TestScoringConfig:
         delays = r["nudge_delay"]
         assert delays["hard_hours"] < delays["soft_days"] * 24
 
+    def test_matching_config(self, scoring_config: dict) -> None:
+        m = scoring_config["matching"]
+        assert 0 < m["min_similarity"] <= 1.0
+        assert 0 < m["substring_boost"] <= 1.0
+
     def test_notifications_config(self, scoring_config: dict) -> None:
         n = scoring_config["notifications"]
         assert 0 <= n["quiet_hours_start"] < 24
         assert 0 < n["quiet_hours_end"] <= 24
         assert n["deadline_window_hours"] > 0
+
+    def test_no_hardcoded_heuristics(self, scoring_config: dict) -> None:
+        """Energy and urgency classification should be LLM-driven, not regex patterns."""
+        assert "energy_levels" not in scoring_config, (
+            "energy_levels with pattern lists should not exist — "
+            "energy estimation is done by the LLM in the extract prompt"
+        )
+        assert "urgency_weights" not in scoring_config, (
+            "urgency_weights should not exist — "
+            "initial urgency is set by the LLM in the extract prompt"
+        )
 
 
 class TestProactiveConfig:

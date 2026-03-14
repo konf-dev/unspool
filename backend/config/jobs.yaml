@@ -1,0 +1,27 @@
+# Job definitions — cron schedules and post-processing dispatch map.
+# Cron schedules are registered with QStash on startup (idempotent via schedule_id).
+
+cron_jobs:
+  check-deadlines:
+    schedule: "0 * * * *"
+    schedule_id: unspool-check-deadlines
+
+  decay-urgency:
+    schedule: "0 */6 * * *"
+    schedule_id: unspool-decay-urgency
+
+  sync-calendar:
+    schedule: "0 */4 * * *"
+    schedule_id: unspool-sync-calendar
+
+  detect-patterns:
+    schedule: "0 3 * * *"
+    schedule_id: unspool-detect-patterns
+
+  reset-notifications:
+    schedule: "0 0 * * *"
+    schedule_id: unspool-reset-notifications
+
+# Maps pipeline post_processing job names to /jobs/ endpoint paths
+dispatch_map:
+  process_conversation: process-conversation

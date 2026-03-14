@@ -52,3 +52,21 @@ class TestIntentsConfig:
             assert intent_def["pipeline"] == name, (
                 f"Intent {name} pipeline mismatch: {intent_def['pipeline']}"
             )
+
+    def test_classification_model_field_exists(self, intents_config: dict) -> None:
+        """classification_model should be defined (even if null)."""
+        assert "classification_model" in intents_config
+
+    def test_all_intent_pipelines_exist(self, intents_config: dict) -> None:
+        """Every pipeline referenced by an intent must exist as a YAML file."""
+        from src.orchestrator.config_loader import load_pipeline
+        for name, intent_def in intents_config.get("intents", {}).items():
+            pipeline_name = intent_def["pipeline"]
+            try:
+                pipeline = load_pipeline(pipeline_name)
+                assert pipeline.name == pipeline_name
+            except FileNotFoundError:
+                pytest.fail(
+                    f"Intent '{name}' references pipeline '{pipeline_name}' "
+                    f"which does not exist"
+                )

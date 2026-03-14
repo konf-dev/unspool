@@ -46,19 +46,21 @@ def _build_prompt_variables(
         "user_message": context.user_message,
         "user_id": context.user_id,
     }
-    if context.profile:
+    # Use `is not None` so empty lists/dicts are still passed to templates.
+    # This lets prompts distinguish "no items" (empty list) from "not loaded" (absent).
+    if context.profile is not None:
         variables["profile"] = context.profile
-    if context.open_items:
+    if context.open_items is not None:
         variables["open_items"] = context.open_items
-    if context.recent_messages:
+    if context.recent_messages is not None:
         variables["recent_messages"] = context.recent_messages
-    if context.urgent_items:
+    if context.urgent_items is not None:
         variables["urgent_items"] = context.urgent_items
-    if context.memories:
+    if context.memories is not None:
         variables["memories"] = context.memories
-    if context.entities:
+    if context.entities is not None:
         variables["entities"] = context.entities
-    if context.calendar_events:
+    if context.calendar_events is not None:
         variables["calendar_events"] = context.calendar_events
 
     for step_id, result in step_results.items():
@@ -81,22 +83,31 @@ async def _execute_llm_step(
 
     extra_inputs = _resolve_inputs(step.input, context, step_results)
     variables = _build_prompt_variables(context, step_results, extra_inputs)
-    rendered = render_prompt(step.prompt, variables)
+    rendered_step = render_prompt(step.prompt, variables)
+
+    # Inject system.md as base personality for all pipeline LLM calls
+    try:
+        system_base = render_prompt("system.md", {"profile": context.profile})
+        system_content = f"{system_base}\n\n---\n\n{rendered_step}"
+    except FileNotFoundError:
+        system_content = rendered_step
 
     model = model_override or step.model
     provider = get_llm_provider()
     settings = get_settings()
 
     messages = [
-        {"role": "system", "content": rendered},
+        {"role": "system", "content": system_content},
         {"role": "user", "content": context.user_message},
     ]
 
-    # If recent messages exist, build a proper conversation
+    # If recent messages exist, build a proper conversation.
+    # recent_messages is ordered newest-first (DESC). Take the 10 most recent,
+    # then reverse to chronological order for the LLM conversation.
     if context.recent_messages:
-        system_msg = {"role": "system", "content": rendered}
+        system_msg = {"role": "system", "content": system_content}
         history = []
-        for msg in reversed(context.recent_messages[-10:]):
+        for msg in reversed(context.recent_messages[:10]):
             history.append({"role": msg["role"], "content": msg["content"]})
         history.append({"role": "user", "content": context.user_message})
         messages = [system_msg] + history
@@ -251,8 +262,6 @@ async def execute_pipeline(
         pass
 
     step_results: dict[str, StepResult] = {}
-    total_input_tokens = 0
-    total_output_tokens = 0
     llm_calls = 0
     pipeline_start = time.perf_counter()
 
@@ -394,27 +403,21 @@ async def execute_pipeline(
 
         step_index += 1
 
-    # tokens_used is total (input+output); granular tracking via llm_usage logs
-    for sr in step_results.values():
-        total_input_tokens += sr.tokens_used
-        # total_output_tokens already tracked by individual llm steps above
+    # tokens_used on StepResult is combined (input+output).
+    # Granular per-step tracking is in log_llm_usage calls above.
+    # For the pipeline summary, report total tokens used across all steps.
+    total_tokens = sum(sr.tokens_used for sr in step_results.values())
 
     total_latency_ms = round((time.perf_counter() - pipeline_start) * 1000, 2)
 
     if pipeline.post_processing:
-        for job in pipeline.post_processing:
-            _log.info(
-                "post_processing.scheduled",
-                job=job.job,
-                delay=job.delay,
-                trace_id=context.trace_id,
-            )
+        context.post_processing_jobs = pipeline.post_processing
 
     log_message_completed(
         trace_id=context.trace_id,
         total_latency_ms=total_latency_ms,
-        total_input_tokens=total_input_tokens,
-        total_output_tokens=total_output_tokens,
+        total_input_tokens=total_tokens,
+        total_output_tokens=0,  # granular breakdown is in per-step llm_usage logs
         llm_calls=llm_calls,
         pipeline=pipeline_name,
         variant=variant,
