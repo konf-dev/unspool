@@ -1127,9 +1127,9 @@ numpy==2.4.3 \
     --hash=sha256:e7dd01a46700b1967487141a66ac1a3cf0dd8ebf1f08db37d46389401512ca97 \
     --hash=sha256:eb610595dd91560905c132c709412b512135a60f1851ccbd2c959e136431ff67
     # via pgvector
-openai==1.82.0 \
-    --hash=sha256:8c40647fea1816516cb3de5189775b30b5f4812777e40b8768f361f232b61b30 \
-    --hash=sha256:b0a009b9a58662d598d07e91e4219ab4b1e3d8ba2db3f173896a92b9b874d1a7
+openai==2.28.0 \
+    --hash=sha256:79aa5c45dba7fef84085701c235cf13ba88485e1ef4f8dfcedc44fc2a698fc1d \
+    --hash=sha256:bb7fdff384d2a787fa82e8822d1dd3c02e8cf901d60f1df523b7da03cbb6d48d
     # via -r requirements.in
 packaging==24.2 \
     --hash=sha256:09abb1bccd265c01f4a3aa3f7a7db064b36514d2cba19a2f694fe6150451a759 \
