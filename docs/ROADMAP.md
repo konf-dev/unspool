@@ -6,6 +6,8 @@
 - [x] **Process-conversation delayed trigger** — QStash dispatch wired in `chat.py` after response saved
 - [x] **Error tracking** — Langfuse tracing on all LLM calls, tool steps, jobs. Admin API for error inspection
 - [x] **LLM streaming timeout** — 60s `asyncio.timeout()` wraps the entire pipeline
+- [x] **Sprint 0** — Landing page redesign with demo chat, UI polish, PWA install prompt, accessibility pass, frontend testing setup
+- [x] **Flow visualization** — Streamlit dashboard + GitHub-renderable Mermaid markdown files in `viz/`
 
 ---
 
@@ -13,13 +15,9 @@
 
 Goal: Someone landing on unspool.life immediately understands what this is and why it's different — before they sign up. Blocks sharing with friends/early testers.
 
-- [ ] **"What is this?" problem** — Ideation on how to communicate the product to ADHD friends and dev friends. A chat box with no context is meaningless. The landing page needs to answer: what does it do, why is it different from Todoist/Notion/ChatGPT, and what does it feel like to use it. Options to explore:
-  - Enhanced landing page with a demo interaction (animated or recorded GIF showing brain dump → AI organizing → "what should I do?" → one item)
-  - A separate "/how" or "/about" page with a walkthrough story
-  - A short video/screencast (~30s) embedded on the landing page
-  - An interactive demo mode where visitors can try a sandboxed version without signing up (high effort but highest conversion)
-  - A simple illustrated comic/storyboard showing the ADHD problem → Unspool solution flow
-- [ ] **Decide format and build it** — Once we pick the approach, implement it. This is the first thing early testers see.
+- [x] **Landing page redesign** — New landing page with demo chat (edge function), hero section, feature showcase, pricing, testimonials-ready layout. Sprint 0 completion
+- [ ] **Demo interaction polish** — The demo chat exists but needs better sample conversations, smoother animations, and mobile responsiveness tuning
+- [ ] **Explainer content** — Short video/screencast (~30s) or illustrated walkthrough showing the ADHD problem → Unspool solution flow. Current landing page explains features but doesn't show the emotional arc
 
 ---
 
@@ -61,7 +59,7 @@ Goal: Iterate on prompts and scoring without praying. Every change is regression
 **Unit/integration tests:**
 - [ ] **pick_next scoring tests** — Crafted item lists asserting correct selection (all same urgency, hard deadline today vs high-urgency soft, never-surfaced boost, etc.) — pure unit, no LLM
 - [ ] **pick_next per-boost breakdown logging** — Log `urgency_base`, `deadline_boost`, `energy_boost`, `surfaced_boost` per item in `momentum_tools.py`, link to trace_id
-- [ ] **Frontend testing setup** — Add vitest, test critical paths: SSE stream parsing in `api.ts`, auth state transitions in `useAuth.ts`, message send/receive flow
+- [x] **Frontend testing setup** — Vitest with critical path tests. Sprint 0 completion
 - [x] **OpenAPI snapshot test** — `test_openapi_snapshot.py` compares `app.openapi()` against committed snapshot; `UPDATE_SNAPSHOTS=1` to regenerate; fails in CI if snapshot missing
 - [x] **Config loading test** — Parametrized pytest for all pipeline YAMLs (dynamically discovered) + all config files via Pydantic models + cross-reference validation
 
@@ -83,8 +81,8 @@ Goal: Every feature in PRODUCT_SPEC.md actually works end-to-end. v0.1 spec fulf
 - [ ] **Push notification e2e** — Verify VAPID on real devices (iOS 16.4+, Android Chrome), test check-deadlines → proactive message → device notification path
 - [ ] **Concurrent message handling** — Users send while AI processes; queue in InputBar, pending visual state, message ordering guarantees, context assembly for in-flight messages
 - [ ] **Frontend 429 error handling** — Chat shows generic "couldn't reach the server" on rate limit. Should parse 429 response body and show the actual message ("You've reached your daily message limit"). Also show upgrade prompt for free tier users
-- [ ] **UI polish pass** — Animation jank, responsive edge cases, sent-while-offline indicator (clock icon on queued messages)
-- [ ] **PWA install prompt** — Device-aware "add to home screen" suggestion, detect iOS Safari/Android Chrome/desktop, trigger once after 3+ interactions
+- [x] **UI polish pass** — Animation jank, responsive edge cases, sent-while-offline indicator. Sprint 0 completion
+- [x] **PWA install prompt** — Device-aware "add to home screen" suggestion. Sprint 0 completion
 - [ ] **Account deletion via chat** — Meta intent with confirmation step, uses existing `DELETE /api/account`
 - [ ] **Item update/correction via chat** — "the meeting moved to Wednesday" / "actually the deadline is next Friday" — user needs to correct the AI's understanding of an existing item (deadline, description, etc.) from conversation
 - [ ] **Item removal via chat** — "forget about the dentist" / "never mind about that" — user wants to delete or deprioritize a specific item. Needs matching + removal to work reliably, not just a generic meta response
@@ -158,17 +156,15 @@ Goal: From "works for me" to "works for paying strangers."
 - [ ] **Contact / feedback channel** — "I need help" / "something is broken" → clear path to reach a human surfaced in the meta pipeline. Not a chatbot loop — an actual email or form
 
 **Launch readiness:**
-- [ ] **Landing page enhancement** — Demo GIF/video of brain-dump flow, privacy copy for ADHD users (medication/mental health data)
+- [x] **Landing page enhancement** — Demo chat, hero section, feature showcase, pricing layout. Sprint 0 completion
 - [ ] **Privacy policy content** — What's stored, what goes to LLM providers, right to deletion, GDPR basics (LegalPage component exists)
 - [ ] **Share sheet integration** — Register as PWA share target in manifest.json, capture text/URLs from other apps
 - [ ] **Config-file feature flags** — Add `config/flags.yaml`, load with existing `load_config()`. Deploy risky features behind `flag: false`, flip to `true` in a separate commit. Rollback = one more commit. No external service needed; Railway redeploy is ~1-2 min
-- [ ] **Accessibility pass** — Screen reader labels on chat elements, keyboard navigation, `prefers-reduced-motion` support, WCAG AA color contrast audit. Users with ADHD frequently have co-occurring conditions; accessibility isn't optional
+- [x] **Accessibility pass** — Screen reader labels, keyboard navigation, `prefers-reduced-motion`, WCAG AA contrast. Sprint 0 completion
 - [ ] **Share link** — Easy way to share Unspool with a friend. Just a copyable link, not an invite system
 
 **Orchestrator DX:**
-- [ ] **Flow visualization tool** (can be separate repo) — Reads all config YAML (intents.yaml, pipelines/*.yaml, proactive.yaml, jobs.yaml, context_rules.yaml) and generates a visual map of every path through the system. Three diagrams: (a) message flow: gate → classify → context → pipeline → steps → post-processing, with all error/fallback paths, (b) background job flows: trigger → queries → mutations → side effects, (c) proactive message evaluation: trigger conditions → prompt rendering → delivery. Two approaches:
-  - **Static (low effort):** Python script using Graphviz or Mermaid. Output SVG/markdown. Run as dev command, commit output.
-  - **Interactive (higher effort, higher value):** Standalone React app using React Flow/xyflow. Click a pipeline step → see its prompt template. Click an intent → see routing. Lives in separate repo, zero coupling.
+- [x] **Flow visualization tool** — `viz/` directory with Streamlit dashboard (`streamlit run viz/app.py`) and static Mermaid markdown files (`python viz/generate.py`). 7 interactive views: message flow, 10 pipeline details, background jobs, database access map, proactive messages, config dependencies, impact matrix. Dashboard has zoom/pan, inline file viewer, dark theme. Markdown files render natively on GitHub
 - [ ] **Config versioning + diffing** — Track config hashes across deploys (config_loader already hashes files), surface config changes in Langfuse trace metadata so you can correlate prompt/config changes with quality shifts
 - [ ] **Prompt rollback** — Revert a specific prompt template to a previous git version without reverting everything else (git-based, not a separate versioning system)
 
