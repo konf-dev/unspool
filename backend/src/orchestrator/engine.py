@@ -75,7 +75,7 @@ def _extract_json(content: str, step_id: str) -> Any:
         step_id=step_id,
         content_preview=content[:300],
     )
-    return {}
+    return {"_parse_error": True, "_raw": content[:500]}
 
 
 def _truncate(value: Any, max_len: int = 300) -> Any:

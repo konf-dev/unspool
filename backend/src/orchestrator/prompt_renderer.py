@@ -1,9 +1,11 @@
 import hashlib
+import re
 from pathlib import Path
 from typing import Any
 
 import yaml as _yaml
 from jinja2 import BaseLoader, Environment, TemplateNotFound
+from jinja2.sandbox import SandboxedEnvironment
 
 from src.telemetry.logger import get_logger
 
@@ -13,6 +15,28 @@ _PROMPTS_DIR = Path(__file__).resolve().parent.parent.parent / "prompts"
 
 _prompt_hashes: dict[str, str] = {}
 _prompt_meta: dict[str, dict[str, Any]] = {}
+
+# Pattern that matches Jinja2 template syntax in user input
+_JINJA2_PATTERN = re.compile(r"(\{\{|\}\}|\{%|%\}|\{#|#\})")
+
+# Escape map: replace Jinja2 delimiters with safe Unicode lookalikes
+_JINJA2_ESCAPES = {
+    "{{": "{ {",
+    "}}": "} }",
+    "{%": "{ %",
+    "%}": "% }",
+    "{#": "{ #",
+    "#}": "# }",
+}
+
+
+def _escape_user_input(value: str) -> str:
+    """Escape Jinja2 template syntax in user-provided strings.
+
+    Prevents template injection by replacing {{ }}, {% %}, {# #} with
+    space-separated versions that render as visible text.
+    """
+    return _JINJA2_PATTERN.sub(lambda m: _JINJA2_ESCAPES[m.group()], value)
 
 
 class _PromptLoader(BaseLoader):
@@ -39,7 +63,9 @@ class _PromptLoader(BaseLoader):
         return body, str(path), lambda: path.stat().st_mtime == mtime
 
 
-_env = Environment(loader=_PromptLoader(), keep_trailing_newline=True, auto_reload=True)
+_env = SandboxedEnvironment(
+    loader=_PromptLoader(), keep_trailing_newline=True, auto_reload=True
+)
 
 
 def render_prompt(prompt_name: str, variables: dict[str, Any]) -> str:
@@ -47,8 +73,14 @@ def render_prompt(prompt_name: str, variables: dict[str, Any]) -> str:
     if not path.exists():
         raise FileNotFoundError(f"Prompt template not found: {path}")
 
+    # Escape user-controlled string values to prevent Jinja2 injection
+    safe_variables = dict(variables)
+    for key in ("user_message", "message", "raw_text"):
+        if key in safe_variables and isinstance(safe_variables[key], str):
+            safe_variables[key] = _escape_user_input(safe_variables[key])
+
     template = _env.get_template(prompt_name)
-    return template.render(**variables)
+    return template.render(**safe_variables)
 
 
 def get_prompt_hash(name: str) -> str | None:

@@ -131,4 +131,13 @@ app.include_router(admin_router, prefix="/admin")
 
 @app.get("/health")
 async def health() -> dict[str, str]:
+    try:
+        from src.db.supabase import get_pool
+
+        pool = get_pool()
+        await pool.fetchval("SELECT 1")
+    except RuntimeError:
+        pass  # pool not initialized (e.g. development without DB)
+    except Exception:
+        return {"status": "degraded", "db": "unreachable"}
     return {"status": "ok"}

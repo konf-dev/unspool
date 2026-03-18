@@ -40,4 +40,4 @@ intents:
     pipeline: conversation
 
 fallback_intent: conversation
-classification_model: gpt-5-nano
+classification_model: null

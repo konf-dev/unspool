@@ -150,7 +150,14 @@ async def save_item(
     parsed_deadline = None
     if deadline_at is not None:
         if isinstance(deadline_at, str):
-            parsed_deadline = datetime.fromisoformat(deadline_at)
+            try:
+                parsed_deadline = datetime.fromisoformat(deadline_at)
+            except ValueError:
+                _log.warning(
+                    "db.deadline_parse_failed",
+                    deadline_at=deadline_at,
+                )
+                parsed_deadline = None
         else:
             parsed_deadline = deadline_at
 
