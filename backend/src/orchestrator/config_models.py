@@ -187,7 +187,7 @@ class GraphSerializationConfig(BaseModel, extra="forbid"):
 
 
 class GraphEvolutionConfig(BaseModel, extra="forbid"):
-    embedding_model: str = "text-embedding-3-small"
+    embedding_model: str = "text-embedding-4"
     similarity_threshold: float = 0.8
     dedup_threshold: float = 0.9
     edge_decay_factor: float = 0.99
