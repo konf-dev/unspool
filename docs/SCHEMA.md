@@ -263,6 +263,63 @@ Stores refresh tokens for external providers (Google Calendar).
 
 **Constraints:** `UNIQUE(user_id, provider)`
 
+### memory_nodes
+
+Graph memory: atomic facts, tasks, people, dates, feelings extracted from conversations.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| user_id | UUID FK | → `auth.users` |
+| content | TEXT | Atomic concept (1-4 words typically) |
+| node_type | TEXT | Optional type hint |
+| embedding | halfvec(1536) | 50% memory vs vector(1536) |
+| status | TEXT | `active`, `merged` |
+| source_message_id | UUID FK | → `messages` — provenance |
+| created_at | TIMESTAMPTZ | |
+| last_activated_at | TIMESTAMPTZ | Updated on retrieval |
+
+**Indexes:**
+- `(user_id)` — main query path
+- `(user_id, last_activated_at DESC)` — recency trigger
+- `(user_id, lower(content))` — content dedup lookup
+- HNSW on `embedding` (`halfvec_cosine_ops`, m=16, ef_construction=64)
+
+### memory_edges
+
+Graph memory: bi-temporal relationships between nodes. Corrections invalidate old edges (set `valid_until`) rather than deleting them, preserving history.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| user_id | UUID FK | → `auth.users` |
+| from_node_id | UUID FK | → `memory_nodes` (CASCADE) |
+| to_node_id | UUID FK | → `memory_nodes` (CASCADE) |
+| relation_type | TEXT | Optional edge label |
+| strength | FLOAT | Default 1.0, decays over time |
+| valid_from | TIMESTAMPTZ | When this edge became true |
+| valid_until | TIMESTAMPTZ | NULL = current; set on invalidation |
+| recorded_at | TIMESTAMPTZ | When this edge was created |
+| decay_exempt | BOOLEAN | Protects structural edges from decay |
+| source_message_id | UUID FK | → `messages` |
+
+**Indexes:** Partial indexes on `(from_node_id)`, `(to_node_id)`, `(user_id)` WHERE `valid_until IS NULL` — only current edges.
+
+### node_neighbors
+
+Materialized cache for O(1) neighbor lookups during graph retrieval. Rebuilt after evolution cycles.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| edge_id | UUID FK | → `memory_edges` (CASCADE), part of PK |
+| node_id | UUID FK | → `memory_nodes` (CASCADE) |
+| neighbor_id | UUID FK | → `memory_nodes` (CASCADE) |
+| relation_type | TEXT | Copied from edge |
+| strength | FLOAT | Copied from edge |
+| direction | TEXT | `outgoing` or `incoming`, part of PK |
+
+**Primary key:** `(edge_id, direction)`
+
 ---
 
 ## Vector Search

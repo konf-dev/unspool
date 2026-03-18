@@ -115,6 +115,7 @@ async def _stream_response(
                     "memories",
                     "entities",
                     "calendar_events",
+                    "graph_context",
                 )
                 if getattr(context, f, None) is not None
             ],

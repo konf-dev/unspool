@@ -799,6 +799,46 @@
         "summary": "Process Conversation"
       }
     },
+    "/jobs/process-graph": {
+      "post": {
+        "operationId": "process_graph_jobs_process_graph_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessConversationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Process Graph Jobs Process Graph Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Process Graph"
+      }
+    },
     "/jobs/reset-notifications": {
       "post": {
         "operationId": "reset_notifications_jobs_reset_notifications_post",

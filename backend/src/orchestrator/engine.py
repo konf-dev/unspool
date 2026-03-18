@@ -131,6 +131,8 @@ def _build_prompt_variables(
         variables["entities"] = context.entities
     if context.calendar_events is not None:
         variables["calendar_events"] = context.calendar_events
+    if context.graph_context is not None:
+        variables["graph_context"] = context.graph_context
 
     for step_id, result in step_results.items():
         variables[f"step_{step_id}"] = result.output

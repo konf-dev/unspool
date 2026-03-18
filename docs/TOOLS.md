@@ -97,6 +97,18 @@ Track completion streaks for positive reinforcement. **Thresholds from `config/s
 
 `pick_next_item` scores items by combining urgency_score with configurable boosts for deadline type, energy level, and never-surfaced items.
 
+## Graph Tools (`graph_tools.py`)
+
+Graph memory context retrieval. Used by the context assembler (not pipeline steps).
+
+| Tool | Signature | Returns |
+|------|-----------|---------|
+| `fetch_graph_context` | `(user_id, message="")` | `str \| None` — serialized `<context>` block from graph, or None |
+
+`fetch_graph_context` embeds the user message, runs the trigger chain (semantic, temporal, open_items, recent, suppression, graph_walk), builds an active subgraph, and serializes it into a token-budgeted text block. Returns `None` if graph is empty, tables don't exist, or shadow mode is on.
+
+Configured via `config/graph.yaml` (retrieval, serialization) and `config/triggers.yaml` (trigger chain). Loaded as an optional context field in `config/context_rules.yaml`.
+
 ---
 
 ## Configuration
@@ -115,6 +127,8 @@ Tool thresholds live in `config/scoring.yaml`. Key sections:
 Additional config files:
 - `config/jobs.yaml` — Cron schedules and post-processing dispatch mapping
 - `config/patterns.yaml` — Pattern detection analysis definitions (which LLM analyses run, thresholds, prompt templates)
+- `config/graph.yaml` — Graph memory: ingest model, retrieval limits, serialization budget, evolution thresholds, shadow mode
+- `config/triggers.yaml` — Graph retrieval trigger chain definitions (which triggers run, params, dependencies)
 
 ---
 

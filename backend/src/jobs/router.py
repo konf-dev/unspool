@@ -8,6 +8,7 @@ from src.jobs.check_deadlines import run_check_deadlines
 from src.jobs.decay_urgency import run_decay_urgency
 from src.jobs.detect_patterns import run_detect_patterns
 from src.jobs.process_conversation import run_process_conversation
+from src.jobs.process_graph import run_process_graph
 from src.jobs.reset_notifications import run_reset_notifications
 from src.jobs.sync_calendar import run_sync_calendar
 from src.telemetry.logger import get_logger
@@ -69,6 +70,20 @@ async def detect_patterns() -> dict:
     _log.info("job.start", job="detect_patterns", trace_id=trace_id)
     result = await run_detect_patterns()
     _log.info("job.done", job="detect_patterns", trace_id=trace_id)
+    return result
+
+
+@router.post("/process-graph")
+async def process_graph(request: ProcessConversationRequest) -> dict:
+    trace_id = str(uuid.uuid4())
+    _log.info(
+        "job.start",
+        job="process_graph",
+        trace_id=trace_id,
+        user_id=request.user_id,
+    )
+    result = await run_process_graph(request.user_id, request.message_ids)
+    _log.info("job.done", job="process_graph", trace_id=trace_id)
     return result
 
 

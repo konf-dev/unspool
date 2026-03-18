@@ -18,6 +18,8 @@ CONFIG_DESCRIPTIONS = {
     "proactive.yaml": "Proactive message triggers — conditions, priorities, and prompt files.",
     "patterns.yaml": "Pattern detection analyses — behavioral patterns, preferences, memory consolidation.",
     "variants.yaml": "A/B test variant definitions (currently empty).",
+    "graph.yaml": "Graph memory system — ingest model, retrieval limits, serialization budget, evolution thresholds, shadow mode.",
+    "triggers.yaml": "Graph retrieval trigger chain — which triggers run, params, dependencies.",
 }
 
 
@@ -45,6 +47,8 @@ def render(configs: dict, _tables: dict, graph: dict, _matrix: list) -> None:
         "proactive.yaml",
         "patterns.yaml",
         "variants.yaml",
+        "graph.yaml",
+        "triggers.yaml",
     ]
 
     selected_file = None

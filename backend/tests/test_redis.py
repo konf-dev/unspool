@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -22,21 +22,28 @@ class TestDecodeResult:
 class TestRateLimitCheck:
     @pytest.mark.asyncio
     async def test_first_request_allowed(self) -> None:
+        mock_pipe = MagicMock()
+        mock_pipe.set = MagicMock(return_value=mock_pipe)
+        mock_pipe.incr = MagicMock(return_value=mock_pipe)
+        mock_pipe.exec = AsyncMock(return_value=[True, 1])
+
         mock_redis = MagicMock()
-        mock_redis.set.return_value = True
-        mock_redis.incr.return_value = 1
+        mock_redis.pipeline.return_value = mock_pipe
 
         with patch("src.db.redis.get_redis", return_value=mock_redis):
             allowed, remaining = await rate_limit_check("user-1", 10)
             assert allowed is True
             assert remaining == 9
-            mock_redis.incr.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_at_limit_still_allowed(self) -> None:
+        mock_pipe = MagicMock()
+        mock_pipe.set = MagicMock(return_value=mock_pipe)
+        mock_pipe.incr = MagicMock(return_value=mock_pipe)
+        mock_pipe.exec = AsyncMock(return_value=[None, 10])
+
         mock_redis = MagicMock()
-        mock_redis.set.return_value = None
-        mock_redis.incr.return_value = 10
+        mock_redis.pipeline.return_value = mock_pipe
 
         with patch("src.db.redis.get_redis", return_value=mock_redis):
             allowed, remaining = await rate_limit_check("user-1", 10)
@@ -45,9 +52,13 @@ class TestRateLimitCheck:
 
     @pytest.mark.asyncio
     async def test_over_limit_denied(self) -> None:
+        mock_pipe = MagicMock()
+        mock_pipe.set = MagicMock(return_value=mock_pipe)
+        mock_pipe.incr = MagicMock(return_value=mock_pipe)
+        mock_pipe.exec = AsyncMock(return_value=[None, 11])
+
         mock_redis = MagicMock()
-        mock_redis.set.return_value = None
-        mock_redis.incr.return_value = 11
+        mock_redis.pipeline.return_value = mock_pipe
 
         with patch("src.db.redis.get_redis", return_value=mock_redis):
             allowed, remaining = await rate_limit_check("user-1", 10)
@@ -55,16 +66,23 @@ class TestRateLimitCheck:
             assert remaining == 0
 
     @pytest.mark.asyncio
-    async def test_atomic_set_nx_before_incr(self) -> None:
+    async def test_pipeline_calls_set_nx_then_incr(self) -> None:
+        mock_pipe = MagicMock()
+        mock_pipe.set = MagicMock(return_value=mock_pipe)
+        mock_pipe.incr = MagicMock(return_value=mock_pipe)
+        mock_pipe.exec = AsyncMock(return_value=[True, 1])
+
         mock_redis = MagicMock()
-        mock_redis.set.return_value = True
-        mock_redis.incr.return_value = 1
+        mock_redis.pipeline.return_value = mock_pipe
 
         with patch("src.db.redis.get_redis", return_value=mock_redis):
             await rate_limit_check("user-1", 10)
-            # SET NX should be called with ex=86400 and nx=True
-            set_call = mock_redis.set.call_args
-            assert set_call.kwargs.get("ex") == 86400 or set_call[1].get("ex") == 86400
-            assert set_call.kwargs.get("nx") is True or set_call[1].get("nx") is True
-            # INCR should be called after SET NX
-            mock_redis.incr.assert_called_once()
+            # Verify SET NX with ex=86400
+            mock_pipe.set.assert_called_once()
+            call_args = mock_pipe.set.call_args
+            assert (
+                call_args.kwargs.get("ex") == 86400 or call_args[1].get("ex") == 86400
+            )
+            assert call_args.kwargs.get("nx") is True or call_args[1].get("nx") is True
+            # Verify INCR
+            mock_pipe.incr.assert_called_once()

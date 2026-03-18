@@ -59,6 +59,10 @@ TOOL_DB_ACCESS: dict[str, dict[str, list[str]]] = {
     "search_hybrid": {"reads": ["items"], "writes": []},
     "search_text": {"reads": ["items"], "writes": []},
     "generate_embedding": {"reads": [], "writes": []},
+    "fetch_graph_context": {
+        "reads": ["memory_nodes", "memory_edges", "node_neighbors"],
+        "writes": ["memory_nodes"],
+    },
 }
 
 JOB_DB_ACCESS: dict[str, dict[str, list[str]]] = {
@@ -80,6 +84,10 @@ JOB_DB_ACCESS: dict[str, dict[str, list[str]]] = {
         "writes": ["user_profiles"],
     },
     "reset_notifications": {"reads": [], "writes": ["user_profiles"]},
+    "process_graph": {
+        "reads": ["messages", "memory_nodes", "memory_edges", "node_neighbors"],
+        "writes": ["memory_nodes", "memory_edges", "node_neighbors"],
+    },
 }
 
 SCORING_CONSUMERS: dict[str, dict[str, list[str]]] = {
@@ -115,6 +123,7 @@ CONTEXT_LOADER_TABLES: dict[str, str] = {
     "memories": "memories",
     "entities": "entities",
     "calendar_events": "calendar_events",
+    "graph_context": "memory_nodes",
 }
 
 # ---------------------------------------------------------------------------
@@ -137,6 +146,8 @@ def load_all_configs() -> dict:
     configs["patterns"] = load_yaml(CONFIG / "patterns.yaml")
     configs["gate"] = load_yaml(CONFIG / "gate.yaml")
     configs["variants"] = load_yaml(CONFIG / "variants.yaml")
+    configs["graph"] = load_yaml(CONFIG / "graph.yaml")
+    configs["triggers"] = load_yaml(CONFIG / "triggers.yaml")
 
     configs["pipelines"] = {}
     for p in sorted(PIPELINES_DIR.glob("*.yaml")):

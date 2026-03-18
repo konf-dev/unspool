@@ -106,25 +106,30 @@ unspool/
 │   │   ├── gate.yaml      # Rate limits (free/paid)
 │   │   ├── jobs.yaml      # Cron schedules + post-processing dispatch map
 │   │   ├── patterns.yaml  # Pattern detection analysis definitions
-│   │   └── variants.yaml  # A/B test definitions
-│   ├── prompts/           # 26 Jinja2 prompt templates (.md)
+│   │   ├── variants.yaml  # A/B test definitions
+│   │   ├── graph.yaml     # Graph memory system config
+│   │   └── triggers.yaml  # Graph retrieval trigger chain definitions
+│   ├── prompts/           # 28 Jinja2 prompt templates (.md)
 │   ├── supabase/
-│   │   └── migrations/    # SQL schema migrations
+│   │   └── migrations/    # SQL schema (single 00001_full_schema.sql)
 │   ├── src/
 │   │   ├── main.py        # FastAPI app entry
 │   │   ├── config.py      # Settings from env vars
 │   │   ├── api/           # chat.py, messages.py, subscribe.py, auth_token.py,
 │   │   │                  # admin.py
+│   │   ├── graph/         # types.py, db.py, triggers.py, retrieval.py,
+│   │   │                  # serialization.py, ingest.py, evolve.py, feedback.py
 │   │   ├── jobs/          # check_deadlines, decay_urgency, process_conversation,
-│   │   │                  # sync_calendar, detect_patterns, reset_notifications
+│   │   │                  # process_graph, sync_calendar, detect_patterns,
+│   │   │                  # reset_notifications
 │   │   ├── orchestrator/  # engine.py, intent.py, context.py, config_loader.py,
 │   │   │                  # prompt_renderer.py, variant_selector.py, types.py
 │   │   ├── tools/         # registry.py, db_tools.py, scoring_tools.py,
-│   │   │                  # context_tools.py, item_matching.py, momentum_tools.py,
-│   │   │                  # query_tools.py
+│   │   │                  # context_tools.py, graph_tools.py, item_matching.py,
+│   │   │                  # momentum_tools.py, query_tools.py
 │   │   ├── llm/           # protocol.py, anthropic_provider.py, openai_provider.py,
 │   │   │                  # embedding.py, registry.py
-│   │   ├── db/            # supabase.py (asyncpg), redis.py (Upstash)
+│   │   ├── db/            # supabase.py (asyncpg), redis.py (Upstash async)
 │   │   ├── integrations/  # google_calendar.py, stripe.py, push.py, qstash.py
 │   │   ├── auth/          # supabase_auth.py, qstash_auth.py, admin_auth.py
 │   │   └── telemetry/     # logger.py, events.py, middleware.py,
@@ -240,6 +245,7 @@ CREATE POLICY "Users see own profile" ON user_profiles
 | Deadline scanner | POST /jobs/check-deadlines | Hourly | Send push for hard deadlines <24h away |
 | Urgency decay | POST /jobs/decay-urgency | Every 6h | Recalculate urgency scores, expire old items |
 | Process conversation | POST /jobs/process-conversation | After each chat (delayed 10s) | Embeddings, entity extraction, memory extraction |
+| Process graph | POST /jobs/process-graph | After each chat (delayed 5s) | Graph node/edge ingest, embedding, feedback |
 | Calendar sync | POST /jobs/sync-calendar | Every 4h | Fetch Google Calendar events |
 | Pattern detection | POST /jobs/detect-patterns | Daily | Config-driven LLM analyses (behavioral, preferences) |
 | Notification reset | POST /jobs/reset-notifications | Daily midnight | Reset notification_sent_today flag |
@@ -346,6 +352,7 @@ Read these before making architectural decisions:
 - `docs/OBSERVABILITY.md` — Admin API, Langfuse tracing, debugging workflows
 - `docs/DEPLOYMENT_LOG.md` — Exact steps followed, issues hit, and current production state
 - `docs/ROADMAP.md` — Phased roadmap with current status of all work items
+- `docs/GRAPH_MEMORY.md` — Graph memory system: architecture, triggers, serialization, going-live checklist
 
 ## Parallel Workstreams
 

@@ -162,6 +162,69 @@ class PatternsConfig(BaseModel, extra="forbid"):
     output_field: str = "patterns"
 
 
+# --- graph.yaml ---
+
+
+class GraphIngestConfig(BaseModel, extra="forbid"):
+    quick_model: str | None = None
+    quick_max_nodes: int = 10
+    deep_model: str | None = None
+    recent_nodes_context: int = 30
+
+
+class GraphRetrievalConfig(BaseModel, extra="forbid"):
+    default_triggers: list[str] = Field(default_factory=list)
+    graph_walk_hops: int = 1
+    max_subgraph_nodes: int = 50
+    semantic_limit: int = 15
+    temporal_window_hours: int = 48
+    recent_limit: int = 10
+    suppression_window_hours: int = 24
+
+
+class GraphSerializationConfig(BaseModel, extra="forbid"):
+    max_context_tokens: int = 2000
+
+
+class GraphEvolutionConfig(BaseModel, extra="forbid"):
+    embedding_model: str = "text-embedding-3-small"
+    similarity_threshold: float = 0.8
+    dedup_threshold: float = 0.9
+    edge_decay_factor: float = 0.99
+    edge_decay_min: float = 0.01
+    contradiction_threshold: float = 0.9
+    shortcut_co_retrieval_count: int = 3
+
+
+class GraphFeedbackConfig(BaseModel, extra="forbid"):
+    async_detection: bool = True
+
+
+class GraphConfigModel(BaseModel, extra="forbid"):
+    ingest: GraphIngestConfig = Field(default_factory=GraphIngestConfig)
+    retrieval: GraphRetrievalConfig = Field(default_factory=GraphRetrievalConfig)
+    serialization: GraphSerializationConfig = Field(
+        default_factory=GraphSerializationConfig
+    )
+    evolution: GraphEvolutionConfig = Field(default_factory=GraphEvolutionConfig)
+    feedback: GraphFeedbackConfig = Field(default_factory=GraphFeedbackConfig)
+    shadow_mode: bool = True
+
+
+# --- triggers.yaml ---
+
+
+class TriggerDefModel(BaseModel, extra="forbid"):
+    enabled: bool = True
+    type: str
+    params: dict[str, Any] = Field(default_factory=dict)
+    depends_on: list[str] = Field(default_factory=list)
+
+
+class TriggersConfigModel(BaseModel, extra="forbid"):
+    triggers: dict[str, TriggerDefModel] = Field(default_factory=dict)
+
+
 # Registry: maps config file name → Pydantic model
 CONFIG_MODELS: dict[str, type[BaseModel]] = {
     "gate": GateConfig,
@@ -171,4 +234,6 @@ CONFIG_MODELS: dict[str, type[BaseModel]] = {
     "intents": IntentsConfig,
     "context_rules": ContextRulesConfig,
     "patterns": PatternsConfig,
+    "graph": GraphConfigModel,
+    "triggers": TriggersConfigModel,
 }
