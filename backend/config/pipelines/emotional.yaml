@@ -19,3 +19,7 @@ steps:
       level: "${steps.detect_level.output}"
       user_profile: "${context.profile}"
       open_items: "${context.open_items}"
+
+post_processing:
+  - job: process_graph
+    delay: "5s"

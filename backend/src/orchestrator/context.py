@@ -13,6 +13,7 @@ from src.tools.context_tools import (
     fetch_profile,
     fetch_urgent_items,
 )
+from src.tools.graph_tools import fetch_graph_context
 from src.telemetry.logger import get_logger
 
 _log = get_logger("orchestrator.context")
@@ -25,6 +26,7 @@ _LOADERS: dict[str, Callable[..., Any]] = {
     "entities": fetch_entities,
     "memories": fetch_memories,
     "calendar_events": fetch_calendar_events,
+    "graph_context": fetch_graph_context,
 }
 
 # Extra kwargs to pass to loaders based on config defaults.
@@ -34,6 +36,9 @@ _LOADER_KWARGS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "open_items": lambda d: {"limit": d.get("open_items_limit", 50)},
     "memories": lambda d: {"limit": d.get("memories_limit", 5)},
 }
+
+# Loaders that need the user message in addition to user_id.
+_LOADERS_NEED_MESSAGE: set[str] = {"graph_context"}
 
 
 @observe("assemble_context")
@@ -63,6 +68,8 @@ async def assemble_context(
         try:
             kwargs_fn = _LOADER_KWARGS.get(field)
             extra_kwargs = kwargs_fn(defaults) if kwargs_fn else {}
+            if field in _LOADERS_NEED_MESSAGE:
+                extra_kwargs["message"] = message
             result = await loader(user_id, **extra_kwargs)
             setattr(ctx, field, result)
         except Exception:

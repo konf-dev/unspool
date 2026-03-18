@@ -62,6 +62,9 @@ def render(configs: dict, tables: dict, graph: dict, _matrix: list) -> None:
             "item_events",
             "memories",
             "entities",
+            "memory_nodes",
+            "memory_edges",
+            "node_neighbors",
         ]
         secondary = [t for t in sorted(tables.keys()) if t not in core]
         all_tables = [t for t in core if t in tables] + secondary

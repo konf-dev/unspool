@@ -125,6 +125,7 @@ Variables in `input` fields use `${...}` syntax:
 | `${context.memories}` | User memories |
 | `${context.entities}` | Known entities |
 | `${context.calendar_events}` | Upcoming calendar events |
+| `${context.graph_context}` | Graph-derived memory context (`<context>` block or None) |
 | `${steps.X.output}` | Output of step with id `X` |
 | `${steps.X.output.field}` | Sub-field of step output (if dict) |
 
@@ -160,6 +161,7 @@ Available context fields and their loaders:
 | entities | `fetch_entities` | `entities` table |
 | memories | `fetch_memories` | `memories` table (recent or semantic) |
 | calendar_events | `fetch_calendar_events` | `calendar_events` table (upcoming) |
+| graph_context | `fetch_graph_context` | Graph memory (triggers → subgraph → serialized text) |
 
 ---
 
