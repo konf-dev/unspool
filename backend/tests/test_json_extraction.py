@@ -51,13 +51,13 @@ class TestExtractJsonTextBeforeAfter:
 
     def test_text_before_and_after_falls_back(self) -> None:
         # Current implementation can't parse JSON with trailing text (no closing delimiter scan).
-        # This documents the limitation — extraction returns {} when text follows JSON.
+        # This documents the limitation — extraction returns a parse error marker.
         content = (
             'I analyzed your message. {"search_type": "status", "entity": null} '
             "Hope that helps!"
         )
         result = _extract_json(content, "test")
-        assert result == {}
+        assert result["_parse_error"] is True
 
     def test_text_before_json_at_end(self) -> None:
         # But text before JSON with nothing after works fine.
@@ -86,16 +86,16 @@ class TestExtractJsonNested:
 class TestExtractJsonFailures:
     def test_completely_invalid(self) -> None:
         result = _extract_json("I don't have any JSON for you today.", "test")
-        assert result == {}
+        assert result["_parse_error"] is True
 
     def test_empty_string(self) -> None:
         result = _extract_json("", "test")
-        assert result == {}
+        assert result["_parse_error"] is True
 
     def test_partial_json(self) -> None:
         result = _extract_json('{"incomplete": ', "test")
-        assert result == {}
+        assert result["_parse_error"] is True
 
     def test_non_json_with_braces(self) -> None:
         result = _extract_json("function() { return true; }", "test")
-        assert result == {}
+        assert result["_parse_error"] is True

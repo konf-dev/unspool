@@ -26,7 +26,8 @@ async def save_items(
     if items is None:
         return []
     if isinstance(items, dict):
-        items = items.get("items", [])
+        # LLMs may use different key names for the items array
+        items = items.get("items") or items.get("results") or items.get("tasks") or []
     if not isinstance(items, list):
         _log.warning("save_items.invalid_type", type=type(items).__name__)
         return []

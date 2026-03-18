@@ -203,7 +203,12 @@ async def _save_and_dispatch(
             exc_info=True,
         )
 
-    if context_out and assistant_msg_id and not stream_state.get("failed"):
+    if (
+        context_out
+        and assistant_msg_id
+        and stream_state.get("completed")
+        and not stream_state.get("failed")
+    ):
         await _dispatch_post_processing(context_out[0], user_msg_id, assistant_msg_id)
 
 
@@ -234,6 +239,7 @@ async def chat(
     collected_tokens: list[str] = []
     context_out: list[Context] = []
     stream_state: dict[str, bool] = {"failed": False, "completed": False}
+    save_lock = asyncio.Lock()
 
     async def wrapped_stream() -> AsyncIterator[str]:
         try:
@@ -285,7 +291,10 @@ async def chat(
             # Save even if client disconnects mid-stream (generator closed).
             # BackgroundTask runs after normal completion; this finally block
             # covers the disconnect case where BackgroundTask would be skipped.
-            if not stream_state.get("saved"):
+            # Lock prevents double-save if generator is closed concurrently.
+            async with save_lock:
+                if stream_state.get("saved"):
+                    return
                 stream_state["saved"] = True
                 await _save_and_dispatch(
                     user_id=user_id,

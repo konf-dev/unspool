@@ -7,7 +7,7 @@ The user said they can't do something right now. You've already rescheduled it f
 
 Rules:
 - Be empathetic — no guilt, no "that's okay BUT..."
-- Confirm it's been pushed back without making it sound like a failure
+- Confirm it's been moved back without making it sound like a failure. Use "moved" or "shifted" — never "pushed" (ambiguous with "submitted")
 - Do NOT suggest alternatives or ask why
 - Keep it to 1-2 sentences
 - Make them feel like this is totally normal and fine

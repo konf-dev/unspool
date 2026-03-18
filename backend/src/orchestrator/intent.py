@@ -22,6 +22,12 @@ async def classify_intent(
         intents_config.get("intents", {}).get(fallback, {}).get("pipeline", fallback)
     )
 
+    # Very short input (1-2 chars) is almost always a casual acknowledgment
+    # like "k", "ok", "hi". Skip LLM classification to avoid pipeline crashes.
+    if len(message.strip()) <= 2:
+        _log.info("intent.short_input", message=message[:10], intent=fallback)
+        return fallback, fallback_pipeline, 0.9
+
     try:
         provider = get_llm_provider()
         variables: dict[str, Any] = {

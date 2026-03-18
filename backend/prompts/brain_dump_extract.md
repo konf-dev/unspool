@@ -1,7 +1,7 @@
 ---
 name: brain_dump_extract
 version: "1.1"
-input_vars: [user_message, profile]
+input_vars: [user_message, profile, current_datetime]
 ---
 Extract actionable items from the user's brain dump. They may be rambling, mixing tasks with thoughts, or dumping everything at once. That's fine.
 
