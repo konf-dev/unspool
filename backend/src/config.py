@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = ""
     LLM_MODEL: str = ""
     LLM_MODEL_FAST: str = ""
-    LLM_PROVIDER: str = "anthropic"
+    LLM_PROVIDER: str = "openai"
 
     EMBEDDING_API_KEY: str = ""
     EMBEDDING_MODEL: str = "text-embedding-3-small"

@@ -279,7 +279,7 @@ intents:
   # ...
 
 fallback_intent: conversation
-classification_model: gpt-5-nano  # Fast model for intent classification
+classification_model: gpt-4.1-nano  # Fast model for intent classification
 ```
 
 ---

@@ -31,7 +31,7 @@ Single FastAPI server (Railway)
      ├── Supabase (Postgres + pgvector + Auth)
      ├── Upstash Redis (session cache)
      ├── Upstash QStash (cron + job queue)
-     ├── LLM API (Claude via Anthropic + OpenAI fallback)
+     ├── LLM API (OpenAI primary, Anthropic available)
      ├── Google Calendar API (read-only)
      └── Stripe (payments, post-MVP)
 ```
@@ -277,7 +277,7 @@ GOOGLE_CLIENT_SECRET=
 # LLM
 LLM_API_KEY=
 LLM_MODEL=          # Default response model (gpt-4.1)
-LLM_MODEL_FAST=     # Fast classification model (gpt-5-nano)
+LLM_MODEL_FAST=     # Fast classification model (gpt-4.1-nano)
 
 # Admin & Observability
 ADMIN_API_KEY=
