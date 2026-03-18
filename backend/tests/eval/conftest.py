@@ -51,11 +51,28 @@ def eval_baseline(request: pytest.FixtureRequest) -> str | None:
 def eval_client(eval_target: str) -> EvalClient:
     import os
 
+    import httpx
+
     if eval_target == "local":
         return EvalClient(target="local")
 
     base_url = os.environ.get("EVAL_API_URL", "https://api.unspool.life")
     auth_token = os.environ.get("EVAL_AUTH_TOKEN")
+    if not auth_token:
+        eval_key = os.environ.get("EVAL_API_KEY")
+        if eval_key:
+            auth_token = f"eval:{eval_key}"
+
+    admin_key = os.environ.get("ADMIN_API_KEY")
+    if admin_key:
+        resp = httpx.delete(
+            f"{base_url}/admin/eval-cleanup",
+            headers={"X-Admin-Key": admin_key},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            print(f"\nEval cleanup: {resp.json()}")
+
     return EvalClient(target=eval_target, base_url=base_url, auth_token=auth_token)
 
 

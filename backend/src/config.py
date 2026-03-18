@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     STRIPE_WEBHOOK_SECRET: str = ""
 
     ADMIN_API_KEY: str = ""
+    EVAL_API_KEY: str = ""
 
     LANGFUSE_HOST: str = ""
     LANGFUSE_PUBLIC_KEY: str = ""

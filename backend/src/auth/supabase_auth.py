@@ -44,10 +44,22 @@ def verify_jwt(token: str) -> str:
     return user_id
 
 
+EVAL_USER_ID = "eval-user-001"
+
+
 async def get_current_user(request: Request) -> str:
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing Bearer token")
 
     token = auth_header.removeprefix("Bearer ")
+
+    if token.startswith("eval:"):
+        settings = get_settings()
+        if not settings.EVAL_API_KEY:
+            raise HTTPException(status_code=401, detail="Eval auth not configured")
+        if token != f"eval:{settings.EVAL_API_KEY}":
+            raise HTTPException(status_code=401, detail="Invalid eval key")
+        return EVAL_USER_ID
+
     return verify_jwt(token)

@@ -29,6 +29,11 @@ class ChatRequest(BaseModel):
 
 
 async def _check_gate(user_id: str) -> None:
+    from src.auth.supabase_auth import EVAL_USER_ID
+
+    if user_id == EVAL_USER_ID:
+        return
+
     gate_config = load_config("gate")
     rate_limits = gate_config.get("rate_limits", {})
 
