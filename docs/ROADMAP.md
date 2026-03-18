@@ -27,7 +27,7 @@ Goal: Sleep-at-night security and reliability before anyone else touches this. B
 
 **Safety:**
 - [x] **Prompt injection protection** — `<user_input>` boundary markers in all 26 Jinja2 templates (direct user input + stored user-derived data) + system prompt instruction to treat tagged content as untrusted
-- [x] **Pydantic validation on LLM JSON outputs** — Schema models for intent classification, item extraction, query analysis, emotional detection; validate in `engine.py` after `_extract_json()`; log warning + fallback to raw dict on validation failure
+- [x] **Pydantic validation on LLM JSON outputs** — Schema models for intent classification, item extraction, query analysis, emotional detection; `generate_structured()` with OpenAI Structured Outputs for guaranteed schema compliance; fallback to `_extract_json()` + validation on failure
 - [x] ~~**Content filtering/logging**~~ — SKIPPED: regex-based detection provides false security; `<user_input>` tags are the real defense
 
 **Reliability:**
@@ -52,9 +52,10 @@ Goal: Sleep-at-night security and reliability before anyone else touches this. B
 Goal: Iterate on prompts and scoring without praying. Every change is regression-tested. Blocks confident iteration.
 
 **LLM Eval tests:**
-- [ ] **Golden test cases for intent classification** — 30+ real messages with expected intents, run through classify_intent with recorded/real LLM, pytest `--eval` marker for separate runs
-- [ ] **Golden test cases for item extraction** — 15+ brain dumps with expected extracted items (count, interpreted_action, deadline_type, energy_estimate)
-- [ ] **Eval CI integration** — Run evals on a schedule (not every PR, since they need LLM calls), report regressions
+- [x] **Golden test cases for intent classification** — 35 test cases covering all 10 intents, disambiguation rules, ambiguous inputs
+- [x] **Golden test cases for item extraction** — 10 test cases: count, interpreted_action, deadline_type, energy_estimate, date resolution
+- [x] **Eval CI integration** — `pytest tests/eval/ --eval` with baseline comparison, GitHub Actions workflow
+- [x] **Eval-driven prompt/model fixes** — System prompt rewrite (removed ADHD priming, added negative constraints), 6 prompt fixes, model tiering (gpt-5-nano classify, gpt-4.1-mini extract, gpt-4.1 respond), structured outputs for JSON steps, optional tool steps
 
 **Unit/integration tests:**
 - [ ] **pick_next scoring tests** — Crafted item lists asserting correct selection (all same urgency, hard deadline today vs high-urgency soft, never-surfaced boost, etc.) — pure unit, no LLM

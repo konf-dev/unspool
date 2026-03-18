@@ -24,6 +24,13 @@ Recent conversation for context:
 {% endfor %}
 {% endif %}
 
+Disambiguation:
+- query_search vs query_upcoming: If the user references a *specific* item, person, or event by name → query_search. If asking about a time range or "what's coming up" → query_upcoming.
+- emotional vs status_done: Positive feelings ("I got so much done!", "feeling great") → emotional. Reporting completion of a *specific task* → status_done.
+- meta vs onboarding: User has recent conversation history → meta. No recent messages → onboarding.
+- onboarding vs conversation: Bare greeting ("hi") with no recent messages → onboarding. With recent messages → conversation.
+- status_done vs conversation: status_done requires the user to reference completing a specific task. General statements about activities are conversation.
+
 User message: <user_input>{{ user_message }}</user_input>
 
 Respond with a JSON object:

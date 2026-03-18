@@ -202,7 +202,7 @@ class TestSystemPromptRendering:
     def test_system_md_renders_without_profile(self) -> None:
         result = render_prompt("system.md", {"profile": None})
         assert "Unspool" in result
-        assert "warm, casual" in result.lower() or "warm" in result.lower()
+        assert "casual" in result.lower()
 
     def test_system_md_renders_with_profile(self) -> None:
         profile = {

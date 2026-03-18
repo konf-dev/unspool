@@ -5,7 +5,7 @@ from src.llm.registry import get_llm_provider
 from src.telemetry.langfuse_integration import observe, update_current_observation
 from src.orchestrator.config_loader import load_config
 from src.orchestrator.prompt_renderer import render_prompt
-from src.orchestrator.types import Context
+from src.orchestrator.types import Context, IntentClassification
 from src.telemetry.logger import get_logger
 
 _log = get_logger("orchestrator.intent")
@@ -36,26 +36,44 @@ async def classify_intent(
         ]
 
         classification_model = intents_config.get("classification_model")
-        result = await provider.generate(messages, model=classification_model)
 
-        update_current_observation(
-            model=classification_model or "default",
-            input=messages,
-            output=result.content,
-            usage={"input": result.input_tokens, "output": result.output_tokens},
-        )
+        try:
+            raw_structured = await provider.generate_structured(
+                messages, schema=IntentClassification, model=classification_model
+            )
+            structured = IntentClassification.model_validate(
+                raw_structured.model_dump()
+            )
+            intent_name = structured.intent
+            confidence = structured.confidence
+
+            update_current_observation(
+                model=classification_model or "default",
+                input=messages,
+                output=json.dumps({"intent": intent_name, "confidence": confidence}),
+            )
+        except Exception:
+            _log.warning("intent.structured_fallback", exc_info=True)
+            result = await provider.generate(messages, model=classification_model)
+
+            update_current_observation(
+                model=classification_model or "default",
+                input=messages,
+                output=result.content,
+                usage={"input": result.input_tokens, "output": result.output_tokens},
+            )
+
+            try:
+                parsed = json.loads(result.content)
+                intent_name = parsed.get("intent", "conversation")
+                confidence = float(parsed.get("confidence", 0.5))
+            except (json.JSONDecodeError, ValueError):
+                _log.warning("intent.llm_parse_failed", content=result.content[:200])
+                intent_name = fallback
+                confidence = 0.3
     except Exception:
         _log.error("intent.llm_call_failed", exc_info=True)
         return fallback, fallback_pipeline, 0.1
-
-    try:
-        parsed = json.loads(result.content)
-        intent_name = parsed.get("intent", "conversation")
-        confidence = float(parsed.get("confidence", 0.5))
-    except (json.JSONDecodeError, ValueError):
-        _log.warning("intent.llm_parse_failed", content=result.content[:200])
-        intent_name = fallback
-        confidence = 0.3
 
     intent_def = intents_config.get("intents", {}).get(intent_name)
     if intent_def:

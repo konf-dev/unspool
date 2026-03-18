@@ -2,6 +2,7 @@ import json
 import re
 import time
 from collections.abc import AsyncIterator, Callable
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -114,6 +115,7 @@ def _build_prompt_variables(
     variables: dict[str, Any] = {
         "user_message": context.user_message,
         "user_id": context.user_id,
+        "current_datetime": datetime.now(timezone.utc).isoformat(),
     }
     # Use `is not None` so empty lists/dicts are still passed to templates.
     # This lets prompts distinguish "no items" (empty list) from "not loaded" (absent).
@@ -252,9 +254,76 @@ async def _execute_llm_step(
             ),
         )
     else:
-        result = await provider.generate(messages, model=model)
-        latency_ms = round((time.perf_counter() - start) * 1000, 2)
+        schema_cls = (
+            OUTPUT_SCHEMAS.get(step.output_schema) if step.output_schema else None
+        )
         used_model = model or settings.LLM_MODEL
+        output: Any = None
+        content_str = ""
+        input_tokens = 0
+        output_tokens = 0
+        latency_ms = 0.0
+        structured_ok = False
+
+        if schema_cls is not None:
+            try:
+                structured_result = await provider.generate_structured(
+                    messages, schema=schema_cls, model=model
+                )
+                latency_ms = round((time.perf_counter() - start) * 1000, 2)
+                output = structured_result.model_dump()
+                content_str = json.dumps(output)
+                input_tokens = getattr(structured_result, "_input_tokens", 0)
+                output_tokens = getattr(structured_result, "_output_tokens", 0)
+                structured_ok = True
+
+                _log.info(
+                    "llm.structured_done",
+                    step_id=step.id,
+                    schema=step.output_schema,
+                    latency_ms=latency_ms,
+                    output_preview=content_str[:300],
+                    trace_id=context.trace_id,
+                )
+            except Exception as exc:
+                _log.warning(
+                    "llm.structured_fallback",
+                    step_id=step.id,
+                    error=str(exc),
+                    trace_id=context.trace_id,
+                )
+
+        if not structured_ok:
+            result = await provider.generate(messages, model=model)
+            latency_ms = round((time.perf_counter() - start) * 1000, 2)
+            content_str = result.content
+            input_tokens = result.input_tokens
+            output_tokens = result.output_tokens
+
+            _log.info(
+                "llm.generate_done",
+                step_id=step.id,
+                latency_ms=latency_ms,
+                output_len=len(result.content),
+                output_preview=result.content[:300],
+                trace_id=context.trace_id,
+            )
+
+            output = result.content
+            if step.output_schema:
+                output = _extract_json(result.content, step.id)
+                if schema_cls and isinstance(output, dict):
+                    try:
+                        validated = schema_cls.model_validate(output)
+                        output = validated.model_dump()
+                    except Exception as val_exc:
+                        _log.warning(
+                            "llm.output_validation_failed",
+                            step_id=step.id,
+                            schema=step.output_schema,
+                            error=str(val_exc),
+                            trace_id=context.trace_id,
+                        )
 
         await log_llm_usage(
             trace_id=context.trace_id,
@@ -264,8 +333,8 @@ async def _execute_llm_step(
             variant=variant,
             model=used_model,
             provider=settings.LLM_PROVIDER,
-            input_tokens=result.input_tokens,
-            output_tokens=result.output_tokens,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
             latency_ms=latency_ms,
         )
 
@@ -273,36 +342,10 @@ async def _execute_llm_step(
             name=f"llm_step:{step.id}",
             model=used_model,
             input=messages,
-            output=result.content,
-            usage={"input": result.input_tokens, "output": result.output_tokens},
+            output=content_str,
+            usage={"input": input_tokens, "output": output_tokens},
             metadata={"pipeline": pipeline_name, "step_id": step.id, "stream": False},
         )
-
-        _log.info(
-            "llm.generate_done",
-            step_id=step.id,
-            latency_ms=latency_ms,
-            output_len=len(result.content),
-            output_preview=result.content[:300],
-            trace_id=context.trace_id,
-        )
-
-        output: Any = result.content
-        if step.output_schema:
-            output = _extract_json(result.content, step.id)
-            schema_cls = OUTPUT_SCHEMAS.get(step.output_schema)
-            if schema_cls and isinstance(output, dict):
-                try:
-                    validated = schema_cls.model_validate(output)
-                    output = validated.model_dump()
-                except Exception as exc:
-                    _log.warning(
-                        "llm.output_validation_failed",
-                        step_id=step.id,
-                        schema=step.output_schema,
-                        error=str(exc),
-                        trace_id=context.trace_id,
-                    )
 
         yield (
             None,
@@ -310,7 +353,7 @@ async def _execute_llm_step(
                 step_id=step.id,
                 output=output,
                 latency_ms=latency_ms,
-                tokens_used=result.input_tokens + result.output_tokens,
+                tokens_used=input_tokens + output_tokens,
             ),
         )
 
@@ -480,7 +523,20 @@ async def execute_pipeline(
                     error_message=str(exc),
                     pipeline=pipeline_name,
                 )
-                raise
+                if step.optional:
+                    _log.warning(
+                        "tool.optional_step_failed",
+                        step_id=step.id,
+                        error=str(exc),
+                        trace_id=context.trace_id,
+                    )
+                    step_results[step.id] = StepResult(
+                        step_id=step.id,
+                        output=None,
+                        latency_ms=0,
+                    )
+                else:
+                    raise
 
         elif step.type == "query":
             try:

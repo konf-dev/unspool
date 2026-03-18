@@ -18,7 +18,6 @@ steps:
   - id: respond
     type: llm_call
     prompt: query_format.md
-    model: null
     stream: true
     input:
       item: "${steps.score_and_pick.output}"

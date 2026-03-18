@@ -20,6 +20,7 @@ class Step(BaseModel, extra="forbid"):
     conditions: list[dict[str, Any]] | None = None
     transform: str | None = None
     retry: dict[str, Any] | None = None
+    optional: bool = False
 
 
 class PostProcessingJob(BaseModel, extra="forbid"):

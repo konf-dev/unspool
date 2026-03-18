@@ -1,0 +1,96 @@
+cases:
+  - id: emotion_high_overwhelmed
+    category: emotional
+    message: "I can't handle this anymore, everything is falling apart"
+    judge_criteria:
+      - name: pure_support
+        prompt: "Does the response provide pure emotional support WITHOUT suggesting tasks or solutions?"
+        pass_threshold: 7.0
+      - name: acknowledge_feelings
+        prompt: "Does the response acknowledge and validate the user's feelings before anything else?"
+        pass_threshold: 7.0
+    tags: [emotional, high]
+
+  - id: emotion_high_panic
+    category: emotional
+    message: "I'm freaking out, the deadline is in 2 hours and I haven't started"
+    judge_criteria:
+      - name: calm_response
+        prompt: "Does the response help the user feel calmer without dismissing their panic?"
+        pass_threshold: 7.0
+      - name: no_lecture
+        prompt: "Does the response avoid lecturing about time management or preparation?"
+        pass_threshold: 7.0
+    tags: [emotional, high]
+
+  - id: emotion_medium_frustrated
+    category: emotional
+    message: "ugh, I keep putting off the taxes"
+    judge_criteria:
+      - name: validate_then_help
+        prompt: "Does the response briefly validate the frustration and then offer practical help or suggest a next step?"
+        pass_threshold: 7.0
+      - name: no_guilt
+        prompt: "Does the response avoid making the user feel guilty about procrastinating?"
+        pass_threshold: 7.0
+    tags: [emotional, medium]
+
+  - id: emotion_medium_tired
+    category: emotional
+    message: "I'm so tired today, brain isn't working"
+    judge_criteria:
+      - name: low_energy_awareness
+        prompt: "Does the response adjust expectations and suggest low-energy tasks or rest, rather than pushing productivity?"
+        pass_threshold: 7.0
+      - name: validate_fatigue
+        prompt: "Does the response validate the tiredness without being patronizing?"
+        pass_threshold: 7.0
+    tags: [emotional, medium]
+
+  - id: emotion_low_matter_of_fact
+    category: emotional
+    message: "need to finish the slides before Thursday"
+    judge_criteria:
+      - name: match_tone
+        prompt: "Does the response match the user's matter-of-fact tone without adding emotional language or assumed stress?"
+        pass_threshold: 7.0
+      - name: no_unsolicited_support
+        prompt: "Does the response avoid offering emotional support that wasn't asked for?"
+        pass_threshold: 8.0
+    tags: [emotional, low, regression, "regression:BUG-018"]
+
+  - id: emotion_low_routine
+    category: emotional
+    message: "pick up the dry cleaning"
+    judge_criteria:
+      - name: simple_acknowledge
+        prompt: "Does the response simply acknowledge the task without adding emotional commentary?"
+        pass_threshold: 8.0
+      - name: brevity
+        prompt: "Is the response brief (1-2 sentences)?"
+        pass_threshold: 7.0
+    tags: [emotional, low]
+
+  - id: emotion_positive_celebration
+    category: emotional
+    message: "I finished everything on my list today!"
+    judge_criteria:
+      - name: share_joy
+        prompt: "Does the response share in the user's positive feelings without being over-the-top?"
+        pass_threshold: 7.0
+      - name: authentic
+        prompt: "Does the celebration feel genuine and brief, not performative?"
+        pass_threshold: 7.0
+    tags: [emotional, positive]
+
+  - id: emotion_mixed_vent_with_task
+    category: emotional
+    message: "my boss just dumped 3 more things on me. need to update the project plan, email the team, and revise the budget"
+    judge_criteria:
+      - name: acknowledge_first
+        prompt: "Does the response acknowledge the user's frustration BEFORE addressing the tasks?"
+        pass_threshold: 7.0
+      - name: captures_tasks
+        prompt: "Does the response also acknowledge or capture the tasks mentioned?"
+        pass_threshold: 6.0
+    tags: [emotional, mixed]

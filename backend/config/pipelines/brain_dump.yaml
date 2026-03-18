@@ -6,7 +6,7 @@ steps:
     type: llm_call
     prompt: brain_dump_extract.md
     output_schema: ItemExtraction
-    model: null  # uses default
+    model: gpt-4.1-mini
 
   - id: enrich
     type: tool_call

@@ -1,0 +1,104 @@
+cases:
+  - id: extract_single_task
+    category: extraction
+    message: "I need to buy milk"
+    assertions:
+      - type: min_count
+        field: item_count
+        value: 1
+    tags: [extraction]
+
+  - id: extract_multi_task
+    category: extraction
+    message: "buy groceries, call the dentist, and finish the report"
+    assertions:
+      - type: min_count
+        field: item_count
+        value: 3
+    tags: [extraction]
+
+  - id: extract_with_deadline
+    category: extraction
+    message: "submit the proposal by Friday"
+    assertions:
+      - type: min_count
+        field: item_count
+        value: 1
+      - type: not_null
+        field: "items[0].deadline_at"
+    tags: [extraction]
+
+  - id: extract_hard_deadline
+    category: extraction
+    message: "the tax return is due April 15th, can't miss it"
+    assertions:
+      - type: min_count
+        field: item_count
+        value: 1
+      - type: equals
+        field: "items[0].deadline_type"
+        value: "hard"
+    tags: [extraction]
+
+  - id: extract_soft_deadline
+    category: extraction
+    message: "should probably get the oil change done sometime this week"
+    assertions:
+      - type: min_count
+        field: item_count
+        value: 1
+      - type: equals
+        field: "items[0].deadline_type"
+        value: "soft"
+    tags: [extraction]
+
+  - id: extract_low_energy
+    category: extraction
+    message: "I need to text my mom back"
+    assertions:
+      - type: min_count
+        field: item_count
+        value: 1
+      - type: equals
+        field: "items[0].energy_estimate"
+        value: "low"
+    tags: [extraction]
+
+  - id: extract_high_energy
+    category: extraction
+    message: "I need to write the entire project proposal from scratch"
+    assertions:
+      - type: min_count
+        field: item_count
+        value: 1
+      - type: equals
+        field: "items[0].energy_estimate"
+        value: "high"
+    tags: [extraction]
+
+  - id: extract_mixed_items
+    category: extraction
+    message: "text sarah back, write the quarterly report by Wednesday, and maybe clean the garage sometime"
+    assertions:
+      - type: min_count
+        field: item_count
+        value: 3
+    tags: [extraction]
+
+  - id: extract_implicit_task
+    category: extraction
+    message: "my car registration expires next month"
+    assertions:
+      - type: min_count
+        field: item_count
+        value: 1
+    tags: [extraction]
+
+  - id: extract_idea_not_task
+    category: extraction
+    message: "you know what would be cool? a podcast about productivity myths"
+    assertions:
+      - type: min_count
+        field: item_count
+        value: 1
+    tags: [extraction]

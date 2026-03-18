@@ -276,7 +276,8 @@ GOOGLE_CLIENT_SECRET=
 
 # LLM
 LLM_API_KEY=
-LLM_MODEL=
+LLM_MODEL=          # Default response model (gpt-4.1)
+LLM_MODEL_FAST=     # Fast classification model (gpt-5-nano)
 
 # Admin & Observability
 ADMIN_API_KEY=

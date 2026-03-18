@@ -1,0 +1,80 @@
+cases:
+  - id: multi_dump_then_query
+    category: multi_turn
+    message: "what should I do?"
+    setup_messages:
+      - role: user
+        content: "I need to buy groceries, call the dentist, and finish the report by Friday"
+    judge_criteria:
+      - name: suggests_one_from_dump
+        prompt: "Does the response suggest exactly ONE task that was mentioned in the previous brain dump (groceries, dentist, or report)?"
+        pass_threshold: 7.0
+    tags: [multi_turn]
+
+  - id: multi_done_then_query
+    category: multi_turn
+    message: "ok what else?"
+    setup_messages:
+      - role: user
+        content: "I need to buy groceries, call the dentist, and finish the report"
+      - role: user
+        content: "done with the groceries"
+    judge_criteria:
+      - name: excludes_done_item
+        prompt: "Does the response suggest a task that is NOT groceries (since that was marked done)?"
+        pass_threshold: 8.0
+    tags: [multi_turn]
+
+  - id: multi_emotional_then_task
+    category: multi_turn
+    message: "actually yeah, what should I work on?"
+    setup_messages:
+      - role: user
+        content: "I'm really stressed about everything"
+      - role: user
+        content: "I need to finish the report by Friday and call my doctor"
+    judge_criteria:
+      - name: suggests_task
+        prompt: "Does the response suggest a specific task from the previous conversation?"
+        pass_threshold: 7.0
+    tags: [multi_turn]
+
+  - id: multi_implicit_capture
+    category: multi_turn
+    message: "what do I have going on?"
+    setup_messages:
+      - role: user
+        content: "my car registration expires next month and I think I need new tires too"
+    judge_criteria:
+      - name: recalls_items
+        prompt: "Does the response reference the car registration or tires from the previous message?"
+        pass_threshold: 7.0
+    tags: [multi_turn]
+
+  - id: multi_correction
+    category: multi_turn
+    message: "what's coming up?"
+    setup_messages:
+      - role: user
+        content: "the meeting is on Thursday"
+      - role: user
+        content: "wait actually the meeting moved to Friday"
+    judge_criteria:
+      - name: uses_corrected_info
+        prompt: "Does the response reference Friday (the corrected date) rather than Thursday for the meeting?"
+        pass_threshold: 7.0
+    tags: [multi_turn]
+
+  - id: multi_conversation_with_tasks
+    category: multi_turn
+    message: "what should I do first?"
+    setup_messages:
+      - role: user
+        content: "had a good weekend, went hiking"
+      - role: user
+        content: "oh btw I need to send that email to Jake and book the flights for next month"
+    judge_criteria:
+      - name: captures_embedded_tasks
+        prompt: "Does the response suggest one of the tasks mentioned in the conversation (email Jake or book flights)?"
+        pass_threshold: 7.0
+    tags: [multi_turn]
