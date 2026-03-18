@@ -226,7 +226,7 @@ class InMemoryStore:
         return msg
 
     async def fetch_messages(self, user_id: str, **kwargs: object) -> list[dict]:
-        limit = int(kwargs.get("limit", 20))
+        limit = int(kwargs.get("limit", 20))  # type: ignore[arg-type]
         return self.messages[-limit:]
 
     async def fetch_profile(self, user_id: str, **kwargs: object) -> dict:
