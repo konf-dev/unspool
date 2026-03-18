@@ -16,3 +16,4 @@ pywebpush
 jinja2
 pyyaml
 stripe
+tiktoken

@@ -1146,6 +1146,8 @@ async def delete_user_data(user_id: str) -> dict[str, int]:
         "oauth_tokens",
         "subscriptions",
         "llm_usage",
+        "memory_edges",
+        "memory_nodes",
     ]
 
     async with pool.acquire() as conn:

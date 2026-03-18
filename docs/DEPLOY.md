@@ -31,8 +31,7 @@ cd backend
 # Option A: Supabase CLI (recommended)
 npx supabase db push
 
-# Option B: Manual — copy-paste each migration file into the SQL Editor
-# Run 00001_initial_schema.sql first, then 00002_vector_indexes_and_hybrid_search.sql
+# Option B: Manual — copy-paste 00001_full_schema.sql into the SQL Editor
 ```
 
 ### Configure Auth
@@ -356,7 +355,7 @@ npx supabase db push
 
 **Order matters:** always run migrations *before* deploying backend code that references new tables/columns.
 
-Migration files live in `backend/supabase/migrations/` and are numbered sequentially (`00001_`, `00002_`, etc.).
+Migration files live in `backend/supabase/migrations/`. Currently consolidated into a single `00001_full_schema.sql` (all tables including graph memory).
 
 ---
 

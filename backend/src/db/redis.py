@@ -1,8 +1,6 @@
-import asyncio
 from datetime import datetime, timezone
-from functools import partial
 
-from upstash_redis import Redis
+from upstash_redis.asyncio import Redis
 
 from src.config import get_settings
 from src.telemetry.logger import get_logger
@@ -35,18 +33,18 @@ def _decode_result(result: object) -> str | None:
 
 async def cache_set(key: str, value: str, ttl_seconds: int) -> None:
     r = get_redis()
-    await asyncio.to_thread(partial(r.set, key, value, ex=ttl_seconds))
+    await r.set(key, value, ex=ttl_seconds)
 
 
 async def cache_get(key: str) -> str | None:
     r = get_redis()
-    result = await asyncio.to_thread(r.get, key)
+    result = await r.get(key)
     return _decode_result(result)
 
 
 async def cache_delete(key: str) -> None:
     r = get_redis()
-    await asyncio.to_thread(r.delete, key)
+    await r.delete(key)
 
 
 async def rate_limit_check(user_id: str, daily_limit: int) -> tuple[bool, int]:
@@ -54,42 +52,40 @@ async def rate_limit_check(user_id: str, daily_limit: int) -> tuple[bool, int]:
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     key = f"rate:{user_id}:{today}"
 
-    # Atomic: SET NX creates the key with expiry in one call, then INCR.
-    # This avoids the race where INCR creates the key but EXPIRE never runs.
-    await asyncio.to_thread(partial(r.set, key, 0, ex=86400, nx=True))
-    count = await asyncio.to_thread(r.incr, key)
+    # Pipeline: bundle SET NX + INCR into one HTTP roundtrip
+    pipe = r.pipeline()
+    pipe.set(key, 0, ex=86400, nx=True)
+    pipe.incr(key)
+    results = await pipe.exec()
 
+    count = int(results[1])
     allowed = count <= daily_limit
     remaining = max(0, daily_limit - count)
     return allowed, remaining
 
 
 async def rate_limit_increment(user_id: str) -> None:
-    # Now a no-op: incrementing happens atomically inside rate_limit_check
+    # No-op: incrementing happens atomically inside rate_limit_check
     pass
 
 
 async def session_set(user_id: str, key: str, value: str) -> None:
     r = get_redis()
-    await asyncio.to_thread(
-        partial(r.set, f"session:{user_id}:{key}", value, ex=_TTL_SHORT_TERM)
-    )
+    await r.set(f"session:{user_id}:{key}", value, ex=_TTL_SHORT_TERM)
 
 
 async def session_get(user_id: str, key: str) -> str | None:
     r = get_redis()
-    result = await asyncio.to_thread(r.get, f"session:{user_id}:{key}")
+    result = await r.get(f"session:{user_id}:{key}")
     return _decode_result(result)
 
 
 async def context_set(user_id: str, key: str, value: str) -> None:
     r = get_redis()
-    await asyncio.to_thread(
-        partial(r.set, f"context:{user_id}:{key}", value, ex=_TTL_WORKING)
-    )
+    await r.set(f"context:{user_id}:{key}", value, ex=_TTL_WORKING)
 
 
 async def context_get(user_id: str, key: str) -> str | None:
     r = get_redis()
-    result = await asyncio.to_thread(r.get, f"context:{user_id}:{key}")
+    result = await r.get(f"context:{user_id}:{key}")
     return _decode_result(result)

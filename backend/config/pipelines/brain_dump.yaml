@@ -33,3 +33,5 @@ steps:
 post_processing:
   - job: process_conversation
     delay: "10s"
+  - job: process_graph
+    delay: "5s"

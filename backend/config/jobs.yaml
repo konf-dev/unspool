@@ -25,3 +25,4 @@ cron_jobs:
 # Maps pipeline post_processing job names to /jobs/ endpoint paths
 dispatch_map:
   process_conversation: process-conversation
+  process_graph: process-graph

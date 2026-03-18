@@ -48,6 +48,7 @@ class Context(BaseModel):
     memories: list[dict[str, Any]] | None = None
     entities: list[dict[str, Any]] | None = None
     calendar_events: list[dict[str, Any]] | None = None
+    graph_context: str | None = None
     extra: dict[str, Any] = Field(default_factory=dict)
     post_processing_jobs: list[PostProcessingJob] | None = None
 
