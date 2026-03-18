@@ -1,0 +1,18 @@
+scenarios:
+  - id: repeated_worry
+    description: "Same worry mentioned repeatedly without resolution"
+    inject_at: {day_range: [5, 15], count: 1}
+    steps:
+      - instruction: "Mention something you're worried about"
+      - instruction: "Mention the same worry again — you haven't done anything about it"
+        delay_messages: [5, 10]
+      - instruction: "Mention it a third time — still unresolved, still worried"
+        delay_messages: [5, 10]
+
+  - id: outdated_info
+    description: "Information that became irrelevant but was never explicitly closed"
+    inject_at: {day_range: [10, 30], count: 1}
+    steps:
+      - instruction: "Mention a task or event with specific details"
+      - instruction: "Much later, casually reveal that the thing was cancelled or became irrelevant — don't make it a big deal, just mention it in passing"
+        delay_messages: [10, 20]

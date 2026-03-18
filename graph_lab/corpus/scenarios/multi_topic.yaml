@@ -1,0 +1,16 @@
+scenarios:
+  - id: five_topics
+    description: "5+ distinct topics in one message"
+    inject_at: {day_range: [5, 25], count: 1}
+    steps:
+      - instruction: "Cram at least 5 completely different topics into a single message — work, personal errand, social event, health thing, and a random thought. Don't organize them, just dump them as they come to mind"
+
+  - id: rapid_switching
+    description: "Rapid topic switching across consecutive messages"
+    inject_at: {day_range: [10, 30], count: 1}
+    steps:
+      - instruction: "Send a message about one topic"
+      - instruction: "Immediately send another message about a completely different topic with no transition"
+        delay_messages: [0, 0]
+      - instruction: "Switch topics again — a third unrelated thing"
+        delay_messages: [0, 0]

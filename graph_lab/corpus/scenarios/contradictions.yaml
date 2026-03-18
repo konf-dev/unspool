@@ -1,0 +1,48 @@
+scenarios:
+  - id: time_change
+    description: "Meeting time correction"
+    inject_at: {day_range: [3, 8], count: 1}
+    steps:
+      - instruction: "Mention a meeting or appointment at 2pm on Thursday"
+      - instruction: "Correct the time — it's actually at 3pm, not 2pm"
+        delay_messages: [2, 5]
+
+  - id: location_change
+    description: "Location correction for an event"
+    inject_at: {day_range: [5, 15], count: 1}
+    steps:
+      - instruction: "Mention meeting someone at a specific coffee shop or restaurant"
+      - instruction: "Correct the location — it changed to a different place"
+        delay_messages: [3, 8]
+
+  - id: priority_reversal
+    description: "Task priority flips"
+    inject_at: {day_range: [7, 20], count: 1}
+    steps:
+      - instruction: "Describe something as your top priority right now"
+      - instruction: "Something else became more urgent — the previous priority can wait"
+        delay_messages: [2, 6]
+
+  - id: name_confusion
+    description: "Confuse two people's names or attributes"
+    inject_at: {day_range: [10, 25], count: 1}
+    steps:
+      - instruction: "Mention two different people in your life and mix up a detail about them (attribute one person's trait to the other)"
+      - instruction: "Correct yourself — you mixed up who said/did what"
+        delay_messages: [1, 4]
+
+  - id: date_shift
+    description: "Wrong date, then correction"
+    inject_at: {day_range: [5, 20], count: 1}
+    steps:
+      - instruction: "Mention a deadline or event on a specific date"
+      - instruction: "Realize the date was wrong — it's actually a day or two earlier/later"
+        delay_messages: [3, 7]
+
+  - id: plan_180
+    description: "Complete reversal of a stated plan"
+    inject_at: {day_range: [15, 30], count: 1}
+    steps:
+      - instruction: "Commit firmly to a plan of action (e.g. 'I'm definitely going to X')"
+      - instruction: "Completely reverse course — you've decided not to do it at all, or to do the opposite"
+        delay_messages: [4, 10]

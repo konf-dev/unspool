@@ -1,8 +1,8 @@
 # Config Map (auto-generated — do not edit)
 
-Generated: 2026-03-18 17:38 UTC | Git: a87e0fa
+Generated: 2026-03-18 23:39 UTC | Git: 00993b8
 
-Intents config: `config/intents.yaml` (814cea4b3ca3)
+Intents config: `config/intents.yaml` (c487f4e082c2)
 Context rules: `config/context_rules.yaml` (2d3d35b83ee9)
 
 ---
@@ -17,10 +17,10 @@ Context: profile, recent_messages | optional: entities, graph_context
 
 | Step | Type | Config | Hash |
 |------|------|--------|------|
-| extract | llm_call | `prompts/brain_dump_extract.md` | a18e79352587 |
+| extract | llm_call | `prompts/brain_dump_extract.md` | adb225daeecc |
 | enrich | tool_call | enrich_items | — |
 | save | tool_call | save_items | — |
-| respond | llm_call (stream) | `prompts/brain_dump_respond.md` | 90ee0aa87953 |
+| respond | llm_call (stream) | `prompts/brain_dump_respond.md` | ad0d6518f82d |
 
 Post-processing: process_conversation (10s), process_graph (5s)
 
@@ -55,7 +55,7 @@ Context: profile, recent_messages | optional: memories, graph_context
 | Step | Type | Config | Hash |
 |------|------|--------|------|
 | detect_level | llm_call | `prompts/emotional_detect.md` | 9e49a5672ad5 |
-| respond | llm_call (stream) | `prompts/emotional_respond.md` | 50ffd5d8b035 |
+| respond | llm_call (stream) | `prompts/emotional_respond.md` | e28387c90959 |
 
 Post-processing: process_graph (5s)
 
@@ -71,7 +71,7 @@ Context: profile
 
 | Step | Type | Config | Hash |
 |------|------|--------|------|
-| respond | llm_call (stream) | `prompts/meta_respond.md` | 26d786cc6618 |
+| respond | llm_call (stream) | `prompts/meta_respond.md` | 3dd8a5632072 |
 
 ---
 
@@ -101,7 +101,7 @@ Context: profile, open_items, urgent_items, recent_messages | optional: calendar
 |------|------|--------|------|
 | fetch_items | tool_call | fetch_items | — |
 | score_and_pick | tool_call | pick_next_item | — |
-| respond | llm_call (stream) | `prompts/query_format.md` | f4d05661e155 |
+| respond | llm_call (stream) | `prompts/query_format.md` | a76c6b019af9 |
 
 ---
 
@@ -148,7 +148,7 @@ Context: profile, open_items, recent_messages | optional: graph_context
 |------|------|--------|------|
 | match_item | tool_call | fuzzy_match_item | — |
 | reschedule | tool_call | reschedule_item | — |
-| respond | llm_call (stream) | `prompts/status_cant_respond.md` | ec658dc9f77a |
+| respond | llm_call (stream) | `prompts/status_cant_respond.md` | 2f2fd7a01a97 |
 
 ---
 
@@ -182,13 +182,13 @@ These prompt files exist in `prompts/` but are not referenced by any pipeline:
 - `prompts/extract_memories.md` (e31da933834a)
 - `prompts/graph_evolve.md` (e3af197a17ca)
 - `prompts/graph_ingest.md` (007e9c3a7528)
-- `prompts/proactive_deadline.md` (827e07af5990)
-- `prompts/proactive_long_absence.md` (94a4d7f80e5e)
+- `prompts/proactive_deadline.md` (7f9a1c2ab113)
+- `prompts/proactive_long_absence.md` (2181130775bf)
 - `prompts/proactive_momentum.md` (723255a46657)
 - `prompts/proactive_slipped.md` (d29dfbd11101)
 - `prompts/proactive_welcome_back.md` (26ed412e7a0b)
 - `prompts/query_search_format.md` (12788431f100)
-- `prompts/system.md` (f7aaa32991b8)
+- `prompts/system.md` (0c02e71b776e)
 
 ## Config Files
 
@@ -197,7 +197,7 @@ These prompt files exist in `prompts/` but are not referenced by any pipeline:
 | `config/context_rules.yaml` | 2d3d35b83ee9 |
 | `config/gate.yaml` | 04e355cf1fcc |
 | `config/graph.yaml` | 2dcbcf9ca196 |
-| `config/intents.yaml` | 814cea4b3ca3 |
+| `config/intents.yaml` | c487f4e082c2 |
 | `config/jobs.yaml` | 4f88280d617e |
 | `config/patterns.yaml` | d9520794840f |
 | `config/proactive.yaml` | 3ae2be6602fb |

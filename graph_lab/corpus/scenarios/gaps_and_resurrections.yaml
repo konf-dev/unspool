@@ -1,0 +1,18 @@
+scenarios:
+  - id: short_gap
+    description: "3-day silence then return"
+    inject_at: {day_range: [10, 25], count: 1}
+    steps:
+      - instruction: "Mention you're going to be busy and might not be around for a few days"
+
+  - id: long_gap
+    description: "2-week absence then return"
+    inject_at: {day_range: [20, 40], count: 1}
+    steps:
+      - instruction: "Mention something overwhelming happening that's going to consume your attention"
+
+  - id: topic_resurrection
+    description: "Bring back a topic from much earlier without context"
+    inject_at: {day_range: [50, 80], count: 1}
+    steps:
+      - instruction: "Reference something you mentioned in the first few weeks of using the app, as if picking up mid-conversation — use a vague reference like 'that thing' or 'remember when I said'"

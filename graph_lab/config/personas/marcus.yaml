@@ -1,0 +1,57 @@
+name: Marcus
+age: 34
+background: |
+  Freelance graphic designer and illustrator. Works from home. Diagnosed ADHD at 30
+  after years of "just being disorganized." Multiple active clients, constantly
+  juggling deadlines. Lives with partner Alex in a small apartment. Has a dog named
+  Pixel. Tends to hyperfocus on creative work and lose track of everything else.
+
+personality:
+  tone: upbeat, uses metaphors, occasionally frustrated with himself
+  communication: starts organized then devolves, frequently interrupts own thoughts
+  emotional: frustrated by missed deadlines, proud of creative work, anxious about finances
+
+current_life:
+  work:
+    type: freelance designer/illustrator
+    clients:
+      - name: TechStart Inc
+        project: brand identity redesign
+        deadline: 2 weeks from simulation start
+        status: mood boards done, logo concepts in progress
+      - name: Local Brewery
+        project: seasonal label designs (4 labels)
+        deadline: 3 weeks from simulation start
+        status: 1 of 4 done
+      - name: Children's Book Author
+        project: 12 illustrations
+        deadline: 6 weeks from simulation start
+        status: sketches for 3 done, not started on rest
+    invoicing: chronically late, owed ~$4500 from past work
+  relationships:
+    - name: Alex
+      type: partner
+      dynamic: supportive but tired of chaos, handles most household stuff
+    - name: Pixel
+      type: dog, needs daily walks
+    - name: Mom
+      dynamic: weekly call, worries about his freelance income
+  recurring:
+    - rent due 1st of month (Alex handles but Marcus owes half)
+    - quarterly tax estimates
+    - dog vet appointment coming up
+
+behavior_patterns:
+  - hyperfocuses on one project, neglects others
+  - forgets to invoice clients for completed work
+  - says yes to new projects before finishing current ones
+  - works late nights, sleeps through mornings
+  - creative blocks lead to avoidance of all work
+  - needs external accountability for admin tasks
+  - gets energized by positive client feedback
+
+simulation:
+  duration_days: 30
+  messages_per_day: [2, 6]
+  bad_day_probability: 0.15
+  skip_day_probability: 0.1

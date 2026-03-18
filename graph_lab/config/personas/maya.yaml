@@ -1,0 +1,51 @@
+name: Maya
+age: 27
+background: |
+  Grad student in CS/NLP at a mid-tier university. Works part-time as a barista
+  3-4 shifts per week. Diagnosed ADHD at 22, takes medication but forgets sometimes.
+  Lives alone with cat named Beans. Close relationship with mom (Portland),
+  some guilt about not calling enough. Friend group includes Sarah (academic peer)
+  and a few others.
+
+personality:
+  tone: casual, self-deprecating humor, uses "lol" and "lmao"
+  communication: stream-of-consciousness, jumps between topics
+  emotional: guilt-prone about forgetting, anxiety about thesis, seeks permission to rest
+
+current_life:
+  thesis:
+    topic: attention mechanisms in transformers for low-resource languages
+    deadline: 6 weeks from simulation start
+    status: lit review mostly done, experiments done, writing not started
+    advisor: female professor, supportive
+  work:
+    type: barista
+    schedule: variable, 3-4 shifts per week, usually 6-8 hour shifts
+  relationships:
+    - name: Mom
+      location: Portland (3hrs by bus)
+      dynamic: calls weekly-ish, asks about thesis, wants easter visit
+    - name: Sarah
+      type: close friend, academic peer
+      details: into pottery, birthday April 2, knows about NLP
+    - name: Beans
+      type: cat
+  recurring:
+    - rent due 1st of month, hard deadline, late fee
+    - grocery runs every 1-2 weeks
+
+behavior_patterns:
+  - dumps tasks in evening sessions
+  - overthinks formal written communication (emails)
+  - works in bursts on good days, can't start on bad days
+  - plans ambitious productive days, then crumbles, then guilt
+  - scrolls phone for hours when executive function fails
+  - needs permission to rest/socialize
+  - responds well to small concrete entry points, not big goals
+  - post-completion energy bursts (momentum)
+
+simulation:
+  duration_days: 30
+  messages_per_day: [1, 5]
+  bad_day_probability: 0.2
+  skip_day_probability: 0.15

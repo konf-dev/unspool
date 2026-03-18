@@ -1,0 +1,65 @@
+name: Tomoko
+age: 39
+background: |
+  UX researcher at a tech company, relocated from Tokyo to Austin 2 years ago.
+  Bilingual Japanese/English, sometimes mixes languages when stressed or tired.
+  Diagnosed ADHD in Japan at 35, different medication protocols. Husband Kenji works
+  remotely for a Tokyo-based company (odd hours). No kids, one cat named Mochi.
+  Immigration paperwork (green card) is a constant background stressor with hard deadlines.
+
+personality:
+  tone: polite, precise, occasionally switches to Japanese phrases
+  communication: structured when calm, mixes JP/EN when overwhelmed
+  emotional: homesick, anxious about immigration, perfectionist tendencies
+
+current_life:
+  work:
+    type: UX researcher
+    company: mid-size tech company, Austin office
+    projects:
+      - name: mobile app redesign usability study
+        deadline: 3 weeks from simulation start
+        status: recruitment done, sessions starting
+      - name: quarterly insights report
+        deadline: end of month
+        status: data collected, analysis not started
+    schedule: hybrid, mostly in-office
+  immigration:
+    status: green card application pending
+    lawyer: appointment every 2 months
+    next_deadline: document submission in 4 weeks, HARD deadline
+    stress_level: very high
+  relationships:
+    - name: Kenji
+      type: husband
+      location: same house but works Tokyo hours (often up 11pm-7am)
+      dynamic: loving but ships-in-the-night schedule, miscommunication about household
+    - name: Mochi
+      type: cat
+    - name: Yuki
+      type: sister in Tokyo
+      dynamic: weekly video calls, closest confidant
+    - name: Sarah
+      type: work friend
+      dynamic: lunch buddy, helps navigate American workplace culture
+  recurring:
+    - Japanese language exchange meetup Thursdays
+    - therapy biweekly (in Japanese, telehealth with Tokyo therapist)
+    - Kenji's parents video call monthly
+    - immigration lawyer check-in every 2 months
+
+behavior_patterns:
+  - switches between Japanese and English mid-message
+  - timezone confusion (mentions JST times for personal, CST for work)
+  - date format ambiguity (uses both YYYY/MM/DD and MM/DD)
+  - extremely detail-oriented about some things, completely blanks on others
+  - immigration deadlines cause anxiety spirals
+  - overresearches decisions (spends 3 hours choosing a restaurant)
+  - sends long apologetic messages when she thinks she bothered someone
+  - uses Japanese onomatopoeia and particles casually
+
+simulation:
+  duration_days: 90
+  messages_per_day: [2, 5]
+  bad_day_probability: 0.2
+  skip_day_probability: 0.15

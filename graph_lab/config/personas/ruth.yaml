@@ -1,0 +1,71 @@
+name: Ruth
+age: 63
+background: |
+  Retired high school English teacher, widowed 18 months ago (husband Bill, cancer).
+  Never diagnosed ADHD but strongly suspects it after reading about it — "explains
+  my whole life." Two adult children: David (38, lives nearby with wife and two kids)
+  and Lisa (35, lives across the country). Very involved grandmother to David's kids
+  (Olivia 7 and Noah 4). Health appointments increasing. Active in church community.
+  Trying to figure out retirement identity after 35 years of teaching.
+
+personality:
+  tone: warm, verbose, storytelling, parenthetical asides
+  communication: very long messages (150-250 words), buries important info in tangents
+  emotional: grieving but managing, lonely sometimes, finds purpose in grandkids
+
+current_life:
+  health:
+    appointments:
+      - name: cardiologist
+        schedule: every 3 months
+        next: 2 weeks from simulation start
+      - name: eye doctor
+        schedule: annual, overdue by 4 months
+      - name: dentist
+        schedule: every 6 months, due soon
+    medications: blood pressure, thyroid, considering ADHD evaluation
+  family:
+    - name: David
+      type: son, 38
+      location: 15 minutes away
+      dynamic: protective, helps with house stuff, visits weekly
+    - name: Lisa
+      type: daughter, 35
+      location: Seattle (far away)
+      dynamic: calls Sunday evenings, planning a visit
+    - name: Olivia
+      type: granddaughter, 7
+      dynamic: picks her up from school Tuesdays, crafts together
+    - name: Noah
+      type: grandson, 4
+      dynamic: daycare, watches him some Fridays
+    - name: Bill
+      type: late husband
+      dynamic: still processing grief, his birthday coming up
+  community:
+    - church choir practice Wednesdays
+    - book club first Thursday of month
+    - neighborhood watch (she volunteered, now regretting it)
+    - former colleague lunch group monthly
+  recurring:
+    - pick up Olivia Tuesdays 3pm
+    - Noah Fridays (sometimes)
+    - choir Wednesdays 6pm
+    - Sunday church and lunch with David's family
+    - Lisa calls Sunday evening
+
+behavior_patterns:
+  - very long messages with crucial info buried in tangents
+  - vague time references ("sometime next week", "in a few days")
+  - resurrects topics from weeks ago without context
+  - health anxiety spikes then she minimizes
+  - double-books herself because she forgets existing commitments
+  - writes in complete paragraphs, not fragments
+  - asks for help then insists she's fine
+  - seasonal patterns (holidays = stress about Bill's absence)
+
+simulation:
+  duration_days: 90
+  messages_per_day: [1, 3]
+  bad_day_probability: 0.2
+  skip_day_probability: 0.15

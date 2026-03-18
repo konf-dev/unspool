@@ -1,0 +1,48 @@
+# Graph system master config — Postgres-native
+
+database:
+  dsn: null          # PG_DSN env var, or override here
+  min_pool_size: 2
+  max_pool_size: 10
+
+ingest:
+  quick_model: gpt-4.1-nano
+  quick_max_nodes: 10
+  deep_model: gpt-4.1-nano
+  recent_nodes_context: 30
+
+retrieval:
+  default_triggers:
+    - semantic
+    - temporal
+    - open_items
+    - recent
+    - suppression
+  graph_walk_hops: 1
+  max_subgraph_nodes: 50
+  semantic_limit: 15
+  temporal_window_hours: 48
+  recent_limit: 10
+  suppression_window_hours: 24
+
+reasoning:
+  model: gpt-4.1-nano
+  system_prompt: system.md
+  max_recent_messages: 6
+  temperature: 0.7
+  session_gap_hours: 4
+
+serialization:
+  max_context_tokens: 2000
+
+evolution:
+  embedding_model: text-embedding-3-small
+  similarity_threshold: 0.8
+  dedup_threshold: 0.9
+  edge_decay_factor: 0.99
+  edge_decay_min: 0.01
+  contradiction_threshold: 0.9
+  shortcut_co_retrieval_count: 3
+
+feedback:
+  async_detection: true

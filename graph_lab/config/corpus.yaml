@@ -1,0 +1,45 @@
+# Corpus generation config
+
+default_model: qwen2.5:7b
+temperature: 1.1
+concurrency: 6           # high — actual GPU serialization handled per-URL
+default_days: 90
+max_retries: 2
+
+# Backend assignment strategy:
+#   3090 Ti (port 11434): 4 personas — elena, ruth, marcus, priya (default)
+#   2070 S  (port 11435): 3 personas — jaden, kwame, sam
+#   gpt-4o-mini (API):    3 personas — tomoko, maya, diego (parallel, fast)
+
+# Per-persona model overrides
+persona_models:
+  tomoko: gpt-4o-mini
+  maya: gpt-4o-mini
+  diego: gpt-4o-mini
+
+# Per-persona Ollama URL overrides (default is OLLAMA_URL env / localhost:11434)
+persona_ollama_urls:
+  jaden: http://localhost:11435
+  kwame: http://localhost:11435
+  sam: http://localhost:11435
+
+# Hardcoded messages injected randomly for specific personas
+hardcoded_messages:
+  jaden:
+    - "k"
+    - "done"
+    - "ugh"
+    - "lol nvm"
+    - "idk"
+    - "ya"
+    - "nah"
+    - "bet"
+    - "bruh"
+    - "w/e"
+
+# Open-ended generation ratio (no structured guidance, just "be yourself")
+open_ended:
+  maya: 0.25
+  sam: 0.3
+  diego: 0.35
+  kwame: 0.2

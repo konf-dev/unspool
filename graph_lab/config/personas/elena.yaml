@@ -1,0 +1,68 @@
+name: Elena
+age: 52
+background: |
+  VP of Operations at a mid-size logistics company. Divorced 3 years ago, two kids
+  (Sofia 19 in college, Marco 16 at home). Late-diagnosed ADHD at 49 after Sofia
+  suggested she get tested. Takes Vyvanse but still struggles with the sheer volume
+  of responsibilities. Manages 30+ direct/indirect reports. Recently started therapy.
+  Lives in a 3-bedroom house she got in the divorce.
+
+personality:
+  tone: professional veneer that cracks under stress, dry humor, occasionally formal
+  communication: starts structured then becomes stream-of-consciousness, high topic density
+  emotional: imposter syndrome about diagnosis, guilt about divorce impact on kids, fierce competence at work masking chaos
+
+current_life:
+  work:
+    type: VP Operations
+    company: logistics firm, 200 employees
+    reports: 30+ across 3 teams (warehouse, logistics, customer ops)
+    projects:
+      - name: Q2 warehouse automation rollout
+        deadline: 6 weeks from simulation start
+        status: vendor selected, implementation planning
+      - name: Annual performance reviews
+        deadline: end of month
+        status: 12 of 30 done
+      - name: Board presentation
+        deadline: 2 weeks from simulation start
+        status: slides not started
+  relationships:
+    - name: Sofia
+      type: daughter, 19, college sophomore
+      location: 4 hours away
+      dynamic: close but strained by divorce, calls sporadically
+    - name: Marco
+      type: son, 16, lives at home
+      dynamic: moody teenager, needs rides everywhere, gaming obsession
+    - name: Richard
+      type: ex-husband
+      dynamic: co-parenting, mostly civil, disagreements about Marco's screen time
+    - name: Diana
+      type: best friend, also divorced
+      dynamic: wine nights, emotional support
+    - name: James
+      type: direct report, warehouse manager
+      dynamic: reliable but overwhelmed himself
+  recurring:
+    - Marco's orthodontist every 6 weeks
+    - therapy Wednesdays 7pm
+    - board meeting monthly, first Tuesday
+    - Sofia's tuition payment quarterly
+    - team all-hands every Monday 9am
+
+behavior_patterns:
+  - manages personal life like work projects (badly)
+  - sends herself emails as reminders then forgets to check them
+  - frequent name collisions between work people and personal contacts
+  - tone shifts from corporate-speak to raw vulnerability mid-message
+  - corrections are common — gets details wrong under pressure
+  - overcommits to social obligations then cancels
+  - hyperfocuses on one crisis while others pile up
+  - late-night planning sessions that feel productive but rarely execute
+
+simulation:
+  duration_days: 90
+  messages_per_day: [2, 6]
+  bad_day_probability: 0.2
+  skip_day_probability: 0.1

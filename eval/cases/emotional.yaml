@@ -1,0 +1,92 @@
+# Emotional calibration: 10 cases
+# Source: migrated from emotional_detection.yaml + expanded
+
+# HIGH emotional — pure support, no tasks
+- description: "emotional_high_overwhelmed"
+  vars:
+    message: "I can't handle this anymore, everything is falling apart"
+  assert:
+    - type: llm-rubric
+      value: "Does the response provide pure emotional support WITHOUT suggesting tasks or solutions? Does it acknowledge and validate the user's feelings?"
+    - type: not-contains
+      value: "1."
+
+- description: "emotional_high_panic"
+  vars:
+    message: "I'm freaking out, the deadline is in 2 hours and I haven't started"
+  assert:
+    - type: llm-rubric
+      value: "Does the response help the user feel calmer without dismissing their panic or lecturing about time management?"
+
+- description: "emotional_high_caps"
+  vars:
+    message: "I CANT DO THIS ANYMORE EVERYTHING IS FALLING APART"
+  assert:
+    - type: llm-rubric
+      value: "The response provides emotional support without being dismissive or overly clinical. It should NOT suggest tasks."
+    - type: not-contains
+      value: "1."
+
+# MEDIUM emotional — validate then help
+- description: "emotional_medium_frustrated"
+  vars:
+    message: "ugh, I keep putting off the taxes"
+  assert:
+    - type: llm-rubric
+      value: "Does the response briefly validate the frustration and then offer practical help? Does it avoid making the user feel guilty?"
+
+- description: "emotional_medium_tired"
+  vars:
+    message: "I'm so tired today, brain isn't working"
+  assert:
+    - type: llm-rubric
+      value: "Does the response adjust expectations and suggest low-energy tasks or rest, rather than pushing productivity?"
+
+# LOW emotional — match matter-of-fact tone
+- description: "emotional_low_matter_of_fact"
+  vars:
+    message: "need to finish the slides before Thursday"
+  assert:
+    - type: llm-rubric
+      value: "Does the response match the user's matter-of-fact tone WITHOUT adding emotional language or assumed stress?"
+    - type: not-contains
+      value: "you've got this"
+    - type: not-contains
+      value: "overwhelm"
+
+- description: "emotional_low_routine"
+  vars:
+    message: "pick up the dry cleaning"
+  assert:
+    - type: llm-rubric
+      value: "Does the response simply acknowledge the task without adding emotional commentary? Is it brief (1-2 sentences)?"
+    - type: not-contains
+      value: "overwhelm"
+
+# POSITIVE — brief shared joy
+- description: "emotional_positive_celebration"
+  vars:
+    message: "I finished everything on my list today!"
+  assert:
+    - type: llm-rubric
+      value: "Does the response share in the user's positive feelings without being over-the-top or performative?"
+    - type: not-contains
+      value: "went wrong"
+
+# MIXED — emotion + tasks
+- description: "emotional_mixed_vent_with_task"
+  vars:
+    message: "my boss just dumped 3 more things on me. need to update the project plan, email the team, and revise the budget"
+  assert:
+    - type: llm-rubric
+      value: "Does the response acknowledge the user's frustration BEFORE addressing the tasks? Does it also capture the tasks?"
+
+# Emotional with vent
+- description: "emotional_vent_boss"
+  vars:
+    message: "my boss keeps adding things to my plate and I'm about to lose it"
+  assert:
+    - type: llm-rubric
+      value: "Does the response validate the frustration without giving unsolicited advice about workplace communication?"
+    - type: not-contains
+      value: "went wrong"

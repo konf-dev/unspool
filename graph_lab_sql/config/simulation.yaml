@@ -1,0 +1,31 @@
+# Simulation runner config
+
+# Local models (Ollama) — $0 cost, fast on GPU
+simulator:
+  model: qwen2.5:7b        # plays the persona
+  temperature: 0.9
+
+evaluator:
+  model: qwen2.5:7b        # scores the conversation
+  temperature: 0.3
+
+# Uncomment to use API models instead:
+# simulator:
+#   model: gpt-4o-mini
+#   temperature: 0.9
+# evaluator:
+#   model: gpt-4o-mini
+#   temperature: 0.3
+
+scoring_dimensions:
+  - surfacing_quality
+  - emotional_intelligence
+  - memory_accuracy
+  - strategy_adaptation
+  - conversation_naturalness
+  - graph_quality
+
+output:
+  save_transcripts: true
+  save_graph_snapshots: true
+  output_dir: results/

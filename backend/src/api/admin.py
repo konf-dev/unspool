@@ -142,18 +142,54 @@ async def eval_cleanup() -> dict[str, Any]:
         "DELETE FROM llm_usage WHERE user_id = $1 RETURNING count(*)",
         EVAL_USER_ID,
     )
+    # Graph tables may not exist yet — fail gracefully
+    deleted_neighbors = 0
+    deleted_edges = 0
+    deleted_nodes = 0
+    try:
+        deleted_neighbors = (
+            await pool.fetchval(
+                """DELETE FROM node_neighbors
+               WHERE node_id IN (SELECT id FROM memory_nodes WHERE user_id = $1)
+               RETURNING count(*)""",
+                EVAL_USER_ID,
+            )
+            or 0
+        )
+        deleted_edges = (
+            await pool.fetchval(
+                "DELETE FROM memory_edges WHERE user_id = $1 RETURNING count(*)",
+                EVAL_USER_ID,
+            )
+            or 0
+        )
+        deleted_nodes = (
+            await pool.fetchval(
+                "DELETE FROM memory_nodes WHERE user_id = $1 RETURNING count(*)",
+                EVAL_USER_ID,
+            )
+            or 0
+        )
+    except Exception:
+        _log.warning("eval.cleanup.graph_tables_missing")
     _log.info(
         "eval.cleanup",
         user_id=EVAL_USER_ID,
         deleted_messages=deleted_messages or 0,
         deleted_items=deleted_items or 0,
         deleted_usage=deleted_usage or 0,
+        deleted_neighbors=deleted_neighbors or 0,
+        deleted_edges=deleted_edges or 0,
+        deleted_nodes=deleted_nodes or 0,
     )
     return {
         "user_id": EVAL_USER_ID,
         "deleted_messages": deleted_messages or 0,
         "deleted_items": deleted_items or 0,
         "deleted_usage": deleted_usage or 0,
+        "deleted_neighbors": deleted_neighbors or 0,
+        "deleted_edges": deleted_edges or 0,
+        "deleted_nodes": deleted_nodes or 0,
     }
 
 

@@ -1,0 +1,26 @@
+scenarios:
+  - id: deadline_anxiety
+    description: "Escalating anxiety about an approaching deadline"
+    inject_at: {day_range: [10, 25], count: 1}
+    steps:
+      - instruction: "Mention an upcoming deadline with mild concern"
+      - instruction: "Express growing anxiety — you haven't made progress and the deadline is closer"
+        delay_messages: [3, 6]
+      - instruction: "Full anxiety spiral — catastrophizing about what happens if you miss it"
+        delay_messages: [2, 4]
+
+  - id: frustration_recovery
+    description: "Frustration spike then recovery"
+    inject_at: {day_range: [8, 30], count: 1}
+    steps:
+      - instruction: "Express real frustration about something not working out or being unfair"
+      - instruction: "Start to calm down — acknowledge you overreacted or that it's not as bad as you thought"
+        delay_messages: [2, 5]
+
+  - id: guilt_cascade
+    description: "Guilt about multiple things compounding"
+    inject_at: {day_range: [15, 35], count: 1}
+    steps:
+      - instruction: "Express guilt about forgetting or dropping one specific thing"
+      - instruction: "The guilt triggers awareness of OTHER things you've dropped — mention 2-3 more things you forgot"
+        delay_messages: [1, 3]

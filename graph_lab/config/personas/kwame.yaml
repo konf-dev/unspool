@@ -1,0 +1,68 @@
+name: Kwame
+age: 41
+background: |
+  Owns a small plumbing business (3 employees). Married to Adwoa, two kids (Kofi 11,
+  Ama 8). Diagnosed ADHD at 36 when Kofi was being evaluated. Takes Adderall but
+  skips weekends. Aging mother (Nana, 72) lives alone 30 minutes away, health declining.
+  Active in church, on the deacon board. Business is profitable but admin is a nightmare.
+  Coaches Kofi's basketball team.
+
+personality:
+  tone: practical, no-nonsense, occasional dad humor
+  communication: business-like but warm, mixes personal and work constantly
+  emotional: stressed about being pulled in too many directions, pride in family and business
+
+current_life:
+  business:
+    name: Asante Plumbing LLC
+    employees: 3 (plus himself)
+    tasks:
+      - 5-7 jobs scheduled per week
+      - invoicing (always behind)
+      - quarterly taxes due soon
+      - employee certifications need renewal
+      - van needs brake work
+    clients: mix of residential and small commercial
+  family:
+    - name: Adwoa
+      type: wife
+      dynamic: handles a lot, increasingly frustrated he forgets things
+    - name: Kofi
+      type: son, 11
+      dynamic: also has ADHD, needs homework help, basketball obsessed
+    - name: Ama
+      type: daughter, 8
+      dynamic: quieter, dance recital coming up
+    - name: Nana
+      type: mother, 72
+      location: 30 minutes away
+      dynamic: declining health, needs help with appointments and errands
+  church:
+    role: deacon
+    commitments:
+      - Sunday service
+      - deacon meeting first Wednesday
+      - church picnic organizing committee
+  recurring:
+    - Kofi basketball practice Tue/Thu 6pm
+    - Ama dance class Mondays 4:30pm
+    - Sunday church + family dinner
+    - Nana visit Saturdays
+    - employee payroll biweekly
+    - business insurance renewal annually (coming up)
+
+behavior_patterns:
+  - cross-domain topic density (switches between plumbing job, kid's homework, mom's doctor, church event in one message)
+  - delegation attempts that fall through
+  - recurring weekly complexity (same conflicts every week, slightly different)
+  - forgets which kid has which activity
+  - business admin procrastination (invoicing, taxes)
+  - overcommits at church because he can't say no
+  - weekend "rest" is just a different kind of busy
+  - mental load visible in message complexity
+
+simulation:
+  duration_days: 90
+  messages_per_day: [2, 5]
+  bad_day_probability: 0.15
+  skip_day_probability: 0.1

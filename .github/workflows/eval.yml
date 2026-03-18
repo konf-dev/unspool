@@ -5,50 +5,105 @@ on:
     types: [labeled]
   workflow_dispatch:
     inputs:
-      target:
-        description: "Eval target (local/staging/production)"
-        required: false
-        default: "local"
-      tag:
-        description: "Filter by tag (e.g. regression)"
-        required: false
-        default: ""
+      suite:
+        description: "Which suite to run"
+        default: "all"
+        type: choice
+        options: [all, intent, personality, functional, regression, security, pytest]
+
+concurrency:
+  group: api-eval
+  cancel-in-progress: false
 
 jobs:
-  eval:
+  promptfoo:
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' && github.event.label.name == 'run-eval')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: backend/requirements-dev.txt
-      - run: pip install -r backend/requirements-dev.txt
-      - name: Run eval suite
-        working-directory: backend
+          node-version: "20"
+
+      - name: Install promptfoo
+        working-directory: eval
+        run: npm ci
+
+      - name: Cleanup eval user data
         env:
-          LLM_API_KEY: ${{ secrets.EVAL_LLM_API_KEY }}
-          LLM_MODEL: ${{ secrets.EVAL_LLM_MODEL || 'gpt-4o-mini' }}
-          LLM_PROVIDER: ${{ secrets.EVAL_LLM_PROVIDER || 'openai' }}
-          EVAL_JUDGE_MODEL: ${{ secrets.EVAL_JUDGE_MODEL || 'gpt-4o' }}
-          EVAL_JUDGE_PROVIDER: ${{ secrets.EVAL_JUDGE_PROVIDER || 'openai' }}
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+        run: |
+          curl -s -X DELETE \
+            -H "X-Admin-Key: $ADMIN_API_KEY" \
+            https://api.unspool.life/admin/eval-cleanup | jq
+
+      - name: Run promptfoo eval
+        if: inputs.suite != 'pytest' && inputs.suite != 'security'
+        working-directory: eval
+        env:
+          EVAL_API_KEY: ${{ secrets.EVAL_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.EVAL_LLM_API_KEY }}
         run: |
-          TARGET="${{ github.event.inputs.target || 'local' }}"
-          TAG="${{ github.event.inputs.tag }}"
-          ARGS="--eval --eval-target=${TARGET} -v"
-          if [ -n "$TAG" ]; then
-            ARGS="${ARGS} --eval-tag=${TAG}"
+          SUITE="${{ inputs.suite || 'all' }}"
+          if [ "$SUITE" = "all" ]; then
+            npx promptfoo eval --output results/report.json
+          else
+            npx promptfoo eval --filter-pattern "${SUITE}_*" --output results/report.json
           fi
-          pytest tests/eval/ ${ARGS}
-      - name: Upload eval report
+
+      - name: Run promptfoo red team
+        if: inputs.suite == 'all' || inputs.suite == 'security'
+        working-directory: eval
+        env:
+          EVAL_API_KEY: ${{ secrets.EVAL_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.EVAL_LLM_API_KEY }}
+        run: npx promptfoo redteam run
+
+      - name: Upload promptfoo report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: eval-report
-          path: backend/tests/eval/results/
+          name: promptfoo-report
+          path: eval/results/
           retention-days: 30
+
+      - name: Post summary to PR
+        if: github.event_name == 'pull_request' && always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f eval/results/report.json ]; then
+            SUMMARY=$(cd eval && npx promptfoo eval --output-format text 2>/dev/null | tail -20 || echo "Report generated — see artifacts")
+            gh pr comment ${{ github.event.pull_request.number }} --body "## Eval Results
+          \`\`\`
+          $SUMMARY
+          \`\`\`"
+          fi
+
+  pytest:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.label.name == 'run-eval')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pytest dependencies
+        run: pip install httpx pytest pytest-asyncio pyyaml
+
+      - name: Run pytest eval suite
+        env:
+          API_URL: "https://api.unspool.life"
+          EVAL_API_KEY: ${{ secrets.EVAL_API_KEY }}
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+          LANGFUSE_HOST: ${{ secrets.LANGFUSE_HOST }}
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+        run: pytest eval/pytest/ -v --timeout=120

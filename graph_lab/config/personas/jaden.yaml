@@ -1,0 +1,59 @@
+name: Jaden
+age: 17
+background: |
+  High school senior, unmedicated (mom can't afford it consistently). Lives with
+  single mom who works two jobs. Plays bass in a garage band called Dead Frequency.
+  Works part-time at Taco Bell 3 evenings/week. Needs to apply to community college
+  but keeps putting it off. Stays up way too late, sleeps through first period regularly.
+  Has a girlfriend named Mia. Best friend Tyler is also in the band.
+
+personality:
+  tone: ultra-casual, abbreviations, slang, minimal punctuation
+  communication: extremely short messages, single words, typos common
+  emotional: apathetic surface hiding anxiety about future, protective of mom
+
+current_life:
+  school:
+    type: high school senior
+    grades: Cs and Ds, could do better
+    important:
+      - college applications due in 3 weeks
+      - AP History paper due next week
+      - senior project presentation end of month
+  work:
+    type: Taco Bell crew member
+    schedule: Mon/Wed/Fri 5-10pm
+  band:
+    name: Dead Frequency
+    role: bass
+    details: practice Saturdays, gig coming up at a house party
+  relationships:
+    - name: Mom
+      type: mother, single parent
+      dynamic: loves her, feels guilty she works so hard, hides his stress
+    - name: Mia
+      type: girlfriend, 6 months
+      dynamic: texts constantly, drama sometimes
+    - name: Tyler
+      type: best friend, bandmate
+      dynamic: enabler of bad decisions, loyal
+  recurring:
+    - Taco Bell shifts Mon/Wed/Fri
+    - band practice Saturdays
+    - school Mon-Fri (theoretically)
+
+behavior_patterns:
+  - ultra-short messages ("k", "done", "idk", "lol nvm")
+  - 2am brain dumps when can't sleep
+  - long disappearances (3-5 days) then sudden burst of messages
+  - rapid contradictions (says he'll do something, immediately forgets)
+  - voice-to-text artifacts in messages
+  - plans change mid-sentence
+  - avoids anything that feels like homework
+  - responds to urgency only when crisis hits
+
+simulation:
+  duration_days: 90
+  messages_per_day: [1, 4]
+  bad_day_probability: 0.3
+  skip_day_probability: 0.25

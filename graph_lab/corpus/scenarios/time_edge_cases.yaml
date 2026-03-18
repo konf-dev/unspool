@@ -1,0 +1,18 @@
+scenarios:
+  - id: dst_confusion
+    description: "Daylight saving time confusion"
+    inject_at: {day_range: [10, 30], count: 1}
+    steps:
+      - instruction: "Mention confusion about a time — you're not sure if the clocks changed or if an event shifted by an hour. Express genuine uncertainty about what time something actually is"
+
+  - id: timezone_mix
+    description: "Mixing timezone references"
+    inject_at: {day_range: [5, 25], count: 1}
+    steps:
+      - instruction: "Mention a time for something but reference it in a different timezone than your usual one (e.g. a meeting with someone in another timezone, or you're traveling)"
+
+  - id: next_friday
+    description: "'Next Friday' ambiguity"
+    inject_at: {day_range: [5, 20], count: 1}
+    steps:
+      - instruction: "Say 'next Friday' to refer to an event — make it genuinely ambiguous whether you mean this coming Friday or the Friday after that"

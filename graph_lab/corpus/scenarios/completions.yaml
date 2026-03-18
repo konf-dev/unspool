@@ -1,0 +1,20 @@
+scenarios:
+  - id: clean_completion
+    description: "Clearly report a task as done"
+    inject_at: {day_range: [5, 25], count: 1}
+    steps:
+      - instruction: "Report that you finished a previously mentioned task — be clear and direct about it being done"
+
+  - id: partial_completion
+    description: "Task partially done"
+    inject_at: {day_range: [10, 30], count: 1}
+    steps:
+      - instruction: "Report progress on a task — you did part of it but not all. Be specific about what's done and what's left"
+
+  - id: completion_reversal
+    description: "Said it was done, actually isn't"
+    inject_at: {day_range: [8, 20], count: 2}
+    steps:
+      - instruction: "Report completing a previously mentioned task"
+      - instruction: "Realize the task actually isn't done — you missed a part, or it bounced back, or you were thinking of something else"
+        delay_messages: [1, 3]

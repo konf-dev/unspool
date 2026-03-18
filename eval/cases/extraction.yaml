@@ -1,0 +1,139 @@
+# Extraction: 15 cases — verify the response confirms task capture.
+# DB-level verification (item count, field values) is in pytest/test_extraction_db.py.
+# Source: migrated from brain_dump_extraction.yaml + date_resolution.yaml
+
+- description: "extract_single_task"
+  vars:
+    message: "I need to buy milk"
+  assert:
+    - type: llm-rubric
+      value: "The response confirms it captured/noted the task about buying milk."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "extract_multi_task"
+  vars:
+    message: "buy groceries, call the dentist, and finish the report"
+  assert:
+    - type: llm-rubric
+      value: "The response acknowledges capturing all three tasks."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "extract_with_deadline"
+  vars:
+    message: "submit the proposal by Friday"
+  assert:
+    - type: llm-rubric
+      value: "The response confirms a task with a Friday deadline."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "extract_hard_deadline"
+  vars:
+    message: "the tax return is due April 15th, can't miss it"
+  assert:
+    - type: llm-rubric
+      value: "The response acknowledges the tax return with its deadline, without asking clarifying questions."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "extract_soft_deadline"
+  vars:
+    message: "should probably get the oil change done sometime this week"
+  assert:
+    - type: llm-rubric
+      value: "The response captures the oil change as a soft/flexible task."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "extract_low_energy"
+  vars:
+    message: "I need to text my mom back"
+  assert:
+    - type: llm-rubric
+      value: "The response captures a quick/simple task."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "extract_high_energy"
+  vars:
+    message: "I need to write the entire project proposal from scratch"
+  assert:
+    - type: llm-rubric
+      value: "The response captures a substantial task."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "extract_mixed_items"
+  vars:
+    message: "text sarah back, write the quarterly report by Wednesday, and maybe clean the garage sometime"
+  assert:
+    - type: llm-rubric
+      value: "The response acknowledges multiple tasks with varying urgency/effort."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "extract_implicit_task"
+  vars:
+    message: "my car registration expires next month"
+  assert:
+    - type: llm-rubric
+      value: "The response recognizes this as something to track, even though it's not an explicit command."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "extract_idea_not_task"
+  vars:
+    message: "you know what would be cool? a podcast about productivity myths"
+  assert:
+    - type: llm-rubric
+      value: "The response captures the idea without treating it as an urgent task."
+    - type: not-contains
+      value: "went wrong"
+
+# Date resolution cases
+- description: "extract_date_tomorrow"
+  vars:
+    message: "I need to call the doctor tomorrow"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: llm-rubric
+      value: "The response confirms a task with a tomorrow deadline."
+
+- description: "extract_date_next_friday"
+  vars:
+    message: "the presentation is due next Friday"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: llm-rubric
+      value: "The response acknowledges a task with a Friday deadline."
+
+- description: "extract_date_specific"
+  vars:
+    message: "submit the application by March 25th"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: llm-rubric
+      value: "The response confirms a task due March 25th."
+
+- description: "extract_date_relative_hours"
+  vars:
+    message: "remind me about the meeting in 2 hours"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: javascript
+      value: "output.length > 0"
+
+- description: "extract_date_end_of_week"
+  vars:
+    message: "need to finish the draft by end of this week"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: llm-rubric
+      value: "The response acknowledges a task due by end of week."

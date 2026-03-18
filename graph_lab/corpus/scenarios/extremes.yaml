@@ -1,0 +1,24 @@
+scenarios:
+  - id: single_word
+    description: "Ultra-short single-word or two-word messages"
+    inject_at: {day_range: [2, 15], count: 2}
+    steps:
+      - instruction: "Send a single word or two-word message — just a reaction or status update with zero context"
+
+  - id: wall_of_text
+    description: "Massive brain dump (200+ words)"
+    inject_at: {day_range: [5, 25], count: 1}
+    steps:
+      - instruction: "Send a massive brain dump — 200+ words covering at least 5 different topics, jumping between them with no transitions. Include tasks, feelings, random observations, and at least one thing that's completely off-topic"
+
+  - id: all_caps
+    description: "ALL CAPS emotional message"
+    inject_at: {day_range: [8, 30], count: 1}
+    steps:
+      - instruction: "Send a message entirely in ALL CAPS expressing strong emotion (excitement, frustration, or panic)"
+
+  - id: emoji_only
+    description: "Message that's mostly or entirely emoji"
+    inject_at: {day_range: [5, 20], count: 1}
+    steps:
+      - instruction: "Send a message that's mostly or entirely emoji — express your current state through emoji with minimal or no words"

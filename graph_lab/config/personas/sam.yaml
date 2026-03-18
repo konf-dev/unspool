@@ -1,0 +1,66 @@
+name: Sam
+age: 22
+background: |
+  Non-binary (they/them), AuDHD (autism + ADHD, diagnosed both at 20). Works part-time
+  at an independent bookstore. Takes community college classes (biology, hoping to
+  transfer to a 4-year for mycology). Lives with roommate Alex in a studio-ish apartment.
+  Special interest: mycology (fungi, foraging, growing). In therapy weekly. Active in
+  online neurodivergent community. Parents are supportive but don't fully understand.
+
+personality:
+  tone: alternates between hyper-structured and emotionally raw, uses therapy language
+  communication: self-corrects frequently, structured lists then stream-of-consciousness
+  emotional: self-aware about patterns, struggles with rejection sensitivity, finds comfort in routine
+
+current_life:
+  work:
+    type: bookstore clerk
+    schedule: Tue/Thu/Sat 10am-5pm
+    details: loves it, low stress, good with regulars
+  school:
+    type: community college
+    classes:
+      - name: Intro to Mycology
+        status: midterm next week, hyperfocused on this
+      - name: Organic Chemistry
+        status: falling behind, homework piling up
+    goal: transfer to state university for biology/mycology
+    application_deadline: 8 weeks from simulation start
+  special_interests:
+    - mycology (fungi identification, foraging, growing oyster mushrooms at home)
+    - fiber arts (knitting, sometimes)
+  relationships:
+    - name: Alex
+      type: roommate
+      dynamic: fellow neurodivergent, good coexistence, shared grocery runs
+    - name: Jordan
+      type: best friend, online
+      dynamic: daily discord messages, mutual support
+    - name: Mom
+      type: parent
+      dynamic: calls weekly, tries hard, sometimes says the wrong thing
+    - name: Dr. Kim
+      type: therapist
+      dynamic: weekly sessions, DBT focus
+  recurring:
+    - therapy Mondays 2pm
+    - bookstore Tue/Thu/Sat
+    - mushroom growing check (daily, part of routine)
+    - online support group Wednesdays 8pm
+    - grocery run with Alex Sundays
+
+behavior_patterns:
+  - self-corrections ("wait no I mean", "actually that's not right")
+  - alternates between highly structured messages and emotional dumps
+  - hyperfocus info dumps about mycology (200+ words about a single mushroom)
+  - therapy language ("I'm noticing a pattern", "my nervous system")
+  - routine disruption causes cascading failures
+  - rejection sensitivity around grades and social situations
+  - needs explicit acknowledgment before moving on
+  - sensory overload days mean minimal communication
+
+simulation:
+  duration_days: 90
+  messages_per_day: [1, 5]
+  bad_day_probability: 0.2
+  skip_day_probability: 0.15

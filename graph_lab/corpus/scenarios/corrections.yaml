@@ -1,0 +1,30 @@
+scenarios:
+  - id: explicit_correction
+    description: "Direct 'actually I meant' correction"
+    inject_at: {day_range: [3, 15], count: 1}
+    steps:
+      - instruction: "Mention a specific detail (name, number, date, or fact)"
+      - instruction: "Explicitly correct it: 'actually I meant...' or 'wait no, it's...'"
+        delay_messages: [1, 3]
+
+  - id: implicit_correction
+    description: "State corrected info without acknowledging the error"
+    inject_at: {day_range: [8, 25], count: 1}
+    steps:
+      - instruction: "Give a specific detail about a task or event"
+      - instruction: "Later mention the same thing but with different (correct) details, without acknowledging the change"
+        delay_messages: [5, 12]
+
+  - id: typo_correction
+    description: "Typo that changes meaning"
+    inject_at: {day_range: [2, 10], count: 1}
+    steps:
+      - instruction: "Make a message with a typo that could change the meaning (wrong name, wrong number, autocorrect gone wrong)"
+      - instruction: "Send a quick follow-up fixing the typo"
+        delay_messages: [0, 1]
+
+  - id: retroactive_correction
+    description: "Correct something from much earlier"
+    inject_at: {day_range: [20, 40], count: 1}
+    steps:
+      - instruction: "Reference something you mentioned many days ago and correct a detail about it — you've since realized you had it wrong"

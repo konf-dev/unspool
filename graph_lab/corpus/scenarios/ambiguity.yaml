@@ -1,0 +1,30 @@
+scenarios:
+  - id: that_thing
+    description: "Vague reference to an unspecified item"
+    inject_at: {day_range: [10, 30], count: 1}
+    steps:
+      - instruction: "Refer to a previously mentioned task or event as just 'that thing' or 'the thing I mentioned' without any specific identifying details"
+
+  - id: the_usual
+    description: "Reference to a routine without specifying which one"
+    inject_at: {day_range: [20, 50], count: 1}
+    steps:
+      - instruction: "Mention 'the usual' or 'the regular thing' as if the app should know your routine — don't specify what it is"
+
+  - id: pronoun_ambiguity
+    description: "Ambiguous pronoun reference"
+    inject_at: {day_range: [5, 20], count: 1}
+    steps:
+      - instruction: "Talk about two different people in the same message, then use 'they' or 'he/she' to refer to one of them in a way that could mean either person"
+
+  - id: name_collision
+    description: "Two different contexts sharing a name"
+    inject_at: {day_range: [8, 25], count: 1}
+    steps:
+      - instruction: "Mention a person or place that shares a name with someone/somewhere else in your life, without clarifying which one you mean"
+
+  - id: tomorrow_midnight
+    description: "'Tomorrow' used near midnight"
+    inject_at: {day_range: [5, 30], count: 1}
+    steps:
+      - instruction: "It's very late at night (11pm+). Say 'tomorrow' to refer to a task — make it ambiguous whether you mean the calendar tomorrow or 'when I wake up' (which could be the same day)"

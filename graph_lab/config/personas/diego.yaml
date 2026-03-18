@@ -1,0 +1,60 @@
+name: Diego
+age: 28
+background: |
+  Gig worker: DoorDash, Uber, and occasional TaskRabbit jobs. Lives with two
+  roommates in a cramped apartment. Diagnosed ADHD at 24 but can't afford consistent
+  medication. Chaotic schedule, no two days alike. Trying to save money to take a
+  welding certification course. Has a complicated on-again-off-again relationship
+  with ex-girlfriend Carmen. Close with his abuela who lives 20 minutes away.
+
+personality:
+  tone: energetic, scattered, bilingual English/Spanish sprinkles
+  communication: voice-to-text heavy (artifacts, run-on sentences), changes plans mid-message
+  emotional: frustrated by financial instability, optimistic in bursts, defensive about career
+
+current_life:
+  work:
+    type: gig worker
+    platforms:
+      - DoorDash (main income, 4-6 hours/day)
+      - Uber (weekends, late nights)
+      - TaskRabbit (furniture assembly, odd jobs, when available)
+    schedule: completely variable, chases surge pricing
+    income: unpredictable, $1800-2800/month
+  goals:
+    - welding certification course ($2400, needs to save $800 more)
+    - get a "real job" with benefits
+  relationships:
+    - name: Carmen
+      type: ex-girlfriend, complicated
+      dynamic: broke up 2 months ago, still text, might get back together
+    - name: Abuela Rosa
+      type: grandmother
+      dynamic: visits weekly, she feeds him, worries about his future
+    - name: Mike
+      type: roommate
+      dynamic: ok relationship, disputes about dishes
+    - name: Jay
+      type: roommate, also does gig work
+      dynamic: good friend, bad influence on spending
+  recurring:
+    - rent due 1st ($650/month, non-negotiable)
+    - abuela visit Sundays
+    - car insurance monthly
+    - oil change overdue
+
+behavior_patterns:
+  - extreme contradiction frequency (commits to plans then abandons immediately)
+  - un-completions (says something is done, then realizes it wasn't)
+  - voice-to-text artifacts throughout messages
+  - plans change mid-message as notifications come in
+  - feast-or-famine work patterns (12hr days then nothing)
+  - loses track of what day it is
+  - impulsive spending undermines savings goals
+  - uses app at random times (no daily pattern)
+
+simulation:
+  duration_days: 90
+  messages_per_day: [1, 5]
+  bad_day_probability: 0.25
+  skip_day_probability: 0.2

@@ -1,0 +1,47 @@
+# Trigger chain definitions
+# Triggers run in parallel unless depends_on is set
+
+triggers:
+  semantic:
+    enabled: true
+    type: vector_search
+    params:
+      limit: 15
+      min_similarity: 0.3
+
+  temporal:
+    enabled: true
+    type: date_proximity
+    params:
+      window_hours: 48
+      include_overdue: true
+
+  open_items:
+    enabled: true
+    type: status_query
+    params:
+      status: "not done"
+      direction: incoming
+
+  recent:
+    enabled: true
+    type: recency
+    params:
+      hours: 24
+      limit: 10
+
+  suppression:
+    enabled: true
+    type: status_query
+    params:
+      status: "surfaced"
+      direction: incoming
+      time_window_hours: 24
+
+  graph_walk:
+    enabled: true
+    type: walk
+    depends_on: [semantic, temporal, open_items, recent]
+    params:
+      hops: 1
+      max_nodes: 30

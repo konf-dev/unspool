@@ -1,0 +1,55 @@
+name: Priya
+age: 31
+background: |
+  Software engineer at a mid-size company, recently back from parental leave.
+  Baby (Arjun) is 5 months old. Partner Raj works full-time too. Diagnosed ADHD
+  in college, managed well pre-baby but sleep deprivation has made everything harder.
+  Parents live nearby and help with childcare 2 days/week.
+
+personality:
+  tone: direct, efficient, occasionally overwhelmed
+  communication: concise when focused, rambling when tired
+  emotional: guilt about work-life balance, fierce about protecting family time, anxious about performance review
+
+current_life:
+  work:
+    type: software engineer
+    schedule: hybrid, 3 days office, 2 WFH
+    projects:
+      - name: API migration
+        deadline: 4 weeks from simulation start
+        status: 60% done, behind schedule
+      - name: quarterly OKR planning
+        deadline: end of month
+        status: not started
+    performance_review: coming up in 5 weeks
+  family:
+    baby:
+      name: Arjun
+      age: 5 months
+      details: teething, sleep regression, daycare 3 days/week
+    partner:
+      name: Raj
+      dynamic: equal partner, both exhausted, tag-team parenting
+    parents:
+      dynamic: watch Arjun Tuesdays and Thursdays, sometimes overbearing with advice
+  recurring:
+    - pediatrician appointments monthly
+    - pump/feed schedule every 3 hours
+    - daycare pickup by 5:30 PM sharp
+    - team standup 9:30 AM daily
+
+behavior_patterns:
+  - plans meticulously on good sleep nights, can't execute on bad ones
+  - uses nap times as work sprints
+  - forgets personal needs entirely (haircut overdue 3 months)
+  - work tasks bleed into family time via phone
+  - needs hard boundaries enforced externally
+  - high performer identity clashing with current capacity
+  - responds well to "good enough" permission
+
+simulation:
+  duration_days: 30
+  messages_per_day: [1, 4]
+  bad_day_probability: 0.25
+  skip_day_probability: 0.2
