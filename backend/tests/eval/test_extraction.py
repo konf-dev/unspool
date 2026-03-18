@@ -65,6 +65,8 @@ class TestExtraction:
         for case in cases:
             store = InMemoryStore()
             try:
+                if eval_client.target != "local":
+                    await eval_client.cleanup_remote()
                 resp = await eval_client.send_message(case.message, store=store)
             except Exception as e:
                 eval_results.append(
@@ -115,6 +117,8 @@ class TestDateResolution:
         for case in cases:
             store = InMemoryStore()
             try:
+                if eval_client.target != "local":
+                    await eval_client.cleanup_remote()
                 resp = await eval_client.send_message(case.message, store=store)
             except Exception as e:
                 eval_results.append(
