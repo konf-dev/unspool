@@ -137,13 +137,23 @@ async def save_item(
     raw_text: str,
     interpreted_action: str,
     deadline_type: str | None = None,
-    deadline_at: str | None = None,
+    deadline_at: str | datetime | None = None,
     urgency_score: float = 0.0,
     energy_estimate: str | None = None,
     source_message_id: str | None = None,
     entity_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     pool = _get_pool()
+
+    # asyncpg requires datetime objects for TIMESTAMPTZ, not strings.
+    # LLM extraction returns deadline_at as an ISO string.
+    parsed_deadline = None
+    if deadline_at is not None:
+        if isinstance(deadline_at, str):
+            parsed_deadline = datetime.fromisoformat(deadline_at)
+        else:
+            parsed_deadline = deadline_at
+
     row = await pool.fetchrow(
         """
         INSERT INTO items (
@@ -151,14 +161,14 @@ async def save_item(
             deadline_at, urgency_score, energy_estimate,
             source_message_id, entity_ids
         )
-        VALUES ($1, $2, $3, $4, $5::timestamptz, $6, $7, $8::uuid, $9::uuid[])
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::uuid, $9::uuid[])
         RETURNING *
         """,
         user_id,
         raw_text,
         interpreted_action,
         deadline_type,
-        deadline_at,
+        parsed_deadline,
         urgency_score,
         energy_estimate,
         source_message_id,
