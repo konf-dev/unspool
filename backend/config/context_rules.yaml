@@ -5,6 +5,7 @@ rules:
       - recent_messages
     optional:
       - entities
+      - graph_context
 
   query_next:
     load:
@@ -15,28 +16,37 @@ rules:
     optional:
       - calendar_events
       - memories
+      - graph_context
 
   query_search:
     load:
       - profile
       - recent_messages
+    optional:
+      - graph_context
 
   query_upcoming:
     load:
       - profile
       - urgent_items
+    optional:
+      - graph_context
 
   status_done:
     load:
       - profile
       - open_items
       - recent_messages
+    optional:
+      - graph_context
 
   status_cant:
     load:
       - profile
       - open_items
       - recent_messages
+    optional:
+      - graph_context
 
   emotional:
     load:
@@ -44,6 +54,7 @@ rules:
       - recent_messages
     optional:
       - memories
+      - graph_context
 
   onboarding:
     load:
@@ -60,6 +71,7 @@ rules:
     optional:
       - memories
       - entities
+      - graph_context
 
 defaults:
   recent_messages_limit: 20

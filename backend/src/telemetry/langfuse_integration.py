@@ -22,7 +22,7 @@ def _init_langfuse() -> None:
         return
 
     try:
-        from langfuse.decorators import observe
+        from langfuse.decorators import observe  # type: ignore[import-untyped]
 
         _observe_fn = observe
         _langfuse_available = True
@@ -52,7 +52,7 @@ def get_langfuse_context() -> Any:
     if not _langfuse_available:
         return None
     try:
-        from langfuse.decorators import langfuse_context
+        from langfuse.decorators import langfuse_context  # type: ignore[import-untyped]
 
         return langfuse_context
     except ImportError:
@@ -67,7 +67,7 @@ def update_current_observation(**kwargs: Any) -> None:
     if not _langfuse_available:
         return
     try:
-        from langfuse.decorators import langfuse_context
+        from langfuse.decorators import langfuse_context  # type: ignore[import-untyped]
 
         langfuse_context.update_current_observation(**kwargs)
     except Exception:
@@ -79,7 +79,7 @@ def update_current_trace(**kwargs: Any) -> None:
     if not _langfuse_available:
         return
     try:
-        from langfuse.decorators import langfuse_context
+        from langfuse.decorators import langfuse_context  # type: ignore[import-untyped]
 
         langfuse_context.update_current_trace(**kwargs)
     except Exception:

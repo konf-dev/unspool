@@ -96,11 +96,13 @@ Goal: Handle 50+ concurrent users without things breaking.
 
 - [ ] **Decay job pagination** — `get_all_open_items_for_decay()` loads ALL items into memory; add cursor-based pagination
 - [ ] **Batch update SQL** — `batch_update_items()` runs N individual queries; refactor to `UPDATE ... FROM (VALUES ...)`
-- [ ] **Async Redis client** — Current synchronous upstash_redis wrapped in `asyncio.to_thread()` spawns threads; migrate to async client
+- [x] **Async Redis client** — Migrated to native `upstash_redis.asyncio.Redis`; rate_limit_check uses pipelining (2 HTTP calls → 1)
 - [ ] **Connection pool tuning** — asyncpg `max_size=10`; add `pool.acquire(timeout=5)`, consider raising pool size
 - [x] **ASGI middleware for tracing** — Raw ASGI middleware replacing BaseHTTPMiddleware; fixes SSE streaming buffering; `scope["state"]["trace_id"]` + `send_wrapper` for header injection
 - [x] **Prompt file caching** — `_env.get_template()` with Jinja2's built-in mtime cache; frontmatter stripped in `_PromptLoader.get_source()`; eager hash computation in `get_prompt_hash()`
 - [ ] **Timezone-aware operations** — Rate limiting resets at user's local midnight, but also deadline calculations (check_deadlines job, proactive triggers, urgency decay) need user timezone for correct "24 hours away" / quiet hours logic
+- [x] **Graph memory integration** — Postgres-native graph (memory_nodes + bi-temporal memory_edges + node_neighbors cache), halfvec embeddings, trigger-based retrieval, token-budgeted serialization, shadow mode. See `docs/GRAPH_MEMORY.md`
+- [ ] **Graph evolution cron job** — Daily per-user evolution: embedding generation, edge decay, weak edge pruning, LLM synthesis (merges, contradictions), neighbor cache rebuild
 - [ ] **Migration rollback scripts** — Write a paired `00NNN_<name>.down.sql` for every migration. Two-phase destructive DDL: before dropping a column, (1) deploy code that stops reading it, (2) confirm stable, (3) drop in the next migration
 
 ---

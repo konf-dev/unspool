@@ -3,36 +3,72 @@
 from pathlib import Path
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "supabase" / "migrations"
+SCHEMA_PATH = MIGRATIONS_DIR / "00001_full_schema.sql"
 
 
-class TestMigration00003:
+class TestFullSchema:
     def test_file_exists(self) -> None:
-        path = MIGRATIONS_DIR / "00003_config_hash_and_ttft.sql"
-        assert path.exists()
+        assert SCHEMA_PATH.exists()
 
-    def test_adds_config_hash_column(self) -> None:
-        path = MIGRATIONS_DIR / "00003_config_hash_and_ttft.sql"
-        sql = path.read_text()
-        assert "config_hash" in sql
-        assert "ALTER TABLE llm_usage" in sql
+    def test_creates_core_tables(self) -> None:
+        sql = SCHEMA_PATH.read_text()
+        for table in [
+            "user_profiles",
+            "messages",
+            "items",
+            "item_events",
+            "memories",
+            "entities",
+            "recurrences",
+            "calendar_events",
+            "subscriptions",
+            "push_subscriptions",
+            "llm_usage",
+            "experiment_assignments",
+            "oauth_tokens",
+        ]:
+            assert f"CREATE TABLE {table}" in sql, f"Missing table: {table}"
 
-    def test_adds_ttft_ms_column(self) -> None:
-        path = MIGRATIONS_DIR / "00003_config_hash_and_ttft.sql"
-        sql = path.read_text()
-        assert "ttft_ms" in sql
+    def test_creates_graph_tables(self) -> None:
+        sql = SCHEMA_PATH.read_text()
+        assert "CREATE TABLE memory_nodes" in sql
+        assert "CREATE TABLE memory_edges" in sql
+        assert "CREATE TABLE node_neighbors" in sql
+
+    def test_graph_uses_halfvec(self) -> None:
+        sql = SCHEMA_PATH.read_text()
+        assert "halfvec(1536)" in sql
+        assert "halfvec_cosine_ops" in sql
+
+    def test_enables_rls_on_all_tables(self) -> None:
+        sql = SCHEMA_PATH.read_text()
+        for table in [
+            "user_profiles",
+            "messages",
+            "items",
+            "memories",
+            "memory_nodes",
+            "memory_edges",
+            "node_neighbors",
+        ]:
+            assert f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY" in sql, (
+                f"Missing RLS on: {table}"
+            )
 
     def test_creates_trace_summary_view(self) -> None:
-        path = MIGRATIONS_DIR / "00003_config_hash_and_ttft.sql"
-        sql = path.read_text()
+        sql = SCHEMA_PATH.read_text()
         assert "trace_summary" in sql
-        assert "CREATE" in sql
-        assert "VIEW" in sql
-
-    def test_view_aggregates_correctly(self) -> None:
-        path = MIGRATIONS_DIR / "00003_config_hash_and_ttft.sql"
-        sql = path.read_text()
         assert "SUM(input_tokens)" in sql
-        assert "SUM(output_tokens)" in sql
         assert "MIN(ttft_ms)" in sql
-        assert "array_agg" in sql
-        assert "GROUP BY" in sql
+
+    def test_config_hash_and_ttft_columns(self) -> None:
+        sql = SCHEMA_PATH.read_text()
+        assert "config_hash" in sql
+        assert "ttft_ms" in sql
+
+    def test_no_old_migration_files(self) -> None:
+        files = list(MIGRATIONS_DIR.glob("*.sql"))
+        assert len(files) == 1, (
+            f"Expected 1 migration file, found: {[f.name for f in files]}"
+        )
+        assert files[0].name == "00001_full_schema.sql"

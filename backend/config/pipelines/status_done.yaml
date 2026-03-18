@@ -31,3 +31,7 @@ steps:
       item: "${steps.match_item.output}"
       momentum: "${steps.check_momentum.output}"
       user_profile: "${context.profile}"
+
+post_processing:
+  - job: process_graph
+    delay: "5s"

@@ -587,6 +587,11 @@ Runs asynchronously. User doesn't wait for this.
 │     No deadline, not surfaced in 30 days → expired
 │     (Expired = invisible but NOT deleted, still searchable)
 │
+├── Dispatch process_graph job (5s delay):
+│     Extract nodes/edges from user message → graph memory
+│     Generate embeddings for new nodes
+│     Detect surfaced/completed items from assistant response
+│
 └── Log interaction (intent, items affected, response length)
       NOT raw message content in analytics — that's private
 ```
@@ -644,6 +649,16 @@ Config: config/patterns.yaml defines which analyses run
   Store insights in user_profiles.patterns JSONB field
   Respects min_data_days and confidence_threshold per analysis
 
+Job: GRAPH MEMORY PROCESSING
+Endpoint: POST /jobs/process-graph
+Trigger: QStash delayed message, enqueued after brain_dump/status_done/
+         conversation/emotional pipelines (5s delay)
+  1. Pre-filter: skip trivial messages (<3 chars, emoji-only)
+  2. LLM extracts nodes/edges/corrections from user message
+  3. Generate halfvec embeddings for new nodes
+  4. Detect which nodes the response surfaced/completed
+  5. Create status edges (surfaced, done) + invalidate "not done" edges
+
 Job: NOTIFICATION RESET
 Endpoint: POST /jobs/reset-notifications
 Schedule: Daily at midnight UTC (QStash cron)
@@ -660,6 +675,7 @@ Schedule: Daily at midnight UTC (QStash cron)
 | Deadline scanner | Hourly | 0 | Must have (push notifications) |
 | Urgency decay | Every 6h | 0 | Must have (scoring) |
 | Post-conversation | After each chat | 1-2 | Must have (embeddings, dedup) |
+| Graph processing | After each chat (5s) | 1-2 | Graph ingest + feedback (async, not in request path) |
 | Calendar sync | Every 4h | 0 | Must have (calendar context) |
 | Pattern detection | Daily | 1-3 | Config-driven LLM analyses (config/patterns.yaml) |
 | Notification reset | Daily midnight | 0 | Must have (prevents >1 push/day) |
@@ -680,7 +696,7 @@ Schedule: Daily at midnight UTC (QStash cron)
 | Meta (help/cancel) | 0 | Canned responses |
 | Conversation | 1 | Needs LLM for natural response |
 
-**Target: average 1-2 LLM calls per user message.** Most interactions should be fast and cheap.
+**Target: average 1-2 LLM calls per user message in the request path.** Post-processing adds 1-2 async LLM calls (graph ingest + feedback) that don't block the response.
 
 ---
 

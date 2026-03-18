@@ -42,10 +42,18 @@ def render(configs: dict, _tables: dict, _graph: dict, _matrix: list) -> None:
     pc = JOB_DB_ACCESS.get("process_conversation", {})
     st.markdown(
         f"**process_conversation** — triggered 10s after chat "
-        f"(pipelines: brain_dump, conversation)\n\n"
+        f"(pipelines: brain_dump)\n\n"
         f"- Reads: {', '.join(f'`{t}`' for t in pc.get('reads', []))}\n"
         f"- Writes: {', '.join(f'`{t}`' for t in pc.get('writes', []))}\n"
         f"- Does: embeddings, entity extraction, memory extraction"
+    )
+    pg = JOB_DB_ACCESS.get("process_graph", {})
+    st.markdown(
+        f"**process_graph** — triggered 5s after chat "
+        f"(pipelines: brain_dump, status_done, conversation, emotional)\n\n"
+        f"- Reads: {', '.join(f'`{t}`' for t in pg.get('reads', []))}\n"
+        f"- Writes: {', '.join(f'`{t}`' for t in pg.get('writes', []))}\n"
+        f"- Does: graph node/edge ingest, embedding generation, feedback detection"
     )
 
     # Dispatch map
