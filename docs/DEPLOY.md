@@ -92,7 +92,7 @@ After deploying the backend, create QStash schedules:
 
 ### OpenAI (required for embeddings)
 1. Get API key from [platform.openai.com](https://platform.openai.com)
-2. Set `EMBEDDING_API_KEY`, `EMBEDDING_PROVIDER=openai`, `EMBEDDING_MODEL=text-embedding-3-small`
+2. Set `EMBEDDING_API_KEY`, `EMBEDDING_PROVIDER=openai`, `EMBEDDING_MODEL=text-embedding-4`
 
 ---
 
