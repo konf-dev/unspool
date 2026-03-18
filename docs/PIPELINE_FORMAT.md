@@ -44,7 +44,7 @@ Calls the LLM with a rendered prompt template.
 - `model` — Override model for this step. `null` uses the default
 - `stream` — If `true`, tokens stream to the client via SSE
 - `input` — Key-value pairs resolved via variable syntax, passed to the template
-- `output_schema` — If set, engine attempts to JSON-parse the LLM response
+- `output_schema` — If set, engine first tries `generate_structured()` (OpenAI Structured Outputs — server-side constrained decoding, guaranteed valid JSON). Falls back to text generation + `_extract_json()` parsing on failure. Schema name must match a key in `OUTPUT_SCHEMAS` in `types.py`
 
 ### tool_call
 
@@ -54,6 +54,7 @@ Calls a registered Python tool function.
 - id: save
   type: tool_call
   tool: save_items                   # Name from @register_tool("save_items")
+  optional: false                     # If true, failures don't crash the pipeline
   input:
     user_id: "${context.user_id}"
     items: "${steps.enrich.output}"
@@ -62,6 +63,7 @@ Calls a registered Python tool function.
 **Fields:**
 - `tool` (required) — Registered tool name
 - `input` — Key-value pairs resolved and passed as `**kwargs` to the tool function
+- `optional` — If `true`, tool exceptions are logged but don't crash the pipeline. The step result output is set to `None` and execution continues. Used for steps like `fuzzy_match_item` in `status_done`/`status_cant` where downstream prompts handle the no-match case
 
 ### query
 
@@ -277,7 +279,7 @@ intents:
   # ...
 
 fallback_intent: conversation
-classification_model: null  # uses LLM_MODEL_FAST
+classification_model: gpt-5-nano  # Fast model for intent classification
 ```
 
 ---

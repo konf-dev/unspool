@@ -5,7 +5,6 @@ steps:
   - id: respond
     type: llm_call
     prompt: onboarding_respond.md
-    model: null
     stream: true
     input:
       message: "${user_message}"

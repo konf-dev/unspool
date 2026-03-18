@@ -1,8 +1,8 @@
 # Config Map (auto-generated — do not edit)
 
-Generated: 2026-03-18 00:29 UTC | Git: 0000e27
+Generated: 2026-03-18 15:20 UTC | Git: b3cfe68
 
-Intents config: `config/intents.yaml` (2bbcfb57edbd)
+Intents config: `config/intents.yaml` (814cea4b3ca3)
 Context rules: `config/context_rules.yaml` (2d3d35b83ee9)
 
 ---
@@ -11,16 +11,16 @@ Context rules: `config/context_rules.yaml` (2d3d35b83ee9)
 
 _User is dumping tasks, ideas, or things to remember_
 
-Pipeline: `config/pipelines/brain_dump.yaml` (b24b09b10111)
+Pipeline: `config/pipelines/brain_dump.yaml` (620f8eedcfa6)
 
 Context: profile, recent_messages | optional: entities, graph_context
 
 | Step | Type | Config | Hash |
 |------|------|--------|------|
-| extract | llm_call | `prompts/brain_dump_extract.md` | 967cfa9f316d |
+| extract | llm_call | `prompts/brain_dump_extract.md` | a18e79352587 |
 | enrich | tool_call | enrich_items | — |
 | save | tool_call | save_items | — |
-| respond | llm_call (stream) | `prompts/brain_dump_respond.md` | da90e80fca58 |
+| respond | llm_call (stream) | `prompts/brain_dump_respond.md` | 90ee0aa87953 |
 
 Post-processing: process_conversation (10s), process_graph (5s)
 
@@ -30,7 +30,7 @@ Post-processing: process_conversation (10s), process_graph (5s)
 
 _General conversation or unclear intent_
 
-Pipeline: `config/pipelines/conversation.yaml` (0d3f6a9d018b)
+Pipeline: `config/pipelines/conversation.yaml` (a847a2f65b40)
 
 Context: profile, recent_messages | optional: memories, entities, graph_context
 
@@ -48,14 +48,14 @@ Post-processing: process_graph (5s)
 
 _User expressing feelings or venting_
 
-Pipeline: `config/pipelines/emotional.yaml` (9acfc9b515eb)
+Pipeline: `config/pipelines/emotional.yaml` (5d5764d5a784)
 
 Context: profile, recent_messages | optional: memories, graph_context
 
 | Step | Type | Config | Hash |
 |------|------|--------|------|
 | detect_level | llm_call | `prompts/emotional_detect.md` | 9e49a5672ad5 |
-| respond | llm_call (stream) | `prompts/emotional_respond.md` | 5b16d6b52647 |
+| respond | llm_call (stream) | `prompts/emotional_respond.md` | 50ffd5d8b035 |
 
 Post-processing: process_graph (5s)
 
@@ -65,7 +65,7 @@ Post-processing: process_graph (5s)
 
 _User asking about the system itself_
 
-Pipeline: `config/pipelines/meta.yaml` (7171338a6371)
+Pipeline: `config/pipelines/meta.yaml` (94d96f0ddba6)
 
 Context: profile
 
@@ -79,7 +79,7 @@ Context: profile
 
 _First message from a new user_
 
-Pipeline: `config/pipelines/onboarding.yaml` (7793dc50bd64)
+Pipeline: `config/pipelines/onboarding.yaml` (b5c93791bcd0)
 
 Context: profile
 
@@ -93,7 +93,7 @@ Context: profile
 
 _User asking what to do next_
 
-Pipeline: `config/pipelines/query_next.yaml` (b26ef31f1bce)
+Pipeline: `config/pipelines/query_next.yaml` (993f0db7dd4e)
 
 Context: profile, open_items, urgent_items, recent_messages | optional: calendar_events, memories, graph_context
 
@@ -101,7 +101,7 @@ Context: profile, open_items, urgent_items, recent_messages | optional: calendar
 |------|------|--------|------|
 | fetch_items | tool_call | fetch_items | — |
 | score_and_pick | tool_call | pick_next_item | — |
-| respond | llm_call (stream) | `prompts/query_format.md` | 89bcf6cfef12 |
+| respond | llm_call (stream) | `prompts/query_format.md` | f4d05661e155 |
 
 ---
 
@@ -109,7 +109,7 @@ Context: profile, open_items, urgent_items, recent_messages | optional: calendar
 
 _User searching for something specific they told you about_
 
-Pipeline: `config/pipelines/query_search.yaml` (2db518421e5d)
+Pipeline: `config/pipelines/query_search.yaml` (01f901a47efa)
 
 Context: profile, recent_messages | optional: graph_context
 
@@ -125,7 +125,7 @@ Context: profile, recent_messages | optional: graph_context
 
 _User asking about upcoming deadlines or schedule_
 
-Pipeline: `config/pipelines/query_upcoming.yaml` (124f91e6d31e)
+Pipeline: `config/pipelines/query_upcoming.yaml` (d173f241675c)
 
 Context: profile, urgent_items | optional: graph_context
 
@@ -140,7 +140,7 @@ Context: profile, urgent_items | optional: graph_context
 
 _User skipping or postponing something_
 
-Pipeline: `config/pipelines/status_cant.yaml` (ac59377069bb)
+Pipeline: `config/pipelines/status_cant.yaml` (69b157c32b2e)
 
 Context: profile, open_items, recent_messages | optional: graph_context
 
@@ -156,7 +156,7 @@ Context: profile, open_items, recent_messages | optional: graph_context
 
 _User marking something as done_
 
-Pipeline: `config/pipelines/status_done.yaml` (0aa176c7d421)
+Pipeline: `config/pipelines/status_done.yaml` (7e2640fbc4c9)
 
 Context: profile, open_items, recent_messages | optional: graph_context
 
@@ -175,7 +175,7 @@ Post-processing: process_graph (5s)
 
 These prompt files exist in `prompts/` but are not referenced by any pipeline:
 
-- `prompts/classify_intent.md` (7006eeb9edb7)
+- `prompts/classify_intent.md` (51357475ce66)
 - `prompts/consolidate_memories.md` (d8c93565d87c)
 - `prompts/detect_behavioral_patterns.md` (278f6bcd37a4)
 - `prompts/detect_preferences.md` (764452ad50a0)
@@ -188,7 +188,7 @@ These prompt files exist in `prompts/` but are not referenced by any pipeline:
 - `prompts/proactive_slipped.md` (d29dfbd11101)
 - `prompts/proactive_welcome_back.md` (26ed412e7a0b)
 - `prompts/query_search_format.md` (12788431f100)
-- `prompts/system.md` (dceb82922ee7)
+- `prompts/system.md` (f7aaa32991b8)
 
 ## Config Files
 
@@ -197,7 +197,7 @@ These prompt files exist in `prompts/` but are not referenced by any pipeline:
 | `config/context_rules.yaml` | 2d3d35b83ee9 |
 | `config/gate.yaml` | 04e355cf1fcc |
 | `config/graph.yaml` | 2dcbcf9ca196 |
-| `config/intents.yaml` | 2bbcfb57edbd |
+| `config/intents.yaml` | 814cea4b3ca3 |
 | `config/jobs.yaml` | 4f88280d617e |
 | `config/patterns.yaml` | d9520794840f |
 | `config/proactive.yaml` | 3ae2be6602fb |
@@ -205,14 +205,14 @@ These prompt files exist in `prompts/` but are not referenced by any pipeline:
 | `config/scoring.yaml` | a39cfef9e916 |
 | `config/triggers.yaml` | 070ae580ab90 |
 | `config/variants.yaml` | 6b8de9494654 |
-| `config/pipelines/brain_dump.yaml` | b24b09b10111 |
-| `config/pipelines/conversation.yaml` | 0d3f6a9d018b |
-| `config/pipelines/emotional.yaml` | 9acfc9b515eb |
-| `config/pipelines/meta.yaml` | 7171338a6371 |
-| `config/pipelines/onboarding.yaml` | 7793dc50bd64 |
-| `config/pipelines/query_next.yaml` | b26ef31f1bce |
-| `config/pipelines/query_search.yaml` | 2db518421e5d |
-| `config/pipelines/query_upcoming.yaml` | 124f91e6d31e |
-| `config/pipelines/status_cant.yaml` | ac59377069bb |
-| `config/pipelines/status_done.yaml` | 0aa176c7d421 |
+| `config/pipelines/brain_dump.yaml` | 620f8eedcfa6 |
+| `config/pipelines/conversation.yaml` | a847a2f65b40 |
+| `config/pipelines/emotional.yaml` | 5d5764d5a784 |
+| `config/pipelines/meta.yaml` | 94d96f0ddba6 |
+| `config/pipelines/onboarding.yaml` | b5c93791bcd0 |
+| `config/pipelines/query_next.yaml` | 993f0db7dd4e |
+| `config/pipelines/query_search.yaml` | 01f901a47efa |
+| `config/pipelines/query_upcoming.yaml` | d173f241675c |
+| `config/pipelines/status_cant.yaml` | 69b157c32b2e |
+| `config/pipelines/status_done.yaml` | 7e2640fbc4c9 |
 

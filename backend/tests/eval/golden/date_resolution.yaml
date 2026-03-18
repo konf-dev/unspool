@@ -1,0 +1,53 @@
+cases:
+  - id: date_tomorrow
+    category: date_resolution
+    message: "I need to call the doctor tomorrow"
+    assertions:
+      - type: min_count
+        field: item_count
+        value: 1
+      - type: not_null
+        field: "items[0].deadline_at"
+    tags: [date, regression, "regression:BUG-002"]
+
+  - id: date_next_friday
+    category: date_resolution
+    message: "the presentation is due next Friday"
+    assertions:
+      - type: min_count
+        field: item_count
+        value: 1
+      - type: not_null
+        field: "items[0].deadline_at"
+    tags: [date, regression, "regression:BUG-002"]
+
+  - id: date_specific
+    category: date_resolution
+    message: "submit the application by March 25th"
+    assertions:
+      - type: min_count
+        field: item_count
+        value: 1
+      - type: not_null
+        field: "items[0].deadline_at"
+    tags: [date]
+
+  - id: date_relative_hours
+    category: date_resolution
+    message: "remind me about the meeting in 2 hours"
+    assertions:
+      - type: min_count
+        field: item_count
+        value: 1
+    tags: [date]
+
+  - id: date_end_of_week
+    category: date_resolution
+    message: "need to finish the draft by end of this week"
+    assertions:
+      - type: min_count
+        field: item_count
+        value: 1
+      - type: not_null
+        field: "items[0].deadline_at"
+    tags: [date]

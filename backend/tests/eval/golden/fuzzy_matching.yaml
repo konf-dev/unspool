@@ -1,0 +1,52 @@
+cases:
+  - id: fuzzy_partial_name
+    category: fuzzy_matching
+    message: "done with the report"
+    expected_intent: status_done
+    assertions:
+      - type: contains
+        field: response
+        value: "report"
+    tags: [fuzzy]
+
+  - id: fuzzy_abbreviation
+    category: fuzzy_matching
+    message: "finished the q report"
+    expected_intent: status_done
+    tags: [fuzzy]
+
+  - id: fuzzy_typo
+    category: fuzzy_matching
+    message: "done with teh grocries"
+    expected_intent: status_done
+    tags: [fuzzy]
+
+  - id: fuzzy_vague_reference
+    category: fuzzy_matching
+    message: "that thing I mentioned yesterday, it's done"
+    expected_intent: status_done
+    tags: [fuzzy]
+
+  - id: fuzzy_synonym
+    category: fuzzy_matching
+    message: "finished shopping"
+    expected_intent: status_done
+    tags: [fuzzy]
+
+  - id: fuzzy_mixed_case
+    category: fuzzy_matching
+    message: "DONE with the Dentist"
+    expected_intent: status_done
+    tags: [fuzzy]
+
+  - id: fuzzy_emoji_completion
+    category: fuzzy_matching
+    message: "groceries ✅"
+    expected_intent: status_done
+    tags: [fuzzy]
+
+  - id: fuzzy_slang
+    category: fuzzy_matching
+    message: "knocked out the slides"
+    expected_intent: status_done
+    tags: [fuzzy]

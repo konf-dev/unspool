@@ -1,0 +1,54 @@
+name: Eval
+
+on:
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Eval target (local/staging/production)"
+        required: false
+        default: "local"
+      tag:
+        description: "Filter by tag (e.g. regression)"
+        required: false
+        default: ""
+
+jobs:
+  eval:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.label.name == 'run-eval')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: pip install -r backend/requirements-dev.txt
+      - name: Run eval suite
+        working-directory: backend
+        env:
+          LLM_API_KEY: ${{ secrets.EVAL_LLM_API_KEY }}
+          LLM_MODEL: ${{ secrets.EVAL_LLM_MODEL || 'gpt-4o-mini' }}
+          LLM_PROVIDER: ${{ secrets.EVAL_LLM_PROVIDER || 'openai' }}
+          EVAL_JUDGE_MODEL: ${{ secrets.EVAL_JUDGE_MODEL || 'gpt-4o' }}
+          EVAL_JUDGE_PROVIDER: ${{ secrets.EVAL_JUDGE_PROVIDER || 'openai' }}
+          OPENAI_API_KEY: ${{ secrets.EVAL_LLM_API_KEY }}
+        run: |
+          TARGET="${{ github.event.inputs.target || 'local' }}"
+          TAG="${{ github.event.inputs.tag }}"
+          ARGS="--eval --eval-target=${TARGET} -v"
+          if [ -n "$TAG" ]; then
+            ARGS="${ARGS} --eval-tag=${TAG}"
+          fi
+          pytest tests/eval/ ${ARGS}
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: backend/tests/eval/results/
+          retention-days: 30

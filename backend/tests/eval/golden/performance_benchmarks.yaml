@@ -1,0 +1,50 @@
+cases:
+  - id: perf_brain_dump
+    category: performance
+    message: "I need to buy groceries and call the dentist"
+    tags: [performance, brain_dump]
+
+  - id: perf_query_next
+    category: performance
+    message: "what should I do right now?"
+    tags: [performance, query_next]
+
+  - id: perf_query_search
+    category: performance
+    message: "what did I say about the dentist?"
+    tags: [performance, query_search]
+
+  - id: perf_query_upcoming
+    category: performance
+    message: "what's coming up this week?"
+    tags: [performance, query_upcoming]
+
+  - id: perf_status_done
+    category: performance
+    message: "done with the groceries"
+    tags: [performance, status_done]
+
+  - id: perf_status_cant
+    category: performance
+    message: "skip that one for now"
+    tags: [performance, status_cant]
+
+  - id: perf_emotional
+    category: performance
+    message: "I'm so overwhelmed right now"
+    tags: [performance, emotional]
+
+  - id: perf_conversation
+    category: performance
+    message: "thanks!"
+    tags: [performance, conversation]
+
+  - id: perf_onboarding
+    category: performance
+    message: "hey, first time here"
+    tags: [performance, onboarding]
+
+  - id: perf_meta
+    category: performance
+    message: "what can you do?"
+    tags: [performance, meta]

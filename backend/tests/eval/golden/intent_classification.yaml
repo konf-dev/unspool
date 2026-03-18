@@ -1,0 +1,221 @@
+cases:
+  # --- brain_dump (5) ---
+  - id: intent_brain_dump_simple
+    category: intent
+    message: "I need to buy groceries and pick up my dry cleaning"
+    expected_intent: brain_dump
+    tags: [intent, brain_dump]
+
+  - id: intent_brain_dump_deadline
+    category: intent
+    message: "finish the report by Friday and email it to Sarah"
+    expected_intent: brain_dump
+    tags: [intent, brain_dump]
+
+  - id: intent_brain_dump_multi
+    category: intent
+    message: "oh also I need to call the dentist, renew my passport, and figure out that insurance thing"
+    expected_intent: brain_dump
+    tags: [intent, brain_dump]
+
+  - id: intent_brain_dump_idea
+    category: intent
+    message: "I had an idea for the blog post — something about productivity myths"
+    expected_intent: brain_dump
+    tags: [intent, brain_dump]
+
+  - id: intent_brain_dump_implicit
+    category: intent
+    message: "my car registration expires next month"
+    expected_intent: brain_dump
+    tags: [intent, brain_dump]
+
+  # --- query_next (4) ---
+  - id: intent_query_next_direct
+    category: intent
+    message: "what should I do right now?"
+    expected_intent: query_next
+    tags: [intent, query_next]
+
+  - id: intent_query_next_informal
+    category: intent
+    message: "I've got 20 minutes, what's up?"
+    expected_intent: query_next
+    tags: [intent, query_next]
+
+  - id: intent_query_next_energy
+    category: intent
+    message: "I'm feeling lazy, anything easy I can knock out?"
+    expected_intent: query_next
+    tags: [intent, query_next]
+
+  - id: intent_query_next_bored
+    category: intent
+    message: "bored. what's next"
+    expected_intent: query_next
+    tags: [intent, query_next]
+
+  # --- query_search (3) ---
+  - id: intent_query_search_specific
+    category: intent
+    message: "what did I say about the dentist?"
+    expected_intent: query_search
+    tags: [intent, query_search]
+
+  - id: intent_query_search_when
+    category: intent
+    message: "when is that meeting with Jake?"
+    expected_intent: query_search
+    tags: [intent, query_search]
+
+  - id: intent_query_search_recall
+    category: intent
+    message: "do I have anything related to the apartment?"
+    expected_intent: query_search
+    tags: [intent, query_search]
+
+  # --- query_upcoming (3) ---
+  - id: intent_query_upcoming_week
+    category: intent
+    message: "what do I have coming up this week?"
+    expected_intent: query_upcoming
+    tags: [intent, query_upcoming]
+
+  - id: intent_query_upcoming_tomorrow
+    category: intent
+    message: "anything due tomorrow?"
+    expected_intent: query_upcoming
+    tags: [intent, query_upcoming]
+
+  - id: intent_query_upcoming_deadlines
+    category: intent
+    message: "show me my deadlines"
+    expected_intent: query_upcoming
+    tags: [intent, query_upcoming]
+
+  # --- status_done (4) ---
+  - id: intent_status_done_explicit
+    category: intent
+    message: "done with the groceries"
+    expected_intent: status_done
+    tags: [intent, status_done]
+
+  - id: intent_status_done_finished
+    category: intent
+    message: "finished the quarterly report"
+    expected_intent: status_done
+    tags: [intent, status_done]
+
+  - id: intent_status_done_check
+    category: intent
+    message: "I called the dentist, check that off"
+    expected_intent: status_done
+    tags: [intent, status_done]
+
+  - id: intent_status_done_casual
+    category: intent
+    message: "texted mom back ✓"
+    expected_intent: status_done
+    tags: [intent, status_done]
+
+  # --- status_cant (3) ---
+  - id: intent_status_cant_skip
+    category: intent
+    message: "skip the groceries for now"
+    expected_intent: status_cant
+    tags: [intent, status_cant]
+
+  - id: intent_status_cant_postpone
+    category: intent
+    message: "can't do the report today, push it"
+    expected_intent: status_cant
+    tags: [intent, status_cant]
+
+  - id: intent_status_cant_nah
+    category: intent
+    message: "nah not feeling that one, give me something else"
+    expected_intent: status_cant
+    tags: [intent, status_cant]
+
+  # --- emotional (4) ---
+  - id: intent_emotional_overwhelmed
+    category: intent
+    message: "I'm so overwhelmed right now, everything is piling up"
+    expected_intent: emotional
+    tags: [intent, emotional]
+
+  - id: intent_emotional_frustrated
+    category: intent
+    message: "ugh I can't focus on anything today"
+    expected_intent: emotional
+    tags: [intent, emotional]
+
+  - id: intent_emotional_happy
+    category: intent
+    message: "I actually got so much done today! feeling great"
+    expected_intent: emotional
+    tags: [intent, emotional]
+
+  - id: intent_emotional_vent
+    category: intent
+    message: "my boss keeps adding things to my plate and I'm about to lose it"
+    expected_intent: emotional
+    tags: [intent, emotional]
+
+  # --- meta (2) ---
+  - id: intent_meta_how
+    category: intent
+    message: "how do you decide what to suggest next?"
+    expected_intent: meta
+    tags: [intent, meta]
+
+  - id: intent_meta_what
+    category: intent
+    message: "what can you do?"
+    expected_intent: meta
+    tags: [intent, meta]
+
+  # --- onboarding (2) ---
+  - id: intent_onboarding_hi
+    category: intent
+    message: "hi"
+    expected_intent: onboarding
+    tags: [intent, onboarding]
+
+  - id: intent_onboarding_intro
+    category: intent
+    message: "hey, first time here. what is this?"
+    expected_intent: onboarding
+    tags: [intent, onboarding]
+
+  # --- conversation (3) ---
+  - id: intent_conversation_thanks
+    category: intent
+    message: "thanks!"
+    expected_intent: conversation
+    tags: [intent, conversation]
+
+  - id: intent_conversation_chat
+    category: intent
+    message: "how's the weather today?"
+    expected_intent: conversation
+    tags: [intent, conversation]
+
+  - id: intent_conversation_ok
+    category: intent
+    message: "ok cool"
+    expected_intent: conversation
+    tags: [intent, conversation]
+
+  # --- ambiguous edge cases (2) ---
+  - id: intent_edge_emotional_dump
+    category: intent
+    message: "I'm stressed about the exam on Friday"
+    expected_intent: emotional
+    tags: [intent, edge_case]
+
+  - id: intent_edge_done_with_context
+    category: intent
+    message: "just got back from the store"
+    expected_intent: status_done
+    tags: [intent, edge_case]

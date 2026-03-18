@@ -5,7 +5,7 @@ steps:
   - id: detect_level
     type: llm_call
     prompt: emotional_detect.md
-    model: null
+    model: gpt-4.1-mini
     input:
       message: "${user_message}"
     output_schema: EmotionalDetection
@@ -13,7 +13,6 @@ steps:
   - id: respond
     type: llm_call
     prompt: emotional_respond.md
-    model: null
     stream: true
     input:
       level: "${steps.detect_level.output}"
