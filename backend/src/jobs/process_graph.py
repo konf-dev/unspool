@@ -23,7 +23,7 @@ async def run_process_graph(user_id: str, message_ids: list[str]) -> dict:
         return stats
 
     # Load messages: first is user, second is assistant
-    messages = await supa_db.get_messages_by_ids(message_ids)
+    messages = await supa_db.get_messages_by_ids(user_id, message_ids)
     user_msg = None
     assistant_msg = None
     for msg in messages:
