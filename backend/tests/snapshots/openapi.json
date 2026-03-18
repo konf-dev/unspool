@@ -208,6 +208,27 @@
         "summary": "Get Recent Errors"
       }
     },
+    "/admin/eval-cleanup": {
+      "delete": {
+        "description": "Delete all data for the eval user. Called before each eval run.",
+        "operationId": "eval_cleanup_admin_eval_cleanup_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Eval Cleanup Admin Eval Cleanup Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Eval Cleanup"
+      }
+    },
     "/admin/jobs/recent": {
       "get": {
         "operationId": "get_recent_jobs_admin_jobs_recent_get",

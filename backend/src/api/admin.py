@@ -124,6 +124,39 @@ async def get_recent_jobs(
     return [dict(r) for r in rows]
 
 
+@router.delete("/eval-cleanup")
+async def eval_cleanup() -> dict[str, Any]:
+    """Delete all data for the eval user. Called before each eval run."""
+    from src.auth.supabase_auth import EVAL_USER_ID
+
+    pool = get_pool()
+    deleted_messages = await pool.fetchval(
+        "DELETE FROM messages WHERE user_id = $1 RETURNING count(*)",
+        EVAL_USER_ID,
+    )
+    deleted_items = await pool.fetchval(
+        "DELETE FROM items WHERE user_id = $1 RETURNING count(*)",
+        EVAL_USER_ID,
+    )
+    deleted_usage = await pool.fetchval(
+        "DELETE FROM llm_usage WHERE user_id = $1 RETURNING count(*)",
+        EVAL_USER_ID,
+    )
+    _log.info(
+        "eval.cleanup",
+        user_id=EVAL_USER_ID,
+        deleted_messages=deleted_messages or 0,
+        deleted_items=deleted_items or 0,
+        deleted_usage=deleted_usage or 0,
+    )
+    return {
+        "user_id": EVAL_USER_ID,
+        "deleted_messages": deleted_messages or 0,
+        "deleted_items": deleted_items or 0,
+        "deleted_usage": deleted_usage or 0,
+    }
+
+
 @router.get("/errors")
 async def get_recent_errors(
     limit: int = Query(default=20, le=100),
