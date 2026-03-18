@@ -44,7 +44,7 @@ def verify_jwt(token: str) -> str:
     return user_id
 
 
-EVAL_USER_ID = "eval-user-001"
+EVAL_USER_ID = "b8a2e17e-ff55-485f-ad6c-29055a607b33"
 
 
 async def get_current_user(request: Request) -> str:
