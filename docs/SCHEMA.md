@@ -64,7 +64,7 @@ Tasks, reminders, ideas — anything the AI extracts from user messages.
 | created_at | TIMESTAMPTZ | |
 | last_surfaced_at | TIMESTAMPTZ | When this item was last shown to the user |
 | nudge_after | TIMESTAMPTZ | Don't surface before this time |
-| embedding | vector(1536) | OpenAI `text-embedding-3-small` |
+| embedding | vector(1024) | OpenAI `text-embedding-4` |
 | search_text | tsvector | Auto-generated from `raw_text` + `interpreted_action` |
 
 **Indexes:**
@@ -100,7 +100,7 @@ Facts the AI learns about the user over time (e.g. "user has a dog named Max").
 | confidence | FLOAT | Default 1.0, can decay |
 | last_validated_at | TIMESTAMPTZ | |
 | superseded_by | UUID FK | → `memories` (self-reference for corrections) |
-| embedding | vector(1536) | |
+| embedding | vector(1024) | |
 | search_text | tsvector | Auto-generated from `content` |
 | created_at | TIMESTAMPTZ | |
 
@@ -273,7 +273,7 @@ Graph memory: atomic facts, tasks, people, dates, feelings extracted from conver
 | user_id | UUID FK | → `auth.users` |
 | content | TEXT | Atomic concept (1-4 words typically) |
 | node_type | TEXT | Optional type hint |
-| embedding | halfvec(1536) | 50% memory vs vector(1536) |
+| embedding | halfvec(1024) | 50% memory vs vector(1024) |
 | status | TEXT | `active`, `merged` |
 | source_message_id | UUID FK | → `messages` — provenance |
 | created_at | TIMESTAMPTZ | |

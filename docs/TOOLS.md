@@ -28,7 +28,7 @@ Core data operations used in pipeline steps.
 
 | Tool | Signature | Returns |
 |------|-----------|---------|
-| `generate_embedding` | `(text)` | `list[float]` — 1536-dim embedding via OpenAI |
+| `generate_embedding` | `(text)` | `list[float]` — 1024-dim embedding via OpenAI |
 | `save_items` | `(user_id, items, source_message_id=None)` | `list[dict]` — saved items with IDs |
 | `search_semantic` | `(user_id, embedding, limit=5)` | `list[dict]` — items by vector similarity |
 | `search_hybrid` | `(user_id, embedding, query_text, limit=5)` | `list[dict]` — items by combined vector + text score |

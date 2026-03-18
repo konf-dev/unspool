@@ -66,7 +66,7 @@ CREATE TABLE items (
   created_at TIMESTAMPTZ DEFAULT now(),
   last_surfaced_at TIMESTAMPTZ,
   nudge_after TIMESTAMPTZ,
-  embedding vector(1536),
+  embedding vector(1024),
   search_text tsvector GENERATED ALWAYS AS (
     to_tsvector('english', coalesce(raw_text, '') || ' ' || coalesce(interpreted_action, ''))
   ) STORED
@@ -105,7 +105,7 @@ CREATE TABLE memories (
   confidence FLOAT DEFAULT 1.0,
   last_validated_at TIMESTAMPTZ,
   superseded_by UUID REFERENCES memories(id),
-  embedding vector(1536),
+  embedding vector(1024),
   created_at TIMESTAMPTZ DEFAULT now(),
   search_text tsvector GENERATED ALWAYS AS (
     to_tsvector('english', coalesce(content, ''))
@@ -274,7 +274,7 @@ CREATE TABLE memory_nodes (
   user_id UUID NOT NULL REFERENCES auth.users(id),
   content TEXT NOT NULL,
   node_type TEXT,
-  embedding halfvec(1536),
+  embedding halfvec(1024),
   status TEXT DEFAULT 'active',
   source_message_id UUID REFERENCES messages(id),
   created_at TIMESTAMPTZ DEFAULT now(),
