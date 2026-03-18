@@ -58,7 +58,7 @@ async def rate_limit_check(user_id: str, daily_limit: int) -> tuple[bool, int]:
     pipe.incr(key)
     results = await pipe.exec()
 
-    count = int(results[1])
+    count = int(results[1])  # type: ignore[arg-type]  # upstash pipeline returns list[RESTResultT]
     allowed = count <= daily_limit
     remaining = max(0, daily_limit - count)
     return allowed, remaining

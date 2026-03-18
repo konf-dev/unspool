@@ -51,11 +51,12 @@ async def build_active_subgraph(
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for result in results:
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 _log.warning("graph.trigger_failed", error=str(result))
                 continue
-            trigger_results.append(result)
-            context["collected_node_ids"].update(result.node_ids)
+            tr: TriggerResult = result
+            trigger_results.append(tr)
+            context["collected_node_ids"].update(tr.node_ids)
 
     for name, tdef in dependent:
         try:
