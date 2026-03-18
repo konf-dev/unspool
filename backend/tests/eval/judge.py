@@ -96,4 +96,5 @@ async def _call_anthropic(messages: list[dict], model: str) -> str:
         temperature=0.1,
         max_tokens=200,
     )
-    return response.content[0].text
+    block = response.content[0]
+    return block.text  # type: ignore[union-attr]
