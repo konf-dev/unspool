@@ -147,7 +147,7 @@ Intents:
 - "cancel" / "unsubscribe" → META_CANCEL
 - First ever message from user → ONBOARDING
 
-**v0.1 note:** Intent classification is LLM-only — the rule-based fast path described above is not implemented. All messages go through the `classify_intent` prompt using `gpt-5-nano` (fast, cheap classification model) with structured output for guaranteed valid JSON. Disambiguation rules in the prompt handle ambiguous cases like query_search vs query_upcoming, emotional vs status_done, etc.
+**v0.1 note:** Intent classification is LLM-only — the rule-based fast path described above is not implemented. All messages go through the `classify_intent` prompt using `gpt-4.1-nano` (fast, cheap classification model) with structured output for guaranteed valid JSON. Disambiguation rules in the prompt handle ambiguous cases like query_search vs query_upcoming, emotional vs status_done, etc.
 
 **LLM needed for:**
 - "I emailed my supervisor and also need to book flights next week" → MIXED
@@ -702,8 +702,8 @@ Schedule: Daily at midnight UTC (QStash cron)
 
 | Task | Model | Why |
 |------|-------|-----|
-| Intent classification | gpt-5-nano | Purpose-built for classification, cheapest |
-| Extraction / detection / analysis | gpt-4.1-mini | Proven structured JSON, good instruction following |
+| Intent classification | gpt-4.1-nano | Purpose-built for classification, cheapest |
+| Extraction / detection / analysis | gpt-4.1-nano | Proven structured JSON, good instruction following |
 | Response generation | gpt-4.1 (default `LLM_MODEL`) | Literal instruction follower, follows negative constraints reliably |
 
 JSON extraction steps use OpenAI Structured Outputs (`generate_structured()`) for guaranteed schema compliance. Falls back to text parsing on failure.

@@ -1,6 +1,7 @@
 import json
 from typing import Any
 
+from src.config import get_settings
 from src.llm.registry import get_llm_provider
 from src.telemetry.langfuse_integration import observe, update_current_observation
 from src.orchestrator.config_loader import load_config
@@ -41,7 +42,13 @@ async def classify_intent(
             {"role": "user", "content": message},
         ]
 
-        classification_model = intents_config.get("classification_model")
+        # Prefer LLM_MODEL_FAST env var; fall back to YAML config, then default model
+        settings = get_settings()
+        classification_model = (
+            settings.LLM_MODEL_FAST
+            or intents_config.get("classification_model")
+            or None
+        )
 
         try:
             raw_structured = await provider.generate_structured(

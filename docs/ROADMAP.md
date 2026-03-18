@@ -55,7 +55,7 @@ Goal: Iterate on prompts and scoring without praying. Every change is regression
 - [x] **Golden test cases for intent classification** — 35 test cases covering all 10 intents, disambiguation rules, ambiguous inputs
 - [x] **Golden test cases for item extraction** — 10 test cases: count, interpreted_action, deadline_type, energy_estimate, date resolution
 - [x] **Eval CI integration** — `pytest tests/eval/ --eval` with baseline comparison, GitHub Actions workflow
-- [x] **Eval-driven prompt/model fixes** — System prompt rewrite (removed ADHD priming, added negative constraints), 6 prompt fixes, model tiering (gpt-5-nano classify, gpt-4.1-mini extract, gpt-4.1 respond), structured outputs for JSON steps, optional tool steps
+- [x] **Eval-driven prompt/model fixes** — System prompt rewrite (removed ADHD priming, added negative constraints), 6 prompt fixes, model tiering (gpt-4.1-nano classify, gpt-4.1-nano extract, gpt-4.1 respond), structured outputs for JSON steps, optional tool steps
 
 **Unit/integration tests:**
 - [ ] **pick_next scoring tests** — Crafted item lists asserting correct selection (all same urgency, hard deadline today vs high-urgency soft, never-surfaced boost, etc.) — pure unit, no LLM
