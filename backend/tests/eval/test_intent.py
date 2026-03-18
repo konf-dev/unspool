@@ -1,5 +1,6 @@
 import pytest
 
+from tests.eval.client import EvalClient
 from tests.eval.loader import load_golden_cases
 from tests.eval.types import AssertionResult, Assertion, CaseResult
 
@@ -15,31 +16,16 @@ class TestIntentClassification:
     async def test_intent_classification(
         self,
         cases: list,
+        eval_client: EvalClient,
         eval_results: list[CaseResult],
     ) -> None:
-        from src.orchestrator.intent import classify_intent
-        from src.orchestrator.types import Context
-
         for case in cases:
-            ctx = Context(
-                user_id="eval-user-001",
-                trace_id="eval-trace",
-                user_message=case.message,
-            )
-
-            try:
-                intent_name, _pipeline, confidence = await classify_intent(
-                    case.message, ctx
+            if eval_client.target == "local":
+                intent_name, confidence = await self._classify_local(case.message)
+            else:
+                intent_name, confidence = await self._classify_remote(
+                    case.message, eval_client
                 )
-            except Exception as e:
-                eval_results.append(
-                    CaseResult(
-                        case_id=case.id,
-                        passed=False,
-                        error=str(e),
-                    )
-                )
-                continue
 
             passed = intent_name == case.expected_intent
 
@@ -74,3 +60,45 @@ class TestIntentClassification:
                 if r.assertion_results
             )
             pytest.fail(f"Intent classification failures:\n{fail_details}")
+
+    @staticmethod
+    async def _classify_local(message: str) -> tuple[str, float]:
+        from src.orchestrator.intent import classify_intent
+        from src.orchestrator.types import Context
+
+        ctx = Context(
+            user_id="eval-user-001",
+            trace_id="eval-trace",
+            user_message=message,
+        )
+        intent_name, _pipeline, confidence = await classify_intent(message, ctx)
+        return intent_name, confidence
+
+    @staticmethod
+    async def _classify_remote(message: str, client: EvalClient) -> tuple[str, float]:
+        """Send message through the production API and infer intent from the
+        pipeline that ran (visible in llm_usage via admin API)."""
+        import httpx
+
+        await client.cleanup_remote()
+        resp = await client.send_message(message)
+
+        if not client.admin_key:
+            return resp.intent or "unknown", resp.confidence or 0.0
+
+        # Look up what pipeline ran for this trace via admin API
+        if resp.trace_id:
+            async with httpx.AsyncClient(base_url=client.base_url) as http:
+                usage_resp = await http.get(
+                    f"/admin/trace/{resp.trace_id}",
+                    headers={"X-Admin-Key": client.admin_key},
+                    timeout=10.0,
+                )
+                if usage_resp.status_code == 200:
+                    data = usage_resp.json()
+                    usages = data.get("llm_usage", [])
+                    if usages:
+                        pipeline = usages[0].get("pipeline", "unknown")
+                        return pipeline, 1.0
+
+        return "unknown", 0.0
