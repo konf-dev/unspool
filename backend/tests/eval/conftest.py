@@ -73,7 +73,12 @@ def eval_client(eval_target: str) -> EvalClient:
         if resp.status_code == 200:
             print(f"\nEval cleanup: {resp.json()}")
 
-    return EvalClient(target=eval_target, base_url=base_url, auth_token=auth_token)
+    return EvalClient(
+        target=eval_target,
+        base_url=base_url,
+        auth_token=auth_token,
+        admin_key=admin_key,
+    )
 
 
 _session_results: list[CaseResult] = []

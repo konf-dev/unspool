@@ -61,10 +61,12 @@ class EvalClient:
         target: str = "local",
         base_url: str = "http://test",
         auth_token: str | None = None,
+        admin_key: str | None = None,
     ) -> None:
         self.target = target
         self.base_url = base_url
         self.auth_token = auth_token
+        self.admin_key = admin_key
         self._captured_intent: str | None = None
         self._captured_confidence: float | None = None
 
@@ -77,7 +79,35 @@ class EvalClient:
     ) -> EvalResponse:
         if self.target == "local":
             return await self._send_local(message, store=store, session_id=session_id)
-        return await self._send_remote(message, session_id=session_id)
+        resp = await self._send_remote(message, session_id=session_id)
+        if store is not None and self.admin_key:
+            await self._sync_store_from_remote(store)
+        return resp
+
+    async def cleanup_remote(self) -> None:
+        """Delete all eval user data via admin API."""
+        if not self.admin_key:
+            return
+        async with httpx.AsyncClient(base_url=self.base_url) as client:
+            await client.delete(
+                "/admin/eval-cleanup",
+                headers={"X-Admin-Key": self.admin_key},
+                timeout=10.0,
+            )
+
+    async def _sync_store_from_remote(self, store: InMemoryStore) -> None:
+        """Fetch eval user's items from admin API into the local store."""
+        from src.auth.supabase_auth import EVAL_USER_ID
+
+        async with httpx.AsyncClient(base_url=self.base_url) as client:
+            resp = await client.get(
+                f"/admin/user/{EVAL_USER_ID}/items",
+                headers={"X-Admin-Key": self.admin_key or ""},
+                params={"status": "open"},
+                timeout=10.0,
+            )
+            if resp.status_code == 200:
+                store.items = resp.json()
 
     def _build_save_items_mock(self, store: InMemoryStore) -> Any:
         """Build a mock for save_items tool that routes through the InMemoryStore."""
