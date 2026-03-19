@@ -670,13 +670,15 @@ async def _handle_search(
 
     formatted = []
     for r in results[:5]:
-        formatted.append(
-            {
-                "action": r.get("interpreted_action", ""),
-                "status": r.get("status", ""),
-                "deadline": str(r.get("deadline_at", "")),
-            }
-        )
+        entry: dict[str, str] = {
+            "action": r.get("interpreted_action", ""),
+            "raw_text": r.get("raw_text", ""),
+            "status": r.get("status", ""),
+            "created_at": str(r.get("created_at", "")),
+        }
+        if r.get("deadline_at"):
+            entry["deadline"] = str(r["deadline_at"])
+        formatted.append(entry)
     for m in memories[:3]:
         formatted.append({"memory": m.get("content", "")})
 
