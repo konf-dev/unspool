@@ -84,11 +84,17 @@ export function App() {
 
   // Fetch messages when entering chat + handle demo-to-auth bridge
   useEffect(() => {
-    if (isLoading || !isAuthenticated || !token || route !== 'chat') return
+    if (isLoading || !isAuthenticated || route !== 'chat') return
 
     // Clear demo conversation from localStorage (fresh start after sign-in)
     localStorage.removeItem('unspool-demo-messages')
     localStorage.removeItem('unspool-demo-count')
+
+    if (!token) {
+      // Token not ready yet — show welcome message, will re-run when token arrives
+      setMessages([WELCOME_MESSAGE])
+      return
+    }
 
     void fetchMessages(token, 50)
       .then((fetched) => {
