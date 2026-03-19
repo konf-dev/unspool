@@ -36,27 +36,6 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
-      "ProcessConversationRequest": {
-        "properties": {
-          "message_ids": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Message Ids",
-            "type": "array"
-          },
-          "user_id": {
-            "title": "User Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "user_id",
-          "message_ids"
-        ],
-        "title": "ProcessConversationRequest",
-        "type": "object"
-      },
       "ProcessMessageRequest": {
         "properties": {
           "embeddings": {
@@ -813,26 +792,6 @@
         "summary": "Consolidate"
       }
     },
-    "/jobs/decay-urgency": {
-      "post": {
-        "operationId": "decay_urgency_jobs_decay_urgency_post",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Decay Urgency Jobs Decay Urgency Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Decay Urgency"
-      }
-    },
     "/jobs/detect-patterns": {
       "post": {
         "operationId": "detect_patterns_jobs_detect_patterns_post",
@@ -931,86 +890,6 @@
           }
         },
         "summary": "Generate Recurrences"
-      }
-    },
-    "/jobs/process-conversation": {
-      "post": {
-        "operationId": "process_conversation_jobs_process_conversation_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProcessConversationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Process Conversation Jobs Process Conversation Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Process Conversation"
-      }
-    },
-    "/jobs/process-graph": {
-      "post": {
-        "operationId": "process_graph_jobs_process_graph_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProcessConversationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Process Graph Jobs Process Graph Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Process Graph"
       }
     },
     "/jobs/process-message": {

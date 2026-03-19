@@ -12,7 +12,11 @@ class TestSSEFormatting:
     def test_tool_status_running(self) -> None:
         result = format_sse_event("tool_status", tool="save_items", status="running")
         parsed = json.loads(result.removeprefix("data: ").strip())
-        assert parsed == {"type": "tool_status", "tool": "save_items", "status": "running"}
+        assert parsed == {
+            "type": "tool_status",
+            "tool": "save_items",
+            "status": "running",
+        }
 
     def test_tool_status_done(self) -> None:
         result = format_sse_event("tool_status", tool="pick_next", status="done")

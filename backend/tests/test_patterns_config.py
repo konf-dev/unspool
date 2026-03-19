@@ -2,8 +2,8 @@
 
 import pytest
 
-from src.orchestrator.config_loader import load_config
-from src.orchestrator.prompt_renderer import render_prompt
+from src.config_loader import load_config
+from src.prompt_renderer import render_prompt
 
 
 class TestPatternsConfig:

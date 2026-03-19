@@ -1,3 +1,5 @@
+"""Jinja2 prompt template rendering with frontmatter stripping and hash tracking."""
+
 import hashlib
 import re
 from pathlib import Path
@@ -9,17 +11,14 @@ from jinja2.sandbox import SandboxedEnvironment
 
 from src.telemetry.logger import get_logger
 
-_log = get_logger("orchestrator.prompts")
+_log = get_logger("prompt_renderer")
 
-_PROMPTS_DIR = Path(__file__).resolve().parent.parent.parent / "prompts"
+_PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 
 _prompt_hashes: dict[str, str] = {}
 _prompt_meta: dict[str, dict[str, Any]] = {}
 
-# Pattern that matches Jinja2 template syntax in user input
 _JINJA2_PATTERN = re.compile(r"(\{\{|\}\}|\{%|%\}|\{#|#\})")
-
-# Escape map: replace Jinja2 delimiters with safe Unicode lookalikes
 _JINJA2_ESCAPES = {
     "{{": "{ {",
     "}}": "} }",
@@ -31,11 +30,6 @@ _JINJA2_ESCAPES = {
 
 
 def _escape_user_input(value: str) -> str:
-    """Escape Jinja2 template syntax in user-provided strings.
-
-    Prevents template injection by replacing {{ }}, {% %}, {# #} with
-    space-separated versions that render as visible text.
-    """
     return _JINJA2_PATTERN.sub(lambda m: _JINJA2_ESCAPES[m.group()], value)
 
 
@@ -48,10 +42,8 @@ class _PromptLoader(BaseLoader):
             raise TemplateNotFound(template)
         raw = path.read_text(encoding="utf-8")
 
-        # Cache hash on load
         _prompt_hashes[template] = hashlib.sha256(raw.encode()).hexdigest()[:12]
 
-        # Strip frontmatter before returning to Jinja2
         body = raw
         if raw.startswith("---"):
             parts = raw.split("---", maxsplit=2)
@@ -73,7 +65,6 @@ def render_prompt(prompt_name: str, variables: dict[str, Any]) -> str:
     if not path.exists():
         raise FileNotFoundError(f"Prompt template not found: {path}")
 
-    # Escape user-controlled string values to prevent Jinja2 injection
     safe_variables = dict(variables)
     for key in ("user_message", "message", "raw_text"):
         if key in safe_variables and isinstance(safe_variables[key], str):

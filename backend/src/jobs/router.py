@@ -31,12 +31,6 @@ class ProcessMessageRequest(BaseModel):
     embeddings: bool = False
 
 
-# Legacy request model (used by pipeline path)
-class ProcessConversationRequest(BaseModel):
-    user_id: str
-    message_ids: list[str]
-
-
 @router.post("/check-deadlines")
 async def check_deadlines() -> dict:
     trace_id = str(uuid.uuid4())
@@ -146,45 +140,4 @@ async def reset_notifications() -> dict:
     _log.info("job.start", job="reset_notifications", trace_id=trace_id)
     result = await run_reset_notifications()
     _log.info("job.done", job="reset_notifications", trace_id=trace_id)
-    return result
-
-
-# Legacy endpoints — forward to process_message for backward compatibility
-# These are called by the pipeline path's post_processing dispatch
-
-
-@router.post("/process-conversation")
-async def process_conversation(request: ProcessConversationRequest) -> dict:
-    trace_id = str(uuid.uuid4())
-    _log.info("job.start", job="process_conversation_legacy", trace_id=trace_id)
-    result = await run_process_message(
-        user_id=request.user_id,
-        message_ids=request.message_ids,
-        ingest=False,
-        embeddings=True,
-    )
-    _log.info("job.done", job="process_conversation_legacy", trace_id=trace_id)
-    return result
-
-
-@router.post("/process-graph")
-async def process_graph(request: ProcessConversationRequest) -> dict:
-    trace_id = str(uuid.uuid4())
-    _log.info("job.start", job="process_graph_legacy", trace_id=trace_id)
-    result = await run_process_message(
-        user_id=request.user_id,
-        message_ids=request.message_ids,
-        ingest=True,
-        embeddings=False,
-    )
-    _log.info("job.done", job="process_graph_legacy", trace_id=trace_id)
-    return result
-
-
-@router.post("/decay-urgency")
-async def decay_urgency() -> dict:
-    trace_id = str(uuid.uuid4())
-    _log.info("job.start", job="decay_urgency_legacy", trace_id=trace_id)
-    result = await run_expire_items()
-    _log.info("job.done", job="decay_urgency_legacy", trace_id=trace_id)
     return result

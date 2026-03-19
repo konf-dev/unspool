@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.orchestrator.prompt_renderer import render_prompt
+from src.prompt_renderer import render_prompt
 
 
 # Realistic data matching actual pipeline output shapes.
@@ -309,9 +309,7 @@ class TestSystemPromptRendering:
                 + "\n".join(failures)
             )
 
-    def test_query_deep_respond_with_dict_results(self) -> None:
-        """Specifically test query_deep_respond.md with dict results (the Jinja2 collision case)."""
-        result = render_prompt("query_deep_respond.md", REALISTIC_DATA)
+    def test_agent_system_prompt_renders_with_realistic_data(self) -> None:
+        result = render_prompt("agent_system.md", REALISTIC_DATA)
         assert len(result) > 0
-        # The template should access results.items as data, not dict.items()
-        assert "Call dad" in result
+        assert "Unspool" in result

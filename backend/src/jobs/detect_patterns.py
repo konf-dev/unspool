@@ -14,8 +14,8 @@ from src.db.supabase import (
     update_profile,
 )
 from src.llm.registry import get_llm_provider
-from src.orchestrator.config_loader import load_config
-from src.orchestrator.prompt_renderer import render_prompt
+from src.config_loader import load_config
+from src.prompt_renderer import render_prompt
 from src.telemetry.logger import get_logger
 
 _log = get_logger("jobs.detect_patterns")
