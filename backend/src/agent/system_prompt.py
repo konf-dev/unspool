@@ -13,7 +13,7 @@ def build_system_prompt(
     """Build the complete system prompt from template + dynamic data."""
     try:
         prompt = render_prompt(
-            "agent_system",
+            "agent_system.md",
             {
                 "profile": profile or {},
                 "context": context_block,
