@@ -1,15 +1,37 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import type { Message, ActionButton } from '../types'
 import { sendMessage } from '../lib/api'
+import { parseInlineActions } from '../lib/parseActions'
 import { useOffline } from '../hooks/useOffline'
 import { usePush } from '../hooks/usePush'
 import { useCatEasterEgg } from '../hooks/useCatEasterEgg'
 import { usePWAInstall } from '../hooks/usePWAInstall'
+import { useUIMode } from '../contexts/UIMode'
 import { MessageList } from './MessageList'
 import { InputBar } from './InputBar'
 import { OfflineBanner } from './OfflineBanner'
 import { CatEasterEgg } from './CatEasterEgg'
 import './ChatScreen.css'
+
+const TOOL_LABELS: Record<string, string> = {
+  save_items: 'saving...',
+  mark_done: 'marking done...',
+  pick_next: 'picking your next move...',
+  search: 'searching...',
+  get_upcoming: 'checking your schedule...',
+  get_progress: 'checking progress...',
+  update_item: 'updating...',
+  remove_item: 'removing...',
+  save_preference: 'noting that...',
+  decompose_task: 'breaking it down...',
+  remember: 'remembering...',
+  save_event: 'saving event...',
+  log_entry: 'logging...',
+  get_tracker_summary: 'checking tracker...',
+  save_note: 'saving note...',
+  schedule_action: 'scheduling...',
+  manage_collection: 'managing list...',
+}
 
 const QUEUE_KEY = 'unspool-queue'
 
@@ -64,11 +86,15 @@ export function ChatScreen({
   const [isStreaming, setIsStreaming] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
   const [lastAssistantContent, setLastAssistantContent] = useState<string | null>(null)
+  const [toolStatus, setToolStatus] = useState<string | null>(null)
+  const { uiMode, setUIMode } = useUIMode()
   const [queuedMessages, setQueuedMessages] = useState<string[]>(loadQueue)
   const abortRef = useRef<AbortController | null>(null)
   const pendingActionsRef = useRef<ActionButton[] | null>(null)
   const firstTokenReceivedRef = useRef(false)
   const userAbortedRef = useRef(false)
+  const accumulatedRef = useRef('')
+  const rafRef = useRef<number | null>(null)
   const sessionIdRef = useRef(getSessionId())
   const pwaPromptShownRef = useRef(false)
 
@@ -152,8 +178,7 @@ export function ChatScreen({
       pendingActionsRef.current = null
       firstTokenReceivedRef.current = false
       userAbortedRef.current = false
-
-      let accumulated = ''
+      accumulatedRef.current = ''
 
       const controller = sendMessage(
         first,
@@ -164,26 +189,43 @@ export function ChatScreen({
             firstTokenReceivedRef.current = true
             setIsThinking(false)
           }
-          accumulated += t
-          setStreamingContent(accumulated)
+          accumulatedRef.current += t
+          if (rafRef.current === null) {
+            rafRef.current = requestAnimationFrame(() => {
+              setStreamingContent(accumulatedRef.current)
+              rafRef.current = null
+            })
+          }
         },
         (actions) => {
           pendingActionsRef.current = actions
         },
+        (tool, status) => {
+          setToolStatus(status === 'running' ? (TOOL_LABELS[tool] ?? `${tool}...`) : null)
+        },
         () => {
+          if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current)
+            rafRef.current = null
+          }
+          const finalContent = accumulatedRef.current
+          const { cleanContent, actions: inlineActions } = parseInlineActions(finalContent)
+          const allActions = [...(pendingActionsRef.current ?? []), ...inlineActions]
+
           const assistantMessage: Message = {
             id: `assistant-${Date.now()}`,
             role: 'assistant',
-            content: accumulated,
+            content: cleanContent,
             createdAt: new Date().toISOString(),
-            actions: pendingActionsRef.current ?? undefined,
+            actions: allActions.length > 0 ? allActions : undefined,
           }
 
           setMessages((prev) => [...prev, assistantMessage])
-          setLastAssistantContent(accumulated)
+          setLastAssistantContent(cleanContent)
           setStreamingContent(null)
           setIsStreaming(false)
           setIsThinking(false)
+          setToolStatus(null)
           abortRef.current = null
           pendingActionsRef.current = null
           firstTokenReceivedRef.current = false
@@ -193,6 +235,10 @@ export function ChatScreen({
           }
         },
         () => {
+          if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current)
+            rafRef.current = null
+          }
           if (userAbortedRef.current) {
             userAbortedRef.current = false
             return
@@ -200,6 +246,7 @@ export function ChatScreen({
           setIsStreaming(false)
           setIsThinking(false)
           setStreamingContent(null)
+          setToolStatus(null)
           abortRef.current = null
 
           const errorMessage: Message = {
@@ -234,6 +281,7 @@ export function ChatScreen({
     setIsStreaming(false)
     setIsThinking(false)
     setStreamingContent(null)
+    setToolStatus(null)
   }, [])
 
   const handleSend = useCallback(
@@ -276,8 +324,7 @@ export function ChatScreen({
       pendingActionsRef.current = null
       firstTokenReceivedRef.current = false
       userAbortedRef.current = false
-
-      let accumulated = ''
+      accumulatedRef.current = ''
 
       const controller = sendMessage(
         text,
@@ -288,31 +335,52 @@ export function ChatScreen({
             firstTokenReceivedRef.current = true
             setIsThinking(false)
           }
-          accumulated += t
-          setStreamingContent(accumulated)
+          accumulatedRef.current += t
+          if (rafRef.current === null) {
+            rafRef.current = requestAnimationFrame(() => {
+              setStreamingContent(accumulatedRef.current)
+              rafRef.current = null
+            })
+          }
         },
         (actions) => {
           pendingActionsRef.current = actions
         },
+        (tool, status) => {
+          setToolStatus(status === 'running' ? (TOOL_LABELS[tool] ?? `${tool}...`) : null)
+        },
         () => {
+          if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current)
+            rafRef.current = null
+          }
+          const finalContent = accumulatedRef.current
+          const { cleanContent, actions: inlineActions } = parseInlineActions(finalContent)
+          const allActions = [...(pendingActionsRef.current ?? []), ...inlineActions]
+
           const assistantMessage: Message = {
             id: `assistant-${Date.now()}`,
             role: 'assistant',
-            content: accumulated,
+            content: cleanContent,
             createdAt: new Date().toISOString(),
-            actions: pendingActionsRef.current ?? undefined,
+            actions: allActions.length > 0 ? allActions : undefined,
           }
 
           setMessages((prev) => [...prev, assistantMessage])
-          setLastAssistantContent(accumulated)
+          setLastAssistantContent(cleanContent)
           setStreamingContent(null)
           setIsStreaming(false)
           setIsThinking(false)
+          setToolStatus(null)
           abortRef.current = null
           pendingActionsRef.current = null
           firstTokenReceivedRef.current = false
         },
         () => {
+          if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current)
+            rafRef.current = null
+          }
           if (userAbortedRef.current) {
             userAbortedRef.current = false
             return
@@ -320,6 +388,7 @@ export function ChatScreen({
           setIsStreaming(false)
           setIsThinking(false)
           setStreamingContent(null)
+          setToolStatus(null)
           abortRef.current = null
 
           const errorMessage: Message = {
@@ -379,6 +448,14 @@ export function ChatScreen({
         <div className="stars-medium" />
         <div className="stars-large" />
       </div>
+      <button
+        className="mode-toggle-btn"
+        type="button"
+        onClick={() => setUIMode(uiMode === 'thought' ? 'chat' : 'thought')}
+        aria-label={`Switch to ${uiMode === 'thought' ? 'chat' : 'thought'} mode`}
+      >
+        {uiMode === 'thought' ? 'chat view' : 'thought view'}
+      </button>
       <button className="sign-out-btn" type="button" onClick={handleSignOut} aria-label="Sign out">
         sign out
       </button>
@@ -389,6 +466,7 @@ export function ChatScreen({
           streamingContent={streamingContent}
           isStreaming={isStreaming}
           isThinking={isThinking}
+          toolStatus={toolStatus}
           onAction={handleAction}
           queuedContents={queuedSet}
         />

@@ -1,7 +1,7 @@
 # Graph memory system config — production
 
 ingest:
-  quick_model: gpt-4.1-nano
+  quick_model: gpt-4.1
   quick_max_nodes: 10
   deep_model: gpt-4.1-mini
   recent_nodes_context: 30
@@ -14,14 +14,14 @@ retrieval:
     - recent
     - suppression
   graph_walk_hops: 1
-  max_subgraph_nodes: 50
+  max_subgraph_nodes: 100
   semantic_limit: 15
   temporal_window_hours: 48
   recent_limit: 10
   suppression_window_hours: 24
 
 serialization:
-  max_context_tokens: 2000
+  max_context_tokens: 4000
 
 evolution:
   embedding_model: text-embedding-3-small
@@ -37,4 +37,4 @@ feedback:
 
 # When true, graph context is logged but not injected into responses.
 # Set to false to go live.
-shadow_mode: true
+shadow_mode: false

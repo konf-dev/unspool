@@ -57,8 +57,39 @@
   flex-direction: column;
 }
 
+.mode-toggle-btn {
+  position: absolute;
+  top: var(--spacing-sm);
+  left: var(--spacing-md);
+  z-index: 10;
+  background: var(--glass-ai-bg);
+  border: 1px solid var(--glass-ai-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-radius: var(--radius-bubble);
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  min-height: 44px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  box-shadow: var(--glass-glow-ai);
+  transition:
+    color var(--duration-normal) ease,
+    transform var(--duration-fast) ease;
+}
+
+.mode-toggle-btn:hover {
+  color: var(--color-text-secondary);
+}
+
+.mode-toggle-btn:active {
+  transform: scale(0.94);
+}
+
 @supports not (backdrop-filter: blur(1px)) {
-  .sign-out-btn {
+  .sign-out-btn,
+  .mode-toggle-btn {
     background: rgba(30, 30, 40, 0.92);
   }
 }

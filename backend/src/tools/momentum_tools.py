@@ -1,7 +1,7 @@
 from typing import Any
 
 from src.db import supabase as db
-from src.orchestrator.config_loader import load_config
+from src.config_loader import load_config
 from src.tools.registry import register_tool
 from src.telemetry.logger import get_logger
 

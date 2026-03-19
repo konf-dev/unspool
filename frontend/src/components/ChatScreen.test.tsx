@@ -53,88 +53,73 @@ vi.mock('../hooks/usePWAInstall', () => ({
   }),
 }))
 
+import { UIModeProvider } from '../contexts/UIMode'
 import { ChatScreen } from './ChatScreen'
 import type { Message } from '../types'
 
 const WELCOME: Message = {
   id: 'welcome',
   role: 'assistant',
-  content: "hey, i'm unspool.",
+  content: 'hey — dump anything on me. tasks, ideas, deadlines, random thoughts. i sort it out.',
   createdAt: new Date().toISOString(),
-  actions: [{ label: 'suggest something', value: 'what should I do?' }],
+  actions: [{ label: 'what should I do?', value: 'what should I do?' }],
+}
+
+function renderChat(messages: Message[] = [WELCOME]) {
+  return render(
+    <UIModeProvider>
+      <ChatScreen
+        initialMessages={messages}
+        token="test-token"
+        userId="test-user"
+        onSignOut={vi.fn()}
+      />
+    </UIModeProvider>,
+  )
 }
 
 describe('ChatScreen', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockLocalStorage.clear()
+    // Simulate desktop (non-touch) for Enter-to-send behavior
+    Object.defineProperty(window, 'matchMedia', {
+      value: vi.fn((query: string) => ({
+        matches: query === '(pointer: coarse)' ? false : false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+      writable: true,
+    })
   })
 
   it('renders the welcome message', () => {
-    render(
-      <ChatScreen
-        initialMessages={[WELCOME]}
-        token="test-token"
-        userId="test-user"
-        onSignOut={vi.fn()}
-      />,
-    )
-
-    expect(screen.getByText("hey, i'm unspool.")).toBeInTheDocument()
+    renderChat()
+    expect(screen.getByText(/dump anything on me/)).toBeInTheDocument()
   })
 
   it('renders action buttons from welcome message', () => {
-    render(
-      <ChatScreen
-        initialMessages={[WELCOME]}
-        token="test-token"
-        userId="test-user"
-        onSignOut={vi.fn()}
-      />,
-    )
-
-    expect(screen.getByText('suggest something')).toBeInTheDocument()
+    renderChat()
+    expect(screen.getByText('what should I do?')).toBeInTheDocument()
   })
 
   it('has a text input for sending messages', () => {
-    render(
-      <ChatScreen
-        initialMessages={[WELCOME]}
-        token="test-token"
-        userId="test-user"
-        onSignOut={vi.fn()}
-      />,
-    )
-
+    renderChat()
     const textarea = screen.getByPlaceholderText("what's on your mind?")
     expect(textarea).toBeInTheDocument()
   })
 
   it('shows sign out button', () => {
-    render(
-      <ChatScreen
-        initialMessages={[WELCOME]}
-        token="test-token"
-        userId="test-user"
-        onSignOut={vi.fn()}
-      />,
-    )
-
+    renderChat()
     expect(screen.getByText('sign out')).toBeInTheDocument()
   })
 
-  it('sends a message when user types and hits enter', async () => {
+  it('sends a message when user types and hits enter on desktop', async () => {
     const { sendMessage } = await import('../lib/api')
     const user = userEvent.setup()
 
-    render(
-      <ChatScreen
-        initialMessages={[WELCOME]}
-        token="test-token"
-        userId="test-user"
-        onSignOut={vi.fn()}
-      />,
-    )
+    renderChat()
 
     const textarea = screen.getByPlaceholderText("what's on your mind?")
     await user.type(textarea, 'hello')
@@ -148,6 +133,36 @@ describe('ChatScreen', () => {
       expect.any(Function),
       expect.any(Function),
       expect.any(Function),
+      expect.any(Function),
     )
+  })
+
+  it('displays multiple messages in order', () => {
+    const messages: Message[] = [
+      { id: '1', role: 'user', content: 'first message', createdAt: '2026-03-19T10:00:00Z' },
+      { id: '2', role: 'assistant', content: 'second message', createdAt: '2026-03-19T10:00:01Z' },
+    ]
+    renderChat(messages)
+
+    expect(screen.getByText('first message')).toBeInTheDocument()
+    expect(screen.getByText('second message')).toBeInTheDocument()
+  })
+
+  it('shows mode toggle button', () => {
+    renderChat()
+    expect(screen.getByLabelText(/switch to chat mode/i)).toBeInTheDocument()
+  })
+
+  it('clears draft from localStorage on send', async () => {
+    const user = userEvent.setup()
+    mockLocalStorage.setItem('unspool-draft', 'saved draft')
+
+    renderChat()
+
+    const textarea = screen.getByPlaceholderText("what's on your mind?")
+    await user.type(textarea, 'hello')
+    await user.keyboard('{Enter}')
+
+    expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('unspool-draft')
   })
 })

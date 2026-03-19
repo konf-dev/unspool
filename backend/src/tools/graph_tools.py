@@ -1,7 +1,7 @@
 """Graph memory context loader — retrieves and serializes graph context."""
 
 from src.llm.embedding import OpenAIEmbedding
-from src.orchestrator.config_loader import load_config
+from src.config_loader import load_config
 from src.telemetry.logger import get_logger
 from src.tools.registry import register_tool
 

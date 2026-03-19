@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { Message } from './types'
 import { fetchMessages } from './lib/api'
 import { useAuth } from './hooks/useAuth'
+import { UIModeProvider } from './contexts/UIMode'
 import { LandingPage } from './components/LandingPage'
 import { LoginScreen } from './components/LoginScreen'
 import { ChatScreen } from './components/ChatScreen'
@@ -28,11 +29,10 @@ function getInitialRoute(): Route {
 const WELCOME_MESSAGE: Message = {
   id: 'welcome',
   role: 'assistant',
-  content:
-    "hey, i'm unspool. just type whatever's on your mind — tasks, ideas, deadlines, random thoughts. i'll keep track of everything so you don't have to.",
+  content: 'hey — dump anything on me. tasks, ideas, deadlines, random thoughts. i sort it out.',
   createdAt: new Date().toISOString(),
   actions: [
-    { label: 'suggest something', value: 'what should I do?' },
+    { label: 'what should I do?', value: 'what should I do?' },
     { label: 'just dumping', value: 'brain dump time' },
   ],
 }
@@ -158,21 +158,23 @@ export function App() {
   }
 
   return (
-    <div className={fadeClass}>
-      {route === 'privacy' && <PrivacyPage onBack={handleBackToLanding} />}
-      {route === 'terms' && <TermsPage onBack={handleBackToLanding} />}
-      {route === 'landing' && <LandingPage onGetStarted={handleGetStarted} />}
-      {route === 'login' && (
-        <LoginScreen onSignInWithGoogle={signInWithGoogle} onSignInWithEmail={signInWithEmail} />
-      )}
-      {route === 'chat' && (
-        <ChatScreen
-          initialMessages={messages}
-          token={token ?? ''}
-          userId={userId ?? ''}
-          onSignOut={signOut}
-        />
-      )}
-    </div>
+    <UIModeProvider>
+      <div className={fadeClass}>
+        {route === 'privacy' && <PrivacyPage onBack={handleBackToLanding} />}
+        {route === 'terms' && <TermsPage onBack={handleBackToLanding} />}
+        {route === 'landing' && <LandingPage onGetStarted={handleGetStarted} />}
+        {route === 'login' && (
+          <LoginScreen onSignInWithGoogle={signInWithGoogle} onSignInWithEmail={signInWithEmail} />
+        )}
+        {route === 'chat' && (
+          <ChatScreen
+            initialMessages={messages}
+            token={token ?? ''}
+            userId={userId ?? ''}
+            onSignOut={signOut}
+          />
+        )}
+      </div>
+    </UIModeProvider>
   )
 }
