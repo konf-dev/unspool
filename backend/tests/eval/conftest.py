@@ -53,7 +53,7 @@ def pytest_collection_modifyitems(
             item.add_marker(skip_eval)
 
         if tag_filter and hasattr(item, "callspec"):
-            scenario = item.callspec.params.get("scenario")
+            scenario = item.callspec.params.get("scenario")  # type: ignore[attr-defined]
             if scenario and tag_filter not in scenario.get("tags", []):
                 item.add_marker(pytest.mark.skip(reason=f"tag filter: {tag_filter}"))
 
