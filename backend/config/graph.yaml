@@ -24,7 +24,7 @@ serialization:
   max_context_tokens: 2000
 
 evolution:
-  embedding_model: text-embedding-4
+  embedding_model: text-embedding-3-small
   similarity_threshold: 0.8
   dedup_threshold: 0.9
   edge_decay_factor: 0.99

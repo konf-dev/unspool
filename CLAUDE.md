@@ -189,7 +189,7 @@ CREATE TABLE items (
   created_at TIMESTAMPTZ DEFAULT now(),
   last_surfaced_at TIMESTAMPTZ,
   nudge_after TIMESTAMPTZ,
-  embedding vector(1024)
+  embedding vector(1536)
 );
 
 -- RLS policy

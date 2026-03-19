@@ -169,7 +169,7 @@ class SerializationConfig(BaseModel):
 
 
 class EvolutionConfig(BaseModel):
-    embedding_model: str = "text-embedding-4"
+    embedding_model: str = "text-embedding-3-small"
     similarity_threshold: float = 0.8
     dedup_threshold: float = 0.9
     edge_decay_factor: float = 0.99

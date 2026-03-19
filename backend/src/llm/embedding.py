@@ -16,7 +16,6 @@ class OpenAIEmbedding:
         response = await self._client.embeddings.create(
             model=self._model,
             input=text,
-            dimensions=1024,
         )
         return response.data[0].embedding
 
@@ -24,7 +23,6 @@ class OpenAIEmbedding:
         response = await self._client.embeddings.create(
             model=self._model,
             input=texts,
-            dimensions=1024,
         )
         return [item.embedding for item in response.data]
 
