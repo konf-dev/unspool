@@ -3,10 +3,13 @@ import json
 import uuid
 from collections.abc import AsyncIterator
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from src.auth.supabase_auth import get_current_user
+from src.config import get_settings
 from src.telemetry.langfuse_integration import observe, update_current_trace
 from src.db import redis, supabase as db
 from src.integrations.qstash import dispatch_job
@@ -79,12 +82,9 @@ async def _stream_response(
     message: str,
     trace_id: str,
     context_out: list[Context],
+    agent_state_out: list[Any] | None = None,
 ) -> AsyncIterator[str]:
-    context = Context(
-        user_id=user_id,
-        trace_id=trace_id,
-        user_message=message,
-    )
+    settings = get_settings()
 
     update_current_trace(
         user_id=user_id,
@@ -98,6 +98,23 @@ async def _stream_response(
             trace_id=trace_id,
             user_id=user_id,
             message=message[:500],
+        )
+
+        if settings.USE_AGENT:
+            from src.agent.loop import run_agent
+
+            async for tag, payload in run_agent(user_id, message, trace_id):
+                if tag == "__state__" and agent_state_out is not None:
+                    agent_state_out.append(payload)
+                elif tag == "sse":
+                    yield payload
+            return
+
+        # Pipeline path (existing)
+        context = Context(
+            user_id=user_id,
+            trace_id=trace_id,
+            user_message=message,
         )
 
         intent_name, pipeline_name, confidence = await classify_intent(message, context)
@@ -132,10 +149,10 @@ async def _stream_response(
             event = json.dumps({"type": "token", "content": token})
             yield f"data: {event}\n\n"
 
-    context_out.append(context)
+        context_out.append(context)
 
-    done_event = json.dumps({"type": "done"})
-    yield f"data: {done_event}\n\n"
+        done_event = json.dumps({"type": "done"})
+        yield f"data: {done_event}\n\n"
 
 
 async def _dispatch_post_processing(
@@ -171,6 +188,7 @@ async def _save_and_dispatch(
     user_msg_id: str,
     collected_tokens: list[str],
     context_out: list[Context],
+    agent_state_out: list[Any],
     stream_state: dict[str, bool],
 ) -> None:
     full_response = "".join(collected_tokens)
@@ -204,11 +222,30 @@ async def _save_and_dispatch(
         )
 
     if (
-        context_out
-        and assistant_msg_id
-        and stream_state.get("completed")
-        and not stream_state.get("failed")
+        not assistant_msg_id
+        or not stream_state.get("completed")
+        or stream_state.get("failed")
     ):
+        return
+
+    # Agent path: dispatch based on agent state flags
+    if agent_state_out:
+        agent_state = agent_state_out[0]
+        should_dispatch = agent_state.should_ingest or agent_state.saved_items
+        if should_dispatch:
+            payload = {
+                "user_id": user_id,
+                "trace_id": trace_id,
+                "message_ids": [user_msg_id, assistant_msg_id],
+                "tool_calls": agent_state.tool_calls_made,
+                "ingest": agent_state.should_ingest,
+                "embeddings": agent_state.saved_items,
+            }
+            await dispatch_job("process-message", payload, delay=10)
+        return
+
+    # Pipeline path: dispatch based on context post_processing_jobs
+    if context_out:
         await _dispatch_post_processing(context_out[0], user_msg_id, assistant_msg_id)
 
 
@@ -238,6 +275,7 @@ async def chat(
 
     collected_tokens: list[str] = []
     context_out: list[Context] = []
+    agent_state_out: list[Any] = []
     stream_state: dict[str, bool] = {"failed": False, "completed": False}
     save_lock = asyncio.Lock()
 
@@ -245,7 +283,7 @@ async def chat(
         try:
             try:
                 async for chunk in _stream_response(
-                    user_id, request.message, trace_id, context_out
+                    user_id, request.message, trace_id, context_out, agent_state_out
                 ):
                     if '"type": "token"' in chunk:
                         try:
@@ -303,6 +341,7 @@ async def chat(
                     user_msg_id=user_msg_id,
                     collected_tokens=collected_tokens,
                     context_out=context_out,
+                    agent_state_out=agent_state_out,
                     stream_state=stream_state,
                 )
 

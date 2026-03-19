@@ -49,6 +49,8 @@ class Settings(BaseSettings):
 
     CORS_EXTRA_ORIGINS: str = ""
 
+    USE_AGENT: bool = False
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 

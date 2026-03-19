@@ -202,7 +202,8 @@ class TestSystemPromptRendering:
     def test_system_md_renders_without_profile(self) -> None:
         result = render_prompt("system.md", {"profile": None})
         assert "Unspool" in result
-        assert "casual" in result.lower()
+        # When profile is None, preferences section is skipped
+        assert "Tone:" not in result
 
     def test_system_md_renders_with_profile(self) -> None:
         profile = {
