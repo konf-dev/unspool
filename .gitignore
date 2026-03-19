@@ -44,6 +44,9 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
+# Eval results (generated, not committed)
+backend/tests/eval/results/*.json
+
 # Unit test / coverage reports
 htmlcov/
 .tox/

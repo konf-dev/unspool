@@ -1,0 +1,192 @@
+[
+  {
+    "id": "continues_naturally",
+    "conversation": [
+      {"role": "user", "content": "I need to call the dentist"},
+      {"role": "user", "content": "oh and also pick up my prescription"}
+    ],
+    "response_must": [
+      "acknowledge the new item",
+      "not re-acknowledge the dentist unless relevant"
+    ],
+    "response_must_not": [
+      "say 'in addition to the dentist'",
+      "list both items together as if this is the first mention"
+    ],
+    "tags": ["multi_turn", "continuity", "p0"]
+  },
+  {
+    "id": "handles_correction",
+    "conversation": [
+      {"role": "user", "content": "meeting with prof tomorrow at 2pm"},
+      {"role": "user", "content": "wait no, it's at 3pm not 2pm"}
+    ],
+    "response_must": [
+      "acknowledge the correction",
+      "update to the correct time"
+    ],
+    "response_must_not": [
+      "ask which time is correct",
+      "keep both times",
+      "say 'I've updated the meeting from 2pm to 3pm' in overly formal language"
+    ],
+    "tags": ["multi_turn", "correction", "p0"]
+  },
+  {
+    "id": "handles_ambiguity",
+    "conversation": [
+      {"role": "user", "content": "I need to do the thing"}
+    ],
+    "response_must": [
+      "ask for clarification naturally",
+      "be brief about it"
+    ],
+    "response_must_not": [
+      "guess what the thing is",
+      "save a vague item without clarifying",
+      "say 'could you please clarify what you mean by the thing'"
+    ],
+    "tags": ["multi_turn", "ambiguity", "p0"]
+  },
+  {
+    "id": "context_from_conversation",
+    "conversation": [
+      {"role": "user", "content": "thesis chapter 3 is due friday"},
+      {"role": "user", "content": "what should I focus on today?"}
+    ],
+    "tool_results": {
+      "pick_next": {
+        "item": {
+          "interpreted_action": "Work on thesis chapter 3",
+          "energy_estimate": "high",
+          "deadline_at": "2026-03-20T23:59:00Z",
+          "raw_text": "thesis chapter 3"
+        }
+      }
+    },
+    "response_must": [
+      "reference the thesis chapter from the earlier message or tool result",
+      "suggest one thing"
+    ],
+    "response_must_not": [
+      "ignore the context from the first message",
+      "present multiple options"
+    ],
+    "tags": ["multi_turn", "context", "p0"]
+  },
+  {
+    "id": "add_detail_to_existing",
+    "conversation": [
+      {"role": "user", "content": "need to do groceries"},
+      {"role": "user", "content": "oh right, specifically milk, eggs, and bread"}
+    ],
+    "response_must": [
+      "connect the detail to the groceries task",
+      "acknowledge briefly"
+    ],
+    "response_must_not": [
+      "create a separate task for the specific items",
+      "ask if these are for the groceries task"
+    ],
+    "tags": ["multi_turn", "detail", "p0"]
+  },
+  {
+    "id": "topic_switch",
+    "conversation": [
+      {"role": "user", "content": "thesis is going terribly, can't write anything"},
+      {"role": "user", "content": "anyway, I need to book flights for spring break"}
+    ],
+    "response_must": [
+      "follow the topic switch naturally",
+      "acknowledge the new task"
+    ],
+    "response_must_not": [
+      "circle back to the thesis unprompted",
+      "say 'setting aside the thesis for now'",
+      "ask if they want to talk about the thesis first"
+    ],
+    "tags": ["multi_turn", "topic_switch", "p0"]
+  },
+  {
+    "id": "done_then_next",
+    "conversation": [
+      {"role": "user", "content": "finished the literature review"},
+      {"role": "user", "content": "what's next"}
+    ],
+    "tool_results": {
+      "pick_next": {
+        "item": {
+          "interpreted_action": "Email prof about extension",
+          "energy_estimate": "low",
+          "deadline_at": "2026-03-22T17:00:00Z",
+          "raw_text": "email prof about extension"
+        }
+      }
+    },
+    "response_must": [
+      "suggest one task from the tool result",
+      "be concise"
+    ],
+    "response_must_not": [
+      "re-celebrate finishing the literature review",
+      "present multiple options"
+    ],
+    "tags": ["multi_turn", "flow", "p0"]
+  },
+  {
+    "id": "repeated_question",
+    "conversation": [
+      {"role": "user", "content": "what should I do"},
+      {"role": "user", "content": "what should I do"}
+    ],
+    "tool_results": {
+      "pick_next": {
+        "item": {
+          "interpreted_action": "Call dentist",
+          "energy_estimate": "low",
+          "deadline_at": null,
+          "raw_text": "book dentist appointment"
+        }
+      }
+    },
+    "response_must": [
+      "respond helpfully without acknowledging the repetition awkwardly"
+    ],
+    "response_must_not": [
+      "say 'as I mentioned before'",
+      "express confusion about the repeated question"
+    ],
+    "tags": ["multi_turn", "repetition", "p0"]
+  },
+  {
+    "id": "clarification_follow_up",
+    "conversation": [
+      {"role": "user", "content": "I need to submit something by friday"},
+      {"role": "user", "content": "the thesis proposal"}
+    ],
+    "response_must": [
+      "connect 'the thesis proposal' to the previous 'something'",
+      "acknowledge with the friday deadline"
+    ],
+    "response_must_not": [
+      "create two separate items",
+      "ask what needs to be submitted"
+    ],
+    "tags": ["multi_turn", "clarification", "p0"]
+  },
+  {
+    "id": "emotional_then_task",
+    "conversation": [
+      {"role": "user", "content": "today was awful"},
+      {"role": "user", "content": "anyway remind me to call the insurance company tomorrow"}
+    ],
+    "response_must": [
+      "handle the task request without forcing a return to the emotional topic"
+    ],
+    "response_must_not": [
+      "say 'sorry to hear about your day, but here's your reminder'",
+      "dwell on the bad day after the user moved on"
+    ],
+    "tags": ["multi_turn", "emotional_transition", "p0"]
+  }
+]

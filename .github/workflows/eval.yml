@@ -15,7 +15,23 @@ on:
         default: ""
 
 jobs:
+  deterministic:
+    name: Deterministic checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: pip install -r backend/requirements-dev.txt
+      - name: Run deterministic eval checks
+        working-directory: backend
+        run: pytest tests/eval/test_personality_deterministic.py -v
+
   eval:
+    name: LLM-as-judge
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' && github.event.label.name == 'run-eval')
@@ -32,11 +48,12 @@ jobs:
         working-directory: backend
         env:
           LLM_API_KEY: ${{ secrets.EVAL_LLM_API_KEY }}
-          LLM_MODEL: ${{ secrets.EVAL_LLM_MODEL || 'gpt-4o-mini' }}
+          LLM_MODEL: ${{ secrets.EVAL_LLM_MODEL || 'gpt-4.1' }}
           LLM_PROVIDER: ${{ secrets.EVAL_LLM_PROVIDER || 'openai' }}
-          EVAL_JUDGE_MODEL: ${{ secrets.EVAL_JUDGE_MODEL || 'gpt-4o' }}
+          EVAL_JUDGE_MODEL: ${{ secrets.EVAL_JUDGE_MODEL || 'gpt-4.1' }}
           EVAL_JUDGE_PROVIDER: ${{ secrets.EVAL_JUDGE_PROVIDER || 'openai' }}
           OPENAI_API_KEY: ${{ secrets.EVAL_LLM_API_KEY }}
+          LANGFUSE_RELEASE: ${{ github.sha }}
         run: |
           TARGET="${{ github.event.inputs.target || 'local' }}"
           TAG="${{ github.event.inputs.tag }}"
@@ -45,6 +62,10 @@ jobs:
             ARGS="${ARGS} --eval-tag=${TAG}"
           fi
           pytest tests/eval/ ${ARGS}
+      - name: Generate summary
+        if: always()
+        working-directory: backend
+        run: python -m tests.eval.report
       - name: Upload eval report
         if: always()
         uses: actions/upload-artifact@v4

@@ -1,0 +1,225 @@
+[
+  {
+    "id": "brain_dump_first_time",
+    "conversation": [
+      {"role": "user", "content": "dentist, lease renewal friday, need groceries, text sarah, car registration expiring?"}
+    ],
+    "response_must": [
+      "acknowledge all 5 items",
+      "not ask more than 1 follow-up question",
+      "not present items as a numbered or bulleted list",
+      "be under 8 lines"
+    ],
+    "response_must_not": [
+      "use any of these words: tackle, crush, knock out, nail, smash",
+      "say any of: you've got this, one step at a time, let's get started, let's do this",
+      "ask about priority or category",
+      "mention ADHD or executive function"
+    ],
+    "tags": ["brain_dump", "first_interaction", "p0"]
+  },
+  {
+    "id": "brain_dump_mixed_urgency",
+    "conversation": [
+      {"role": "user", "content": "ok so I need to email prof about extension, buy groceries (we're out of milk and eggs), finish the literature review for chapter 2, call mom she's been asking, renew my bus pass it expires next week"}
+    ],
+    "response_must": [
+      "acknowledge all 5 items",
+      "recognize bus pass as time-sensitive (expires next week)",
+      "not ask about priority or category for any item"
+    ],
+    "response_must_not": [
+      "present items as a numbered list",
+      "use motivational language",
+      "ask which item to work on first"
+    ],
+    "tags": ["brain_dump", "p0"]
+  },
+  {
+    "id": "what_should_i_do",
+    "conversation": [
+      {"role": "user", "content": "what should I do"}
+    ],
+    "tool_results": {
+      "pick_next": {
+        "item": {
+          "interpreted_action": "Email prof about extension",
+          "energy_estimate": "low",
+          "deadline_at": "2026-03-21T23:59:00Z",
+          "raw_text": "email prof about extension"
+        }
+      }
+    },
+    "response_must": [
+      "suggest exactly ONE task, not multiple",
+      "mention the specific task from the tool result",
+      "be concise (under 5 lines)"
+    ],
+    "response_must_not": [
+      "present a list of options",
+      "say 'here are some things you could do'",
+      "ask what the user wants to work on"
+    ],
+    "tags": ["pick_next", "core_loop", "p0"]
+  },
+  {
+    "id": "mark_done",
+    "conversation": [
+      {"role": "user", "content": "done with the laundry"}
+    ],
+    "response_must": [
+      "acknowledge completion briefly",
+      "be 1-2 lines max"
+    ],
+    "response_must_not": [
+      "be overly celebratory or say things like 'great job' or 'awesome'",
+      "ask what the user wants to do next unprompted",
+      "use exclamation marks excessively (more than 1)"
+    ],
+    "tags": ["mark_done", "p0"]
+  },
+  {
+    "id": "whats_coming_up",
+    "conversation": [
+      {"role": "user", "content": "what's coming up this week?"}
+    ],
+    "tool_results": {
+      "get_upcoming": {
+        "items": [
+          {"interpreted_action": "Submit thesis chapter 3", "deadline_at": "2026-03-21T17:00:00Z"},
+          {"interpreted_action": "Pay rent", "deadline_at": "2026-04-01T00:00:00Z"}
+        ],
+        "events": [
+          {"summary": "Dentist appointment", "start_at": "2026-03-20T14:00:00Z"}
+        ]
+      }
+    },
+    "response_must": [
+      "mention the items and events from the tool result",
+      "present information in a conversational way, not as a formal list"
+    ],
+    "response_must_not": [
+      "use bullet points or numbered lists",
+      "say 'here's your schedule' or 'here's what's coming up'"
+    ],
+    "tags": ["upcoming", "p0"]
+  },
+  {
+    "id": "search_memory",
+    "conversation": [
+      {"role": "user", "content": "did I ever mention anything about the car?"}
+    ],
+    "tool_results": {
+      "search": {
+        "results": [
+          {"raw_text": "car registration expiring", "created_at": "2026-03-15T10:00:00Z"}
+        ],
+        "count": 1
+      }
+    },
+    "response_must": [
+      "reference the car registration item found",
+      "include when it was mentioned"
+    ],
+    "response_must_not": [
+      "make up information not in the search results",
+      "say 'I searched my records' or expose internal mechanics"
+    ],
+    "tags": ["search", "p0"]
+  },
+  {
+    "id": "idea_capture",
+    "conversation": [
+      {"role": "user", "content": "oh I just had an idea — what if we used attention mechanisms for the fleet scheduling problem in my thesis"}
+    ],
+    "response_must": [
+      "acknowledge the idea positively but briefly",
+      "not ask follow-up questions about the idea unless clarification is truly needed"
+    ],
+    "response_must_not": [
+      "dismiss or evaluate the idea's feasibility",
+      "ask the user to elaborate or provide more detail",
+      "turn it into a task with a deadline"
+    ],
+    "tags": ["ideas", "p0"]
+  },
+  {
+    "id": "update_deadline",
+    "conversation": [
+      {"role": "user", "content": "actually the thesis deadline moved to may 15th"}
+    ],
+    "response_must": [
+      "acknowledge the change",
+      "be brief (1-3 lines)"
+    ],
+    "response_must_not": [
+      "ask for confirmation of the change",
+      "recalculate or mention how much time is left unless the user asks"
+    ],
+    "tags": ["updates", "p0"]
+  },
+  {
+    "id": "removal",
+    "conversation": [
+      {"role": "user", "content": "forget about the groceries, we ordered delivery"}
+    ],
+    "response_must": [
+      "acknowledge removal briefly",
+      "be 1-2 lines"
+    ],
+    "response_must_not": [
+      "ask for confirmation before removing",
+      "suggest alternatives",
+      "ask if there's anything else to remove"
+    ],
+    "tags": ["removal", "p0"]
+  },
+  {
+    "id": "decomposition",
+    "conversation": [
+      {"role": "user", "content": "the thesis chapter feels way too big. can you break it down?"}
+    ],
+    "response_must": [
+      "break the task into smaller concrete steps",
+      "keep steps actionable and specific"
+    ],
+    "response_must_not": [
+      "create more than 5-6 steps",
+      "use generic steps like 'research' or 'plan'",
+      "ask what the chapter is about if context was provided"
+    ],
+    "tags": ["decompose", "p0"]
+  },
+  {
+    "id": "scheduling",
+    "conversation": [
+      {"role": "user", "content": "meeting with supervisor friday at 3pm"}
+    ],
+    "response_must": [
+      "acknowledge the event",
+      "be brief (1-2 lines)"
+    ],
+    "response_must_not": [
+      "ask for a calendar app or location",
+      "ask for confirmation",
+      "say 'I've added this to your calendar' or similar formal phrasing"
+    ],
+    "tags": ["scheduling", "p0"]
+  },
+  {
+    "id": "tracking",
+    "conversation": [
+      {"role": "user", "content": "spent 450 on fuel today"}
+    ],
+    "response_must": [
+      "acknowledge the entry briefly",
+      "be 1-2 lines"
+    ],
+    "response_must_not": [
+      "ask for receipt details or categories",
+      "give financial advice",
+      "ask why the amount is high or low"
+    ],
+    "tags": ["tracking", "p0"]
+  }
+]
