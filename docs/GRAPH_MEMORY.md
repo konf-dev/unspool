@@ -48,7 +48,7 @@ Created by migration `00004_graph_memory_tables.sql`:
 
 ### memory_nodes
 Atomic facts: tasks, people, dates, feelings, raw data.
-- `halfvec(1024)` embeddings (50% memory vs `vector(1024)`)
+- `halfvec(1536)` embeddings (50% memory vs `vector(1536)`)
 - HNSW index with `halfvec_cosine_ops`
 - `source_message_id` FK to `messages` for provenance
 - `last_activated_at` tracks recency for retrieval
@@ -201,7 +201,7 @@ Key log events:
 |-----------|--------------|------|----------------------------------|
 | Ingest (gpt-4.1-nano) | ~$0.001 | Per message | ~$60 |
 | Retrieval (SQL only) | $0 | Per message | $0 |
-| Embedding (text-embedding-4) | ~$0.0001 | Per message | ~$6 |
+| Embedding (text-embedding-3-small) | ~$0.0001 | Per message | ~$6 |
 | Evolution (gpt-4.1-nano) | ~$0.01 | Daily per user | ~$30 |
 | Feedback (gpt-4.1-nano) | ~$0.001 | Per message | ~$60 |
 

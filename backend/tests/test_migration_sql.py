@@ -37,7 +37,7 @@ class TestFullSchema:
 
     def test_graph_uses_halfvec(self) -> None:
         sql = SCHEMA_PATH.read_text()
-        assert "halfvec(1024)" in sql
+        assert "halfvec(1536)" in sql
         assert "halfvec_cosine_ops" in sql
 
     def test_enables_rls_on_all_tables(self) -> None:
