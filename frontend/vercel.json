@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/((?!assets|fonts|icons|manifest\\.json|sw\\.js).*)", "destination": "/index.html" }
+    { "source": "/(chat|login|privacy|terms)", "destination": "/index.html" }
   ],
   "headers": [
     {
