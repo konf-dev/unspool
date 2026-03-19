@@ -35,6 +35,6 @@ class TestRenderPrompt:
         with pytest.raises(FileNotFoundError):
             render_prompt("nonexistent_template_xyz.md", {})
 
-    def test_system_md_renders(self) -> None:
-        result = render_prompt("system.md", {"profile": None})
+    def test_agent_system_renders_basic(self) -> None:
+        result = render_prompt("agent_system.md", {"profile": None, "context": ""})
         assert "Unspool" in result
