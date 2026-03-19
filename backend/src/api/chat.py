@@ -10,7 +10,10 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from src.agent.loop import run_agent
 from src.auth.supabase_auth import get_current_user
-from src.telemetry.langfuse_integration import observe, update_current_trace
+from src.telemetry.langfuse_integration import (
+    observe,
+    update_current_trace,
+)
 from src.db import redis, supabase as db
 from src.integrations.qstash import dispatch_job
 from src.config_loader import load_config
@@ -79,9 +82,12 @@ async def _stream_response(
     agent_state_out: list[Any],
 ) -> AsyncIterator[str]:
     update_current_trace(
+        name=f"chat:{trace_id[:8]}",
         user_id=user_id,
         session_id=trace_id,
+        tags=["chat"],
         input={"message": message[:500]},
+        metadata={"trace_id": trace_id},
     )
 
     async with asyncio.timeout(_PIPELINE_TIMEOUT_SECONDS):

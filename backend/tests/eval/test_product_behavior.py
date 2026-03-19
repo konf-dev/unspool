@@ -1,12 +1,14 @@
-"""Product behavior evals — tool assertions + LLM-as-judge.
+"""Product behavior evals — E2E against deployed API.
 
-These test whether the agent calls the right tools with the right args
-from the user's perspective. Deterministic tool assertions run always;
-LLM-as-judge requires --eval flag.
+Two-phase approach:
+1. Send all 25 messages to Railway, collect responses + trace IDs
+2. Wait for Langfuse ingestion, batch-fetch tool call data
+3. Run Ollama judge + deterministic assertions locally
 
-Run with: pytest tests/eval/test_product_behavior.py --eval -v --timeout=120
+Run with: pytest tests/eval/test_product_behavior.py --eval -v --timeout=600
 """
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -15,9 +17,16 @@ import pytest
 
 from tests.eval.conftest import load_scenarios
 from tests.eval.judge import judge_scenario
-from tests.eval.runner import EvalResult, run_eval_scenario
+from tests.eval.runner import (
+    EvalResult,
+    cleanup_eval_user,
+    enrich_from_langfuse,
+    post_scores_to_langfuse,
+    send_all_scenarios,
+)
 
 SCENARIOS = load_scenarios("product_behavior.json")
+_LANGFUSE_SETTLE_SECONDS = 45
 
 
 def _scenario_ids() -> list[str]:
@@ -31,7 +40,6 @@ def _check_tool_assertion(result: EvalResult, assertion: dict[str, Any]) -> str 
     args_contain = assertion.get("args_contain", {})
     args_present = assertion.get("args_present", [])
 
-    # Resolve which tool to check
     matched_tool: str | None = None
     if tool_name:
         if not result.has_tool(tool_name):
@@ -50,7 +58,6 @@ def _check_tool_assertion(result: EvalResult, assertion: dict[str, Any]) -> str 
     if not matched_tool:
         return None
 
-    # Check args_contain (substring match, case-insensitive)
     for key, substring in args_contain.items():
         if not result.any_tool_arg_contains(matched_tool, key, substring):
             all_args = result.all_tool_args(matched_tool)
@@ -60,13 +67,31 @@ def _check_tool_assertion(result: EvalResult, assertion: dict[str, Any]) -> str 
                 f"got: {actual_values}"
             )
 
-    # Check args_present
     for key in args_present:
         all_args = result.all_tool_args(matched_tool)
         if not any(key in a for a in all_args):
             return f"tool '{matched_tool}' missing required arg '{key}'"
 
     return None
+
+
+# Session-scoped: runs once, sends all messages, fetches Langfuse, stores results
+_RESULTS: dict[str, EvalResult] = {}
+
+
+@pytest.fixture(scope="session", autouse=True)
+async def _run_all_scenarios() -> None:
+    """Phase 1: Clean up, send all messages. Phase 2: Wait, fetch Langfuse."""
+    global _RESULTS
+
+    await cleanup_eval_user()
+
+    # Phase 1: Send all messages to Railway
+    _RESULTS = await send_all_scenarios(SCENARIOS)
+
+    # Phase 2: Wait for Langfuse to fully ingest, then batch-fetch
+    await asyncio.sleep(_LANGFUSE_SETTLE_SECONDS)
+    await enrich_from_langfuse(_RESULTS)
 
 
 @pytest.mark.eval
@@ -76,21 +101,17 @@ async def test_product_behavior(
     eval_config: dict[str, Any],
     results_dir: Path,
 ) -> None:
-    result = await run_eval_scenario(
-        conversation=scenario["conversation"],
-        tool_results=scenario.get("tool_results"),
-    )
+    result = _RESULTS.get(scenario["id"])
+    assert result and result.response, f"no response for scenario {scenario['id']}"
 
-    assert result.response, f"empty response for scenario {scenario['id']}"
-
-    # 1. Deterministic tool assertions (free, no LLM)
+    # 1. Deterministic tool assertions
     tool_assertion_errors: list[str] = []
     for assertion in scenario.get("tool_assertions", []):
         error = _check_tool_assertion(result, assertion)
         if error:
             tool_assertion_errors.append(error)
 
-    # 2. LLM-as-judge on response quality
+    # 2. LLM-as-judge on response quality (Ollama)
     judge_result = await judge_scenario(
         conversation=scenario["conversation"],
         response=result.response,
@@ -104,9 +125,12 @@ async def test_product_behavior(
         "scenario_id": scenario["id"],
         "tags": scenario.get("tags", []),
         "response": result.response,
+        "trace_id": result.trace_id,
+        "langfuse_trace_id": result.langfuse_trace_id,
         "tool_calls": [
             {"name": tc["name"], "args": tc["args"]} for tc in result.tool_calls
         ],
+        "tool_names_sse": result.tool_names_sse,
         "tool_assertion_errors": tool_assertion_errors,
         "judge_score": judge_result.score,
         "judge_passed": judge_result.passed,
@@ -117,6 +141,15 @@ async def test_product_behavior(
     }
     report_path = results_dir / f"{scenario['id']}.json"
     report_path.write_text(json.dumps(report, indent=2))
+
+    # 3. Post scores to Langfuse
+    await post_scores_to_langfuse(
+        langfuse_trace_id=result.langfuse_trace_id,
+        scenario_id=scenario["id"],
+        tool_assertion_passed=not tool_assertion_errors,
+        judge_score=judge_result.score,
+        judge_details=judge_result.results,
+    )
 
     # Assert tool behavior
     assert not tool_assertion_errors, (
