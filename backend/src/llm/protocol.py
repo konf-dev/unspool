@@ -3,6 +3,8 @@ from typing import Any, AsyncIterator, Protocol
 
 from pydantic import BaseModel
 
+from src.agent.types import StreamEvent
+
 
 @dataclass
 class LLMResult:
@@ -41,6 +43,14 @@ class LLMProvider(Protocol):
         model: str | None = None,
         **kwargs: Any,
     ) -> BaseModel: ...
+
+    async def stream_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        model: str | None = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[StreamEvent]: ...
 
 
 class EmbeddingProvider(Protocol):
