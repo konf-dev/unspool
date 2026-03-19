@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import asyncpg
@@ -1195,3 +1195,312 @@ async def get_subscription_by_customer(customer_id: str) -> dict[str, Any] | Non
         customer_id,
     )
     return dict(row) if row else None
+
+
+# --- Generic primitives ---
+
+
+async def save_event(
+    user_id: str,
+    title: str,
+    starts_at: str | datetime | None = None,
+    ends_at: str | datetime | None = None,
+    is_all_day: bool = False,
+    rrule: str | None = None,
+    description: str | None = None,
+    source: str = "user",
+) -> dict[str, Any]:
+    pool = _get_pool()
+    parsed_start = _parse_dt(starts_at)
+    parsed_end = _parse_dt(ends_at)
+    row = await pool.fetchrow(
+        """
+        INSERT INTO events (user_id, title, starts_at, ends_at, is_all_day, rrule, description, source)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *
+        """,
+        user_id,
+        title,
+        parsed_start,
+        parsed_end,
+        is_all_day,
+        rrule,
+        description,
+        source,
+    )
+    return dict(row)
+
+
+async def get_events(
+    user_id: str,
+    hours_ahead: int = 168,
+) -> list[dict[str, Any]]:
+    pool = _get_pool()
+    rows = await pool.fetch(
+        """
+        SELECT * FROM events
+        WHERE user_id = $1
+          AND status = 'active'
+          AND (starts_at IS NULL OR starts_at < now() + ($2 || ' hours')::interval)
+          AND (starts_at IS NULL OR starts_at > now() - interval '1 day')
+        ORDER BY starts_at ASC NULLS LAST
+        LIMIT 50
+        """,
+        user_id,
+        str(hours_ahead),
+    )
+    return [dict(r) for r in rows]
+
+
+async def get_or_create_tracker(
+    user_id: str,
+    name: str,
+    unit: str | None = None,
+    track_type: str = "numeric",
+    created_by: str = "user",
+) -> dict[str, Any]:
+    pool = _get_pool()
+    row = await pool.fetchrow(
+        "SELECT * FROM trackers WHERE user_id = $1 AND lower(name) = lower($2)",
+        user_id,
+        name,
+    )
+    if row:
+        return dict(row)
+    row = await pool.fetchrow(
+        """
+        INSERT INTO trackers (user_id, name, unit, track_type, created_by)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (user_id, lower(name)) DO UPDATE SET active = true
+        RETURNING *
+        """,
+        user_id,
+        name,
+        unit,
+        track_type,
+        created_by,
+    )
+    return dict(row)
+
+
+async def save_tracker_entry(
+    tracker_id: str,
+    user_id: str,
+    value: str,
+    note: str | None = None,
+    recorded_at: str | datetime | None = None,
+) -> dict[str, Any]:
+    pool = _get_pool()
+    parsed_recorded = (
+        _parse_dt(recorded_at) if recorded_at else datetime.now(timezone.utc)
+    )
+    row = await pool.fetchrow(
+        """
+        INSERT INTO tracker_entries (tracker_id, user_id, value, note, recorded_at)
+        VALUES ($1::uuid, $2, $3, $4, $5)
+        RETURNING *
+        """,
+        tracker_id,
+        user_id,
+        value,
+        note,
+        parsed_recorded,
+    )
+    return dict(row)
+
+
+async def get_tracker_entries(
+    user_id: str,
+    tracker_name: str,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    pool = _get_pool()
+    rows = await pool.fetch(
+        """
+        SELECT te.*, t.name, t.unit, t.track_type
+        FROM tracker_entries te
+        JOIN trackers t ON t.id = te.tracker_id
+        WHERE te.user_id = $1 AND lower(t.name) = lower($2)
+        ORDER BY te.recorded_at DESC
+        LIMIT $3
+        """,
+        user_id,
+        tracker_name,
+        limit,
+    )
+    return [dict(r) for r in rows]
+
+
+async def get_user_trackers(user_id: str) -> list[dict[str, Any]]:
+    pool = _get_pool()
+    rows = await pool.fetch(
+        "SELECT * FROM trackers WHERE user_id = $1 AND active = true ORDER BY name",
+        user_id,
+    )
+    return [dict(r) for r in rows]
+
+
+async def save_note(
+    user_id: str,
+    content: str,
+    title: str | None = None,
+    tags: list[str] | None = None,
+) -> dict[str, Any]:
+    pool = _get_pool()
+    row = await pool.fetchrow(
+        """
+        INSERT INTO notes (user_id, title, content, tags)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+        """,
+        user_id,
+        title,
+        content,
+        tags or [],
+    )
+    return dict(row)
+
+
+async def search_notes(
+    user_id: str,
+    query: str,
+    limit: int = 5,
+) -> list[dict[str, Any]]:
+    pool = _get_pool()
+    rows = await pool.fetch(
+        """
+        SELECT * FROM notes
+        WHERE user_id = $1 AND content ILIKE $2
+        ORDER BY updated_at DESC
+        LIMIT $3
+        """,
+        user_id,
+        f"%{query}%",
+        limit,
+    )
+    return [dict(r) for r in rows]
+
+
+async def save_scheduled_action(
+    user_id: str,
+    action_type: str,
+    execute_at: str | datetime,
+    payload: dict[str, Any] | None = None,
+    rrule: str | None = None,
+) -> dict[str, Any]:
+    import json as json_mod
+
+    pool = _get_pool()
+    parsed_at = _parse_dt(execute_at)
+    row = await pool.fetchrow(
+        """
+        INSERT INTO scheduled_actions (user_id, action_type, execute_at, payload, rrule)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING *
+        """,
+        user_id,
+        action_type,
+        parsed_at,
+        json_mod.dumps(payload or {}),
+        rrule,
+    )
+    return dict(row)
+
+
+async def get_pending_actions(before: datetime | None = None) -> list[dict[str, Any]]:
+    pool = _get_pool()
+    target = before or datetime.now(timezone.utc)
+    rows = await pool.fetch(
+        """
+        SELECT * FROM scheduled_actions
+        WHERE status = 'pending' AND execute_at <= $1
+        ORDER BY execute_at ASC
+        LIMIT 100
+        """,
+        target,
+    )
+    return [dict(r) for r in rows]
+
+
+async def update_action_status(action_id: str, status: str) -> None:
+    pool = _get_pool()
+    await pool.execute(
+        "UPDATE scheduled_actions SET status = $2, last_executed_at = now() WHERE id = $1::uuid",
+        action_id,
+        status,
+    )
+
+
+async def save_collection(
+    user_id: str,
+    name: str,
+    description: str | None = None,
+) -> dict[str, Any]:
+    pool = _get_pool()
+    row = await pool.fetchrow(
+        """
+        INSERT INTO collections (user_id, name, description)
+        VALUES ($1, $2, $3)
+        RETURNING *
+        """,
+        user_id,
+        name,
+        description,
+    )
+    return dict(row)
+
+
+async def add_to_collection(
+    collection_id: str,
+    user_id: str,
+    item_id: str,
+) -> dict[str, Any]:
+    pool = _get_pool()
+    row = await pool.fetchrow(
+        """
+        UPDATE collections
+        SET item_ids = array_append(item_ids, $3::uuid), updated_at = now()
+        WHERE id = $1::uuid AND user_id = $2
+        RETURNING *
+        """,
+        collection_id,
+        user_id,
+        item_id,
+    )
+    if not row:
+        raise ValueError(f"Collection {collection_id} not found")
+    return dict(row)
+
+
+async def get_collection(
+    user_id: str,
+    name: str,
+) -> dict[str, Any] | None:
+    pool = _get_pool()
+    row = await pool.fetchrow(
+        "SELECT * FROM collections WHERE user_id = $1 AND lower(name) = lower($2) AND active = true",
+        user_id,
+        name,
+    )
+    return dict(row) if row else None
+
+
+async def get_user_collections(user_id: str) -> list[dict[str, Any]]:
+    pool = _get_pool()
+    rows = await pool.fetch(
+        "SELECT * FROM collections WHERE user_id = $1 AND active = true ORDER BY updated_at DESC",
+        user_id,
+    )
+    return [dict(r) for r in rows]
+
+
+def _parse_dt(value: str | datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    try:
+        return datetime.fromisoformat(value)
+    except (ValueError, TypeError):
+        _log.warning("db.datetime_parse_failed", value=str(value)[:50])
+        return None

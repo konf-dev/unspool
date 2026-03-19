@@ -311,6 +311,208 @@ def get_tool_definitions() -> list[dict[str, Any]]:
                 },
             },
         },
+        {
+            "type": "function",
+            "function": {
+                "name": "save_event",
+                "description": (
+                    "Create an event with a specific time — meetings, appointments, reminders, deadlines, recurring events. "
+                    "Call when the user mentions something happening at a specific time or on a specific date. "
+                    "For recurring events, use rrule (RFC 5545 format). "
+                    "Do NOT use this for tasks without a specific time — use save_items for those."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "Event title"},
+                        "starts_at": {
+                            "type": ["string", "null"],
+                            "description": "ISO 8601 start time, or null for reminders",
+                        },
+                        "ends_at": {
+                            "type": ["string", "null"],
+                            "description": "ISO 8601 end time, or null",
+                        },
+                        "is_all_day": {
+                            "type": "boolean",
+                            "description": "True for all-day events",
+                        },
+                        "rrule": {
+                            "type": ["string", "null"],
+                            "description": "RFC 5545 recurrence rule, e.g. FREQ=MONTHLY;BYMONTHDAY=1",
+                        },
+                        "description": {"type": ["string", "null"]},
+                    },
+                    "required": ["title"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "log_entry",
+                "description": (
+                    "Record a data point for tracking over time — expenses, exercise, sleep, medications, fuel, payments, habits. "
+                    "Auto-creates a tracker if this is the first entry for this type. "
+                    "Call when the user reports a measurable value: 'spent 450 on fuel', 'ran 5km', 'took my meds', 'slept 7 hours'."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "tracker_name": {
+                            "type": "string",
+                            "description": "What's being tracked: 'fuel', 'sleep', 'running', 'electricity'",
+                        },
+                        "value": {
+                            "type": "string",
+                            "description": "The value to log: '450', '5', 'true', '7'",
+                        },
+                        "unit": {
+                            "type": ["string", "null"],
+                            "description": "Unit: 'SEK', 'km', 'hours', 'liters', null for boolean",
+                        },
+                        "track_type": {
+                            "type": "string",
+                            "enum": ["numeric", "boolean", "text", "currency"],
+                        },
+                        "note": {
+                            "type": ["string", "null"],
+                            "description": "Optional context: 'shell station', 'couldn't sleep'",
+                        },
+                    },
+                    "required": ["tracker_name", "value", "track_type"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_tracker_summary",
+                "description": (
+                    "Get recent entries and summary for a tracked metric. "
+                    "Call when the user asks about patterns: 'how's my sleep been', 'how much have I spent on fuel'."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "tracker_name": {
+                            "type": "string",
+                            "description": "Name of the tracker",
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "How many entries to retrieve. Default 20.",
+                        },
+                    },
+                    "required": ["tracker_name"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "save_note",
+                "description": (
+                    "Store freeform information — outlines, lists, references, recipes, flight details, meeting notes. "
+                    "Call when the user shares structured info that isn't a task or event. "
+                    "'here's my thesis outline', 'my flight is SK123 at 2pm', 'recipe for pasta'."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": {
+                            "type": ["string", "null"],
+                            "description": "Optional title",
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "The full note content",
+                        },
+                        "tags": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Tags for retrieval: ['thesis', 'chapter-outline']",
+                        },
+                    },
+                    "required": ["content"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "schedule_action",
+                "description": (
+                    "Schedule a future action — nudge, check-in, question, or reminder at a specific time. "
+                    "Call when the user says 'remind me Tuesday', 'check in next week', 'ask me about meds every morning'. "
+                    "For recurring actions, use rrule."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "action_type": {
+                            "type": "string",
+                            "enum": [
+                                "nudge",
+                                "check_in",
+                                "surface_item",
+                                "ask_question",
+                            ],
+                            "description": "What kind of action to trigger",
+                        },
+                        "execute_at": {
+                            "type": "string",
+                            "description": "ISO 8601 datetime for when to execute",
+                        },
+                        "payload": {
+                            "type": "object",
+                            "description": "Data the action needs: {message: '...', item_id: '...'}",
+                            "additionalProperties": True,
+                        },
+                        "rrule": {
+                            "type": ["string", "null"],
+                            "description": "RFC 5545 recurrence rule for repeating actions",
+                        },
+                    },
+                    "required": ["action_type", "execute_at"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "manage_collection",
+                "description": (
+                    "Manage grouped lists — grocery list, packing list, reading list, etc. "
+                    "Call when the user mentions a list: 'add milk to grocery list', 'what's on my packing list'. "
+                    "Actions: create (new list), add (item to list), list (show contents), dissolve (remove list)."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "enum": ["create", "add", "list", "dissolve"],
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Collection name: 'grocery list', 'packing for Stockholm'",
+                        },
+                        "item_text": {
+                            "type": ["string", "null"],
+                            "description": "For 'add' action: what to add to the collection",
+                        },
+                    },
+                    "required": ["action", "name"],
+                    "additionalProperties": False,
+                },
+            },
+        },
     ]
 
 
@@ -497,6 +699,9 @@ async def _handle_get_upcoming(
 ) -> ToolResult:
     hours = args.get("hours", 168)
     items = await db.get_urgent_items(user_id, hours=hours)
+
+    # Get events from both the new events table and legacy calendar_events
+    events = await db.get_events(user_id, hours_ahead=hours)
     calendar = await db.get_calendar_events_filtered(user_id)
 
     timeline = []
@@ -507,6 +712,15 @@ async def _handle_get_upcoming(
                 "action": item.get("interpreted_action", ""),
                 "deadline": str(item.get("deadline_at", "")),
                 "deadline_type": item.get("deadline_type", ""),
+            }
+        )
+    for event in events:
+        timeline.append(
+            {
+                "type": "event",
+                "title": event.get("title", ""),
+                "start": str(event.get("starts_at", "")),
+                "recurring": bool(event.get("rrule")),
             }
         )
     for event in calendar:
@@ -691,6 +905,257 @@ async def _handle_remember(
     )
 
 
+async def _handle_save_event(
+    args: dict[str, Any], user_id: str, state: AgentState
+) -> ToolResult:
+    title = args.get("title", "")
+    result = await db.save_event(
+        user_id=user_id,
+        title=title,
+        starts_at=args.get("starts_at"),
+        ends_at=args.get("ends_at"),
+        is_all_day=args.get("is_all_day", False),
+        rrule=args.get("rrule"),
+        description=args.get("description"),
+    )
+    state.should_ingest = True
+    return ToolResult(
+        tool_call_id="",
+        name="save_event",
+        output=json.dumps(
+            {
+                "saved": title,
+                "event_id": str(result["id"]),
+                "starts_at": str(result.get("starts_at", "")),
+                "recurring": bool(args.get("rrule")),
+            }
+        ),
+    )
+
+
+async def _handle_log_entry(
+    args: dict[str, Any], user_id: str, state: AgentState
+) -> ToolResult:
+    tracker_name = args.get("tracker_name", "")
+    value = args.get("value", "")
+    unit = args.get("unit")
+    track_type = args.get("track_type", "numeric")
+    note = args.get("note")
+
+    tracker = await db.get_or_create_tracker(
+        user_id=user_id,
+        name=tracker_name,
+        unit=unit,
+        track_type=track_type,
+        created_by="ai",
+    )
+
+    entry = await db.save_tracker_entry(
+        tracker_id=str(tracker["id"]),
+        user_id=user_id,
+        value=value,
+        note=note,
+    )
+
+    return ToolResult(
+        tool_call_id="",
+        name="log_entry",
+        output=json.dumps(
+            {
+                "tracked": tracker_name,
+                "value": value,
+                "unit": unit or tracker.get("unit", ""),
+                "entry_id": str(entry["id"]),
+            }
+        ),
+    )
+
+
+async def _handle_get_tracker_summary(
+    args: dict[str, Any], user_id: str, state: AgentState
+) -> ToolResult:
+    tracker_name = args.get("tracker_name", "")
+    limit = args.get("limit", 20)
+
+    entries = await db.get_tracker_entries(user_id, tracker_name, limit=limit)
+    if not entries:
+        return ToolResult(
+            tool_call_id="",
+            name="get_tracker_summary",
+            output=f"No entries found for '{tracker_name}'.",
+        )
+
+    formatted = []
+    for e in entries:
+        formatted.append(
+            {
+                "value": e.get("value", ""),
+                "unit": e.get("unit", ""),
+                "date": str(e.get("recorded_at", "")),
+                "note": e.get("note", ""),
+            }
+        )
+
+    return ToolResult(
+        tool_call_id="",
+        name="get_tracker_summary",
+        output=json.dumps(
+            {
+                "tracker": tracker_name,
+                "entries": formatted,
+                "count": len(formatted),
+            }
+        ),
+    )
+
+
+async def _handle_save_note(
+    args: dict[str, Any], user_id: str, state: AgentState
+) -> ToolResult:
+    content = args.get("content", "")
+    title = args.get("title")
+    tags = args.get("tags", [])
+
+    result = await db.save_note(
+        user_id=user_id,
+        content=content,
+        title=title,
+        tags=tags,
+    )
+
+    state.should_ingest = True
+    return ToolResult(
+        tool_call_id="",
+        name="save_note",
+        output=json.dumps(
+            {
+                "saved": title or content[:50],
+                "note_id": str(result["id"]),
+            }
+        ),
+    )
+
+
+async def _handle_schedule_action(
+    args: dict[str, Any], user_id: str, state: AgentState
+) -> ToolResult:
+    action_type = args.get("action_type", "nudge")
+    execute_at = args.get("execute_at", "")
+    payload = args.get("payload", {})
+    rrule = args.get("rrule")
+
+    result = await db.save_scheduled_action(
+        user_id=user_id,
+        action_type=action_type,
+        execute_at=execute_at,
+        payload=payload,
+        rrule=rrule,
+    )
+
+    return ToolResult(
+        tool_call_id="",
+        name="schedule_action",
+        output=json.dumps(
+            {
+                "scheduled": action_type,
+                "execute_at": str(result.get("execute_at", "")),
+                "recurring": bool(rrule),
+                "action_id": str(result["id"]),
+            }
+        ),
+    )
+
+
+async def _handle_manage_collection(
+    args: dict[str, Any], user_id: str, state: AgentState
+) -> ToolResult:
+    action = args.get("action", "list")
+    name = args.get("name", "")
+
+    if action == "create":
+        result = await db.save_collection(user_id=user_id, name=name)
+        return ToolResult(
+            tool_call_id="",
+            name="manage_collection",
+            output=json.dumps({"created": name, "collection_id": str(result["id"])}),
+        )
+
+    if action == "add":
+        item_text = args.get("item_text", "")
+        # Save as an item first, then add to collection
+        item = await db.save_item(
+            user_id=user_id,
+            raw_text=item_text,
+            interpreted_action=item_text,
+            deadline_type="none",
+        )
+        collection = await db.get_collection(user_id, name)
+        if not collection:
+            collection = await db.save_collection(user_id=user_id, name=name)
+        await db.add_to_collection(str(collection["id"]), user_id, str(item["id"]))
+        state.saved_items = True
+        return ToolResult(
+            tool_call_id="",
+            name="manage_collection",
+            output=json.dumps({"added": item_text, "to": name}),
+        )
+
+    if action == "list":
+        collection = await db.get_collection(user_id, name)
+        if not collection:
+            return ToolResult(
+                tool_call_id="",
+                name="manage_collection",
+                output=f"No collection named '{name}' found.",
+            )
+        item_ids = collection.get("item_ids", [])
+        if not item_ids:
+            return ToolResult(
+                tool_call_id="",
+                name="manage_collection",
+                output=json.dumps({"collection": name, "items": [], "count": 0}),
+            )
+        items_data = await db.get_items_filtered(
+            user_id=user_id,
+            status="open",
+            limit=50,
+        )
+        id_set = set(str(i) for i in item_ids)
+        matched = [i for i in items_data if str(i.get("id")) in id_set]
+        return ToolResult(
+            tool_call_id="",
+            name="manage_collection",
+            output=json.dumps(
+                {
+                    "collection": name,
+                    "items": [i.get("interpreted_action", "") for i in matched],
+                    "count": len(matched),
+                }
+            ),
+        )
+
+    if action == "dissolve":
+        collection = await db.get_collection(user_id, name)
+        if collection:
+            pool = db.get_pool()
+            await pool.execute(
+                "UPDATE collections SET active = false WHERE id = $1::uuid",
+                str(collection["id"]),
+            )
+        return ToolResult(
+            tool_call_id="",
+            name="manage_collection",
+            output=json.dumps({"dissolved": name}),
+        )
+
+    return ToolResult(
+        tool_call_id="",
+        name="manage_collection",
+        output=f"Unknown action: {action}",
+        is_error=True,
+    )
+
+
 _HANDLERS: dict[str, Any] = {
     "save_items": _handle_save_items,
     "mark_done": _handle_mark_done,
@@ -703,4 +1168,10 @@ _HANDLERS: dict[str, Any] = {
     "save_preference": _handle_save_preference,
     "decompose_task": _handle_decompose_task,
     "remember": _handle_remember,
+    "save_event": _handle_save_event,
+    "log_entry": _handle_log_entry,
+    "get_tracker_summary": _handle_get_tracker_summary,
+    "save_note": _handle_save_note,
+    "schedule_action": _handle_schedule_action,
+    "manage_collection": _handle_manage_collection,
 }

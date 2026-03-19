@@ -26,6 +26,12 @@ class TestToolDefinitions:
             "save_preference",
             "decompose_task",
             "remember",
+            "save_event",
+            "log_entry",
+            "get_tracker_summary",
+            "save_note",
+            "schedule_action",
+            "manage_collection",
         }
         assert names == expected
 
