@@ -1,1 +1,0 @@
-try to have the demo chatbox without background in login page
