@@ -51,5 +51,8 @@ CREATE INDEX IF NOT EXISTS idx_conv_summary_user
     ON conversation_summaries(user_id, message_range_end DESC);
 
 ALTER TABLE conversation_summaries ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "users_own_summaries"
-    ON conversation_summaries FOR ALL USING (auth.uid() = user_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='conversation_summaries' AND policyname='users_own_summaries') THEN
+    CREATE POLICY "users_own_summaries" ON conversation_summaries FOR ALL USING (auth.uid() = user_id);
+  END IF;
+END $$;

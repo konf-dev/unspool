@@ -21,8 +21,11 @@ CREATE INDEX IF NOT EXISTS idx_notif_history_user
     ON notification_history(user_id, created_at DESC);
 
 ALTER TABLE notification_history ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "users_own_notif_history"
-    ON notification_history FOR ALL USING (auth.uid() = user_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='notification_history' AND policyname='users_own_notif_history') THEN
+    CREATE POLICY "users_own_notif_history" ON notification_history FOR ALL USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
 -- ============================================================
 -- 2. proactive_messages — queued messages shown on next app open
@@ -45,8 +48,11 @@ CREATE INDEX IF NOT EXISTS idx_proactive_user_pending
     WHERE status = 'pending';
 
 ALTER TABLE proactive_messages ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "users_own_proactive"
-    ON proactive_messages FOR ALL USING (auth.uid() = user_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='proactive_messages' AND policyname='users_own_proactive') THEN
+    CREATE POLICY "users_own_proactive" ON proactive_messages FOR ALL USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
 -- ============================================================
 -- 3. Replace notification_sent_today with last_notification_at

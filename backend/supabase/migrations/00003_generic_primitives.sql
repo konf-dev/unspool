@@ -28,8 +28,11 @@ CREATE INDEX IF NOT EXISTS idx_events_user_rrule ON events(user_id)
     WHERE rrule IS NOT NULL AND status = 'active';
 
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "users_own_events" ON events FOR ALL
-    USING (auth.uid() = user_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='events' AND policyname='users_own_events') THEN
+    CREATE POLICY "users_own_events" ON events FOR ALL USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
 -- ============================================================
 -- 2. trackers — define what to track (fuel, sleep, meds, etc.)
@@ -43,15 +46,18 @@ CREATE TABLE IF NOT EXISTS trackers (
     created_by TEXT DEFAULT 'user' CHECK (created_by IN ('user', 'ai')),
     active BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT now(),
-    metadata JSONB DEFAULT '{}',
-    UNIQUE(user_id, lower(name))
+    metadata JSONB DEFAULT '{}'
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_trackers_user_name ON trackers(user_id, lower(name));
 CREATE INDEX IF NOT EXISTS idx_trackers_user ON trackers(user_id) WHERE active = true;
 
 ALTER TABLE trackers ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "users_own_trackers" ON trackers FOR ALL
-    USING (auth.uid() = user_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='trackers' AND policyname='users_own_trackers') THEN
+    CREATE POLICY "users_own_trackers" ON trackers FOR ALL USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
 -- ============================================================
 -- 3. tracker_entries — individual data points
@@ -72,8 +78,11 @@ CREATE INDEX IF NOT EXISTS idx_tracker_entries_tracker ON tracker_entries(tracke
 CREATE INDEX IF NOT EXISTS idx_tracker_entries_user ON tracker_entries(user_id, recorded_at DESC);
 
 ALTER TABLE tracker_entries ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "users_own_tracker_entries" ON tracker_entries FOR ALL
-    USING (auth.uid() = user_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='tracker_entries' AND policyname='users_own_tracker_entries') THEN
+    CREATE POLICY "users_own_tracker_entries" ON tracker_entries FOR ALL USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
 -- ============================================================
 -- 4. notes — freeform structured information
@@ -98,8 +107,11 @@ CREATE INDEX IF NOT EXISTS idx_notes_embedding ON notes
 CREATE INDEX IF NOT EXISTS idx_notes_tags ON notes USING gin(tags);
 
 ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "users_own_notes" ON notes FOR ALL
-    USING (auth.uid() = user_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='notes' AND policyname='users_own_notes') THEN
+    CREATE POLICY "users_own_notes" ON notes FOR ALL USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
 -- ============================================================
 -- 5. scheduled_actions — deferred execution at a future time
@@ -123,8 +135,11 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_pending ON scheduled_actions(execute_at
 CREATE INDEX IF NOT EXISTS idx_scheduled_user ON scheduled_actions(user_id, status);
 
 ALTER TABLE scheduled_actions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "users_own_scheduled" ON scheduled_actions FOR ALL
-    USING (auth.uid() = user_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='scheduled_actions' AND policyname='users_own_scheduled') THEN
+    CREATE POLICY "users_own_scheduled" ON scheduled_actions FOR ALL USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
 -- ============================================================
 -- 6. collections — ephemeral groupings of items
@@ -144,5 +159,8 @@ CREATE TABLE IF NOT EXISTS collections (
 CREATE INDEX IF NOT EXISTS idx_collections_user ON collections(user_id) WHERE active = true;
 
 ALTER TABLE collections ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "users_own_collections" ON collections FOR ALL
-    USING (auth.uid() = user_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='collections' AND policyname='users_own_collections') THEN
+    CREATE POLICY "users_own_collections" ON collections FOR ALL USING (auth.uid() = user_id);
+  END IF;
+END $$;
