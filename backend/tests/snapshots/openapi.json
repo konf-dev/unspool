@@ -57,6 +57,52 @@
         "title": "ProcessConversationRequest",
         "type": "object"
       },
+      "ProcessMessageRequest": {
+        "properties": {
+          "embeddings": {
+            "default": false,
+            "title": "Embeddings",
+            "type": "boolean"
+          },
+          "ingest": {
+            "default": false,
+            "title": "Ingest",
+            "type": "boolean"
+          },
+          "message_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Message Ids",
+            "type": "array"
+          },
+          "tool_calls": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Calls"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "message_ids"
+        ],
+        "title": "ProcessMessageRequest",
+        "type": "object"
+      },
       "PushSubscriptionKeys": {
         "properties": {
           "auth": {
@@ -787,6 +833,46 @@
         "summary": "Detect Patterns"
       }
     },
+    "/jobs/evolve-graph": {
+      "post": {
+        "operationId": "evolve_graph_jobs_evolve_graph_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Evolve Graph Jobs Evolve Graph Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Evolve Graph"
+      }
+    },
+    "/jobs/expire-items": {
+      "post": {
+        "operationId": "expire_items_jobs_expire_items_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Expire Items Jobs Expire Items Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Expire Items"
+      }
+    },
     "/jobs/process-conversation": {
       "post": {
         "operationId": "process_conversation_jobs_process_conversation_post",
@@ -867,6 +953,46 @@
         "summary": "Process Graph"
       }
     },
+    "/jobs/process-message": {
+      "post": {
+        "operationId": "process_message_jobs_process_message_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Process Message Jobs Process Message Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Process Message"
+      }
+    },
     "/jobs/reset-notifications": {
       "post": {
         "operationId": "reset_notifications_jobs_reset_notifications_post",
@@ -885,6 +1011,26 @@
           }
         },
         "summary": "Reset Notifications"
+      }
+    },
+    "/jobs/summarize": {
+      "post": {
+        "operationId": "summarize_conversations_jobs_summarize_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Summarize Conversations Jobs Summarize Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Summarize Conversations"
       }
     },
     "/jobs/sync-calendar": {
