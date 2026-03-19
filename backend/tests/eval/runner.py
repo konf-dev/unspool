@@ -155,3 +155,23 @@ class EvalResult:
 
     def has_tool(self, name: str) -> bool:
         return name in self.tool_names
+
+    def tool_args(self, name: str) -> dict[str, Any] | None:
+        """Get args for the first call to this tool, or None."""
+        for tc in self.tool_calls:
+            if tc["name"] == name:
+                return tc["args"]
+        return None
+
+    def all_tool_args(self, name: str) -> list[dict[str, Any]]:
+        """Get args for all calls to this tool."""
+        return [tc["args"] for tc in self.tool_calls if tc["name"] == name]
+
+    def any_tool_arg_contains(self, name: str, key: str, substring: str) -> bool:
+        """Check if any call to tool `name` has arg `key` containing `substring` (case-insensitive)."""
+        for tc in self.tool_calls:
+            if tc["name"] == name:
+                val = tc["args"].get(key)
+                if val is not None and substring.lower() in str(val).lower():
+                    return True
+        return False
