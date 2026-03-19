@@ -6,9 +6,9 @@ cron_jobs:
     schedule: "0 * * * *"
     schedule_id: unspool-check-deadlines
 
-  decay-urgency:
+  expire-items:
     schedule: "0 */6 * * *"
-    schedule_id: unspool-decay-urgency
+    schedule_id: unspool-expire-items
 
   sync-calendar:
     schedule: "0 */4 * * *"
@@ -18,11 +18,20 @@ cron_jobs:
     schedule: "0 3 * * *"
     schedule_id: unspool-detect-patterns
 
+  evolve-graph:
+    schedule: "0 4 * * *"
+    schedule_id: unspool-evolve-graph
+
+  summarize:
+    schedule: "0 5 * * *"
+    schedule_id: unspool-summarize
+
   reset-notifications:
     schedule: "0 0 * * *"
     schedule_id: unspool-reset-notifications
 
-# Maps pipeline post_processing job names to /jobs/ endpoint paths
+# Maps post-processing job names to /jobs/ endpoint paths
 dispatch_map:
   process_conversation: process-conversation
   process_graph: process-graph
+  process_message: process-message
