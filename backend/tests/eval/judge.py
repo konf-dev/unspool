@@ -1,11 +1,15 @@
 """LLM-as-judge: evaluates agent responses against criteria."""
 
+import asyncio
 import json
 from typing import Any
 
 from openai import AsyncOpenAI
 
 from src.config import get_settings
+
+_MAX_RETRIES = 3
+_BACKOFF_BASE = 1.0
 
 _JUDGE_SYSTEM = """You are an eval judge for Unspool, an AI personal assistant.
 You evaluate whether an AI response meets a specific criterion.
@@ -49,32 +53,38 @@ async def judge_criterion(
 
     conv_text = "\n".join(f"{m['role'].upper()}: {m['content']}" for m in conversation)
 
-    try:
-        result = await client.chat.completions.create(
-            model=judge_model,
-            messages=[
-                {"role": "system", "content": _JUDGE_SYSTEM},
-                {
-                    "role": "user",
-                    "content": _JUDGE_USER.format(
-                        conversation=conv_text,
-                        response=response,
-                        criterion=criterion,
-                    ),
-                },
-            ],
-            response_format={"type": "json_object"},
-            temperature=0,
-        )
-        parsed = json.loads(result.choices[0].message.content or "{}")
-        return {
-            "pass": bool(parsed.get("pass", False)),
-            "reason": parsed.get("reason", "no reason provided"),
-        }
-    except (json.JSONDecodeError, IndexError):
-        return {"pass": False, "reason": "judge returned invalid JSON"}
-    except Exception as exc:
-        return {"pass": False, "reason": f"judge API error: {exc}"}
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_RETRIES):
+        try:
+            result = await client.chat.completions.create(
+                model=judge_model,
+                messages=[
+                    {"role": "system", "content": _JUDGE_SYSTEM},
+                    {
+                        "role": "user",
+                        "content": _JUDGE_USER.format(
+                            conversation=conv_text,
+                            response=response,
+                            criterion=criterion,
+                        ),
+                    },
+                ],
+                response_format={"type": "json_object"},
+                temperature=0,
+            )
+            parsed = json.loads(result.choices[0].message.content or "{}")
+            return {
+                "pass": bool(parsed.get("pass", False)),
+                "reason": parsed.get("reason", "no reason provided"),
+            }
+        except (json.JSONDecodeError, IndexError):
+            return {"pass": False, "reason": "judge returned invalid JSON"}
+        except Exception as exc:
+            last_exc = exc
+            if attempt < _MAX_RETRIES - 1:
+                await asyncio.sleep(_BACKOFF_BASE * (2**attempt))
+
+    return {"pass": False, "reason": f"judge API error: {last_exc}"}
 
 
 async def judge_scenario(

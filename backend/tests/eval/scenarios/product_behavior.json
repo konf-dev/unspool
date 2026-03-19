@@ -1,0 +1,458 @@
+[
+  {
+    "id": "track_cigarettes_daily",
+    "conversation": [
+      {"role": "user", "content": "i want you to ask me everyday how many cigs i smoked"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "schedule_action",
+        "args_contain": {"rrule": "FREQ=DAILY"},
+        "args_present": ["action_type"]
+      }
+    ],
+    "response_must": [
+      "acknowledge the daily tracking request"
+    ],
+    "response_must_not": [
+      "lecture about smoking",
+      "mention health risks"
+    ],
+    "tags": ["tracking", "recurring", "p0"]
+  },
+  {
+    "id": "log_cigarettes_numeric",
+    "conversation": [
+      {"role": "user", "content": "i smoked 4 cigs today"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "log_entry",
+        "args_contain": {"value": "4"},
+        "args_present": ["tracker_name"]
+      }
+    ],
+    "response_must": [
+      "acknowledge briefly"
+    ],
+    "response_must_not": [
+      "lecture about smoking",
+      "mention health risks"
+    ],
+    "tags": ["tracking", "logging", "p0"]
+  },
+  {
+    "id": "track_spending_currency",
+    "conversation": [
+      {"role": "user", "content": "spent 30 usd on snacks today, keep track of that"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "log_entry",
+        "args_contain": {"value": "30"},
+        "args_present": ["tracker_name"]
+      }
+    ],
+    "response_must": [
+      "acknowledge the expense was logged"
+    ],
+    "response_must_not": [
+      "ask what category of spending this is"
+    ],
+    "tags": ["tracking", "currency", "p0"]
+  },
+  {
+    "id": "log_meds_boolean",
+    "conversation": [
+      {"role": "user", "content": "took my meds"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "log_entry",
+        "args_present": ["tracker_name"]
+      }
+    ],
+    "response_must": [
+      "acknowledge briefly"
+    ],
+    "response_must_not": [
+      "ask which meds",
+      "ask for dosage"
+    ],
+    "tags": ["tracking", "boolean", "p0"]
+  },
+  {
+    "id": "get_fuel_summary",
+    "conversation": [
+      {"role": "user", "content": "how much have I spent on fuel this month"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "get_tracker_summary",
+        "args_contain": {"tracker_name": "fuel"}
+      }
+    ],
+    "response_must": [
+      "attempt to answer the spending question"
+    ],
+    "response_must_not": [],
+    "tags": ["tracking", "summary", "p0"]
+  },
+  {
+    "id": "remind_call_bank_wednesday",
+    "conversation": [
+      {"role": "user", "content": "remind me next wednesday to call the bank"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "schedule_action",
+        "args_present": ["execute_at"]
+      }
+    ],
+    "response_must": [
+      "mention calling the bank",
+      "mention Wednesday or the specific date"
+    ],
+    "response_must_not": [],
+    "tags": ["reminders", "scheduling", "p0"]
+  },
+  {
+    "id": "remind_2_hours_laundry",
+    "conversation": [
+      {"role": "user", "content": "remind me in 2 hours to take the laundry out"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "schedule_action",
+        "args_present": ["execute_at"]
+      }
+    ],
+    "response_must": [
+      "mention laundry",
+      "mention 2 hours or the approximate time"
+    ],
+    "response_must_not": [],
+    "tags": ["reminders", "relative_time", "p0"]
+  },
+  {
+    "id": "meeting_friday_3pm",
+    "conversation": [
+      {"role": "user", "content": "meeting with prof friday at 3pm"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "save_event",
+        "args_present": ["starts_at"]
+      }
+    ],
+    "response_must": [
+      "acknowledge the meeting"
+    ],
+    "response_must_not": [
+      "ask for more details before saving"
+    ],
+    "tags": ["scheduling", "events", "p0"]
+  },
+  {
+    "id": "dentist_tuesday_1030",
+    "conversation": [
+      {"role": "user", "content": "dentist appointment next tuesday at 10:30am"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "save_event",
+        "args_present": ["starts_at"]
+      }
+    ],
+    "response_must": [
+      "acknowledge the dentist appointment"
+    ],
+    "response_must_not": [],
+    "tags": ["scheduling", "events", "p0"]
+  },
+  {
+    "id": "rent_monthly_recurring",
+    "conversation": [
+      {"role": "user", "content": "rent is due on the 1st every month"}
+    ],
+    "tool_assertions": [
+      {
+        "tool_one_of": ["save_event", "schedule_action"],
+        "args_contain": {"rrule": "FREQ=MONTHLY"}
+      }
+    ],
+    "response_must": [
+      "acknowledge the recurring rent reminder"
+    ],
+    "response_must_not": [],
+    "tags": ["scheduling", "recurring", "p0"]
+  },
+  {
+    "id": "exam_on_the_20th",
+    "conversation": [
+      {"role": "user", "content": "i have an exam on the 20th"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "save_items",
+        "args_contain": {"deadline_at": "20"}
+      }
+    ],
+    "response_must": [
+      "acknowledge the exam deadline"
+    ],
+    "response_must_not": [
+      "ask which subject"
+    ],
+    "tags": ["dates", "deadlines", "p0"]
+  },
+  {
+    "id": "thesis_end_of_april",
+    "conversation": [
+      {"role": "user", "content": "thesis due end of april"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "save_items",
+        "args_contain": {"deadline_at": "2026-04"}
+      }
+    ],
+    "response_must": [
+      "acknowledge the thesis deadline"
+    ],
+    "response_must_not": [],
+    "tags": ["dates", "deadlines", "p0"]
+  },
+  {
+    "id": "bus_pass_expires_next_week",
+    "conversation": [
+      {"role": "user", "content": "bus pass expires next week"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "save_items",
+        "args_present": ["deadline_at"]
+      }
+    ],
+    "response_must": [
+      "treat the bus pass as time-sensitive"
+    ],
+    "response_must_not": [],
+    "tags": ["dates", "deadlines", "p0"]
+  },
+  {
+    "id": "submit_by_friday_5pm",
+    "conversation": [
+      {"role": "user", "content": "need to submit by friday 5pm"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "save_items",
+        "args_contain": {"deadline_at": "17:00"}
+      }
+    ],
+    "response_must": [
+      "acknowledge the Friday deadline"
+    ],
+    "response_must_not": [],
+    "tags": ["dates", "deadlines", "p0"]
+  },
+  {
+    "id": "check_thesis_3_days",
+    "conversation": [
+      {"role": "user", "content": "check in on the thesis in 3 days"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "schedule_action",
+        "args_present": ["execute_at"]
+      }
+    ],
+    "response_must": [
+      "acknowledge the 3-day check-in"
+    ],
+    "response_must_not": [],
+    "tags": ["dates", "reminders", "p0"]
+  },
+  {
+    "id": "add_grocery_items",
+    "conversation": [
+      {"role": "user", "content": "add milk, eggs, and bread to my grocery list"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "manage_collection",
+        "args_contain": {"name": "grocery"}
+      }
+    ],
+    "response_must": [
+      "acknowledge items were added"
+    ],
+    "response_must_not": [
+      "ask for confirmation before adding"
+    ],
+    "tags": ["collections", "p0"]
+  },
+  {
+    "id": "whats_on_grocery_list",
+    "conversation": [
+      {"role": "user", "content": "what's on my grocery list"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "manage_collection",
+        "args_contain": {"name": "grocery"}
+      }
+    ],
+    "response_must": [
+      "attempt to show the grocery list contents"
+    ],
+    "response_must_not": [],
+    "tags": ["collections", "p0"]
+  },
+  {
+    "id": "create_packing_list",
+    "conversation": [
+      {"role": "user", "content": "start a packing list for my trip — passport, charger, headphones"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "manage_collection",
+        "args_contain": {"name": "packing"}
+      }
+    ],
+    "response_must": [
+      "acknowledge the packing list was created with the items"
+    ],
+    "response_must_not": [],
+    "tags": ["collections", "p0"]
+  },
+  {
+    "id": "ask_meds_every_morning",
+    "conversation": [
+      {"role": "user", "content": "ask me about my meds every morning"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "schedule_action",
+        "args_contain": {"rrule": "FREQ=DAILY"}
+      }
+    ],
+    "response_must": [
+      "acknowledge the daily meds check-in"
+    ],
+    "response_must_not": [],
+    "tags": ["proactive", "recurring", "p0"]
+  },
+  {
+    "id": "nudge_thesis_every_3_days",
+    "conversation": [
+      {"role": "user", "content": "nudge me about the thesis every 3 days"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "schedule_action",
+        "args_contain": {"rrule": "FREQ"}
+      }
+    ],
+    "response_must": [
+      "acknowledge the recurring nudge about the thesis"
+    ],
+    "response_must_not": [],
+    "tags": ["proactive", "recurring", "p0"]
+  },
+  {
+    "id": "check_sleep_next_monday",
+    "conversation": [
+      {"role": "user", "content": "check in on my sleep next monday"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "schedule_action",
+        "args_present": ["execute_at"]
+      }
+    ],
+    "response_must": [
+      "acknowledge the Monday sleep check-in"
+    ],
+    "response_must_not": [],
+    "tags": ["proactive", "scheduling", "p0"]
+  },
+  {
+    "id": "stop_tracking_cigarettes",
+    "conversation": [
+      {"role": "user", "content": "stop asking me about the cigarettes"}
+    ],
+    "tool_assertions": [],
+    "response_must": [
+      "acknowledge stopping the cigarette tracking"
+    ],
+    "response_must_not": [
+      "set up any new tracking or reminders"
+    ],
+    "tags": ["proactive", "cancellation", "p0"]
+  },
+  {
+    "id": "cross_fuel_and_car_service",
+    "conversation": [
+      {"role": "user", "content": "spent 450 on fuel. also remind me to get the car serviced next week"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "log_entry",
+        "args_contain": {"value": "450"}
+      },
+      {
+        "tool_one_of": ["schedule_action", "save_items"],
+        "args_present": []
+      }
+    ],
+    "response_must": [
+      "acknowledge both the fuel expense and the car service reminder"
+    ],
+    "response_must_not": [],
+    "tags": ["cross_feature", "p0"]
+  },
+  {
+    "id": "cross_meeting_and_prep",
+    "conversation": [
+      {"role": "user", "content": "i have a meeting friday at 2pm and i need to prep slides for it"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "save_event",
+        "args_present": ["starts_at"]
+      },
+      {
+        "tool": "save_items",
+        "args_present": []
+      }
+    ],
+    "response_must": [
+      "acknowledge both the meeting and the slide prep"
+    ],
+    "response_must_not": [],
+    "tags": ["cross_feature", "p0"]
+  },
+  {
+    "id": "cross_grocery_and_shopping_reminder",
+    "conversation": [
+      {"role": "user", "content": "add milk to grocery list and remind me to go shopping saturday"}
+    ],
+    "tool_assertions": [
+      {
+        "tool": "manage_collection",
+        "args_contain": {"name": "grocery"}
+      },
+      {
+        "tool": "schedule_action",
+        "args_present": ["execute_at"]
+      }
+    ],
+    "response_must": [
+      "acknowledge both adding milk and the Saturday shopping reminder"
+    ],
+    "response_must_not": [],
+    "tags": ["cross_feature", "p0"]
+  }
+]
