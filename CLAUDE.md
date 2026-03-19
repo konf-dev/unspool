@@ -222,6 +222,7 @@ API_URL=http://localhost:8000
 - `docs/DEPLOY.md` — Infrastructure setup and deployment procedures
 - `docs/OBSERVABILITY.md` — Admin API, Langfuse tracing, debugging workflows
 - `docs/ROADMAP.md` — Phased roadmap with current status
+- `docs/EVAL_FRAMEWORK.md` — E2E eval system: architecture, running evals, adding scenarios
 
 ## Git Rules
 
