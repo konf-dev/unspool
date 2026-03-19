@@ -36,14 +36,39 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
-      "ProcessConversationRequest": {
+      "ProcessMessageRequest": {
         "properties": {
+          "embeddings": {
+            "default": false,
+            "title": "Embeddings",
+            "type": "boolean"
+          },
+          "ingest": {
+            "default": false,
+            "title": "Ingest",
+            "type": "boolean"
+          },
           "message_ids": {
             "items": {
               "type": "string"
             },
             "title": "Message Ids",
             "type": "array"
+          },
+          "tool_calls": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Calls"
           },
           "user_id": {
             "title": "User Id",
@@ -54,7 +79,7 @@
           "user_id",
           "message_ids"
         ],
-        "title": "ProcessConversationRequest",
+        "title": "ProcessMessageRequest",
         "type": "object"
       },
       "PushSubscriptionKeys": {
@@ -747,16 +772,16 @@
         "summary": "Check Deadlines"
       }
     },
-    "/jobs/decay-urgency": {
+    "/jobs/consolidate": {
       "post": {
-        "operationId": "decay_urgency_jobs_decay_urgency_post",
+        "operationId": "consolidate_jobs_consolidate_post",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Decay Urgency Jobs Decay Urgency Post",
+                  "title": "Response Consolidate Jobs Consolidate Post",
                   "type": "object"
                 }
               }
@@ -764,7 +789,7 @@
             "description": "Successful Response"
           }
         },
-        "summary": "Decay Urgency"
+        "summary": "Consolidate"
       }
     },
     "/jobs/detect-patterns": {
@@ -787,54 +812,94 @@
         "summary": "Detect Patterns"
       }
     },
-    "/jobs/process-conversation": {
+    "/jobs/evolve-graph": {
       "post": {
-        "operationId": "process_conversation_jobs_process_conversation_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProcessConversationRequest"
-              }
-            }
-          },
-          "required": true
-        },
+        "operationId": "evolve_graph_jobs_evolve_graph_post",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Process Conversation Jobs Process Conversation Post",
+                  "title": "Response Evolve Graph Jobs Evolve Graph Post",
                   "type": "object"
                 }
               }
             },
             "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
-        "summary": "Process Conversation"
+        "summary": "Evolve Graph"
       }
     },
-    "/jobs/process-graph": {
+    "/jobs/execute-actions": {
       "post": {
-        "operationId": "process_graph_jobs_process_graph_post",
+        "operationId": "execute_actions_jobs_execute_actions_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Execute Actions Jobs Execute Actions Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Execute Actions"
+      }
+    },
+    "/jobs/expire-items": {
+      "post": {
+        "operationId": "expire_items_jobs_expire_items_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Expire Items Jobs Expire Items Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Expire Items"
+      }
+    },
+    "/jobs/generate-recurrences": {
+      "post": {
+        "operationId": "generate_recurrences_jobs_generate_recurrences_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Generate Recurrences Jobs Generate Recurrences Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Generate Recurrences"
+      }
+    },
+    "/jobs/process-message": {
+      "post": {
+        "operationId": "process_message_jobs_process_message_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProcessConversationRequest"
+                "$ref": "#/components/schemas/ProcessMessageRequest"
               }
             }
           },
@@ -846,7 +911,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Process Graph Jobs Process Graph Post",
+                  "title": "Response Process Message Jobs Process Message Post",
                   "type": "object"
                 }
               }
@@ -864,7 +929,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Process Graph"
+        "summary": "Process Message"
       }
     },
     "/jobs/reset-notifications": {
@@ -885,6 +950,26 @@
           }
         },
         "summary": "Reset Notifications"
+      }
+    },
+    "/jobs/summarize": {
+      "post": {
+        "operationId": "summarize_conversations_jobs_summarize_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Summarize Conversations Jobs Summarize Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Summarize Conversations"
       }
     },
     "/jobs/sync-calendar": {

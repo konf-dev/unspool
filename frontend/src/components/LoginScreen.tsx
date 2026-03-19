@@ -86,27 +86,6 @@ export function LoginScreen({ onSignInWithGoogle, onSignInWithEmail }: LoginScre
           d="M0 460 Q300 400 600 440 Q900 480 1200 430 Q1350 410 1440 440 L1440 500 L0 500 Z"
           fill="#000"
         />
-        {/* Cat silhouette sitting on the hill */}
-        <g transform="translate(780, 280)">
-          <ellipse cx="0" cy="12" rx="8" ry="12" fill="#000" />
-          <circle cx="0" cy="-4" r="7" fill="#000" />
-          <polygon points="-6,-8 -3,-16 0,-7" fill="#000" />
-          <polygon points="6,-8 3,-16 0,-7" fill="#000" />
-          <path
-            d="M7 15 Q18 8 20 -2 Q21 -6 18 -5"
-            fill="none"
-            stroke="#000"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-          />
-          <circle cx="24" cy="18" r="5" fill="#000" />
-          <path
-            d="M20 18 Q22 14 26 16 Q28 18 24 20 Q22 21 21 18"
-            fill="none"
-            stroke="rgba(93,202,165,0.3)"
-            strokeWidth="0.8"
-          />
-        </g>
       </svg>
 
       <div className="login-content">

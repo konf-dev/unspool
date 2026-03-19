@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import Markdown from 'markdown-to-jsx'
 import type { Message } from '../types'
 import { COMPLETION_KEYWORDS } from '../lib/constants'
+import { useUIMode } from '../contexts/UIMode'
 import { ActionButtons } from './ActionButtons'
 import './MessageBubble.css'
 
@@ -40,6 +41,7 @@ export function MessageBubble({
   onAction,
 }: MessageBubbleProps) {
   const [showTimestamp, setShowTimestamp] = useState(false)
+  const { uiMode } = useUIMode()
 
   const showDoneDot = useMemo(
     () => message.role === 'assistant' && isCompletionMessage(message.content),
@@ -48,6 +50,7 @@ export function MessageBubble({
 
   const isError = message.metadata?.isError === true
   const isSystem = message.metadata?.isSystem === true
+  const thoughtClass = uiMode === 'thought' ? 'thought-mode' : ''
 
   if (isSystem) {
     return (
@@ -65,6 +68,7 @@ export function MessageBubble({
   const bubbleClasses = [
     'message-bubble',
     message.role,
+    thoughtClass,
     isLatest ? 'latest' : '',
     isError ? 'error' : '',
     isQueued ? 'queued' : '',
@@ -75,10 +79,14 @@ export function MessageBubble({
   const truncated =
     message.content.length > 100 ? message.content.slice(0, 100) + '...' : message.content
   const ariaLabel =
-    message.role === 'user' ? `You said: ${truncated}` : `Unspool said: ${truncated}`
+    message.role === 'user'
+      ? `You said: ${truncated}`
+      : uiMode === 'thought'
+        ? `Your thought: ${truncated}`
+        : `Unspool said: ${truncated}`
 
   return (
-    <div className={`message-row ${message.role}`}>
+    <div className={`message-row ${message.role} ${thoughtClass}`}>
       <div>
         <div
           className={bubbleClasses}

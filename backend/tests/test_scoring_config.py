@@ -1,6 +1,6 @@
 import pytest
 
-from src.orchestrator.config_loader import load_config
+from src.config_loader import load_config
 
 
 @pytest.fixture

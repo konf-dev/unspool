@@ -20,11 +20,11 @@
   --glass-glow-user: 0 0 20px rgba(93, 202, 165, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   --glass-glow-accent: 0 0 30px rgba(93, 202, 165, 0.12);
 
-  --color-text-primary: #e0e0e0;
-  --color-text-secondary: #888;
+  --color-text-primary: #E8E4E0;
+  --color-text-secondary: #999;
   --color-text-muted: #737373;
   --color-accent: #5dcaa5;
-  --color-error: #c4736d;
+  --color-error: #c4877f;
 
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -37,7 +37,7 @@
   --spacing-md: 16px;
   --spacing-lg: 24px;
   --spacing-xl: 32px;
-  --spacing-message-gap: 14px;
+  --spacing-message-gap: 16px;
 
   --radius-bubble: 18px;
   --radius-input: 22px;

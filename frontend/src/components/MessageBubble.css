@@ -46,8 +46,9 @@
   border-radius: var(--radius-bubble);
   backdrop-filter: blur(var(--glass-blur)) saturate(120%);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
-  line-height: 1.5;
-  font-size: 0.9375rem;
+  line-height: 1.6;
+  font-size: 1rem;
+  letter-spacing: 0.01em;
   cursor: pointer;
   position: relative;
   transition: transform var(--duration-fast) ease;
@@ -70,9 +71,9 @@
 }
 
 .message-bubble.error {
-  border-color: rgba(196, 115, 109, 0.3);
+  border-color: rgba(196, 135, 127, 0.3);
   box-shadow:
-    0 0 12px rgba(196, 115, 109, 0.06),
+    0 0 12px rgba(196, 135, 127, 0.06),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
@@ -216,7 +217,7 @@
 }
 
 .markdown-content p + p {
-  margin-top: 0.6em;
+  margin-top: 0.85em;
 }
 
 .markdown-content strong {
@@ -259,6 +260,51 @@
 
 .markdown-content a:hover {
   opacity: 0.8;
+}
+
+/* === Thought mode === */
+.message-row.thought-mode.user {
+  justify-content: flex-start;
+}
+
+.message-row.thought-mode.user > div {
+  align-items: flex-start;
+  max-width: 88%;
+}
+
+.message-row.thought-mode .message-bubble.user {
+  background: transparent;
+  border: none;
+  border-left: 2px solid rgba(93, 202, 165, 0.2);
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding-left: var(--spacing-md);
+}
+
+.message-row.thought-mode .message-bubble.assistant {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: var(--spacing-sm) 0;
+}
+
+.message-row.thought-mode .message-bubble:active {
+  transform: none;
+}
+
+.message-row.thought-mode .message-bubble.error {
+  background: var(--glass-ai-bg);
+  border: 1px solid rgba(196, 135, 127, 0.3);
+  border-radius: var(--radius-bubble);
+  box-shadow: 0 0 12px rgba(196, 135, 127, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  padding: var(--spacing-md) var(--spacing-lg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
 }
 
 @supports not (backdrop-filter: blur(1px)) {

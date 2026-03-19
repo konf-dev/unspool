@@ -1,5 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import type { Message } from '../types'
+import { useUIMode } from '../contexts/UIMode'
 import { MessageBubble } from './MessageBubble'
 import { StreamingText } from './StreamingText'
 import { TypingIndicator } from './TypingIndicator'
@@ -10,6 +11,7 @@ interface MessageListProps {
   streamingContent: string | null
   isStreaming: boolean
   isThinking: boolean
+  toolStatus: string | null
   onAction: (value: string) => void
   queuedContents?: Set<string>
 }
@@ -19,14 +21,17 @@ export function MessageList({
   streamingContent,
   isStreaming,
   isThinking,
+  toolStatus,
   onAction,
   queuedContents,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [showJumpToBottom, setShowJumpToBottom] = useState(false)
+  const { uiMode } = useUIMode()
 
   const showStreamingBubble = isStreaming && !isThinking && streamingContent !== null
+  const thoughtClass = uiMode === 'thought' ? 'thought-mode' : ''
 
   const checkAtBottom = useCallback(() => {
     const el = scrollRef.current
@@ -73,13 +78,18 @@ export function MessageList({
           ))}
           {showStreamingBubble && (
             <div style={{ paddingTop: 'var(--spacing-message-gap)' }}>
-              <div className="message-row assistant">
+              <div className={`message-row assistant ${thoughtClass}`}>
                 <div>
-                  <div className="message-bubble assistant">
+                  <div className={`message-bubble assistant ${thoughtClass}`}>
                     <StreamingText content={streamingContent} />
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+          {toolStatus && (
+            <div style={{ paddingTop: 'var(--spacing-xs)', paddingLeft: 'var(--spacing-md)' }}>
+              <span className="tool-status-label">{toolStatus}</span>
             </div>
           )}
           {isThinking && (
@@ -89,7 +99,7 @@ export function MessageList({
                 paddingLeft: 'var(--spacing-md)',
               }}
             >
-              <TypingIndicator />
+              <TypingIndicator mode={uiMode} />
             </div>
           )}
           <div className="message-list-spacer" />

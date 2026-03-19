@@ -66,9 +66,13 @@ class TestFullSchema:
         assert "config_hash" in sql
         assert "ttft_ms" in sql
 
-    def test_no_old_migration_files(self) -> None:
-        files = list(MIGRATIONS_DIR.glob("*.sql"))
-        assert len(files) == 1, (
-            f"Expected 1 migration file, found: {[f.name for f in files]}"
-        )
+    def test_migration_files_sequential(self) -> None:
+        files = sorted(MIGRATIONS_DIR.glob("*.sql"))
+        assert len(files) >= 1
         assert files[0].name == "00001_full_schema.sql"
+        # Verify sequential numbering
+        for i, f in enumerate(files):
+            expected_prefix = f"{i + 1:05d}_"
+            assert f.name.startswith(expected_prefix), (
+                f"Migration {f.name} doesn't follow sequential numbering"
+            )

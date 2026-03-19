@@ -8,8 +8,8 @@ from src.graph import db
 from src.graph.types import EvolutionOutput, EvolutionResult
 from src.llm.embedding import OpenAIEmbedding
 from src.llm.registry import get_llm_provider
-from src.orchestrator.config_loader import load_config
-from src.orchestrator.prompt_renderer import render_prompt
+from src.config_loader import load_config
+from src.prompt_renderer import render_prompt
 from src.telemetry.logger import get_logger
 
 _log = get_logger("graph.evolve")

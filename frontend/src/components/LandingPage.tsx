@@ -66,20 +66,6 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
           d="M0 370 Q300 330 600 360 Q900 390 1200 350 Q1350 340 1440 365 L1440 400 L0 400 Z"
           fill="rgba(0,0,0,0.7)"
         />
-        {/* Cat silhouette */}
-        <g transform="translate(920, 210)">
-          <ellipse cx="0" cy="12" rx="7" ry="10" fill="rgba(0,0,0,0.5)" />
-          <circle cx="0" cy="-2" r="6" fill="rgba(0,0,0,0.5)" />
-          <polygon points="-5,-6 -2,-13 0,-5" fill="rgba(0,0,0,0.5)" />
-          <polygon points="5,-6 2,-13 0,-5" fill="rgba(0,0,0,0.5)" />
-          <path
-            d="M6 13 Q15 7 17 -1 Q18 -4 15 -3"
-            fill="none"
-            stroke="rgba(0,0,0,0.5)"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </g>
       </svg>
     </div>
   )

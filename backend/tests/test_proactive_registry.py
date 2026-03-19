@@ -1,7 +1,7 @@
 """Tests for proactive condition evaluator registry."""
 
 from src.api.messages import _CONDITION_EVALUATORS
-from src.orchestrator.config_loader import load_config
+from src.config_loader import load_config
 
 
 class TestProactiveRegistry:

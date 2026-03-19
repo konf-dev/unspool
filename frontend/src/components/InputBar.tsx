@@ -5,6 +5,9 @@ import { useVoice } from '../hooks/useVoice'
 import { VoiceInput } from './VoiceInput'
 import './InputBar.css'
 
+const DRAFT_KEY = 'unspool-draft'
+const HINT_KEY = 'unspool-shift-enter-hint-dismissed'
+
 interface InputBarProps {
   onSend: (message: string) => void
   isStreaming: boolean
@@ -12,8 +15,12 @@ interface InputBarProps {
 }
 
 export function InputBar({ onSend, isStreaming, onStop }: InputBarProps) {
-  const [value, setValue] = useState('')
+  const [value, setValue] = useState(() => localStorage.getItem(DRAFT_KEY) ?? '')
+  const [showHint, setShowHint] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const hintDismissedRef = useRef(localStorage.getItem(HINT_KEY) === 'true')
+  const sendCountRef = useRef(0)
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { isRecording, isSupported, transcript, startRecording, stopRecording, clearTranscript } =
     useVoice()
 
@@ -26,23 +33,61 @@ export function InputBar({ onSend, isStreaming, onStop }: InputBarProps) {
     }
   }, [transcript, stopRecording, clearTranscript])
 
+  // Draft auto-save (debounced 500ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (value.trim()) {
+        localStorage.setItem(DRAFT_KEY, value)
+      } else {
+        localStorage.removeItem(DRAFT_KEY)
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [value])
+
+  const dismissHint = useCallback(() => {
+    setShowHint(false)
+    hintDismissedRef.current = true
+    localStorage.setItem(HINT_KEY, 'true')
+    if (hintTimerRef.current) {
+      clearTimeout(hintTimerRef.current)
+      hintTimerRef.current = null
+    }
+  }, [])
+
   const handleSend = useCallback(() => {
     const trimmed = value.trim()
     if (!trimmed) return
     navigator.vibrate?.(10)
     onSend(trimmed)
     setValue('')
+    localStorage.removeItem(DRAFT_KEY)
     requestAnimationFrame(() => textareaRef.current?.focus())
-  }, [value, onSend])
+
+    sendCountRef.current += 1
+    if (
+      sendCountRef.current === 1 &&
+      !hintDismissedRef.current &&
+      !window.matchMedia('(pointer: coarse)').matches
+    ) {
+      setShowHint(true)
+      hintTimerRef.current = setTimeout(dismissHint, 8000)
+    }
+  }, [value, onSend, dismissHint])
+
+  const isTouchDevice = useRef(window.matchMedia('(pointer: coarse)').matches)
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey && !isTouchDevice.current) {
         e.preventDefault()
         handleSend()
       }
+      if (e.key === 'Enter' && e.shiftKey && showHint) {
+        dismissHint()
+      }
     },
-    [handleSend],
+    [handleSend, showHint, dismissHint],
   )
 
   const handleVoiceToggle = useCallback(() => {
@@ -52,6 +97,12 @@ export function InputBar({ onSend, isStreaming, onStop }: InputBarProps) {
       startRecording()
     }
   }, [isRecording, startRecording, stopRecording])
+
+  useEffect(() => {
+    return () => {
+      if (hintTimerRef.current) clearTimeout(hintTimerRef.current)
+    }
+  }, [])
 
   const hasText = value.trim().length > 0
   const placeholder = isRecording ? 'listening...' : "what's on your mind?"
@@ -131,6 +182,7 @@ export function InputBar({ onSend, isStreaming, onStop }: InputBarProps) {
         />
         {renderButton()}
       </div>
+      {showHint && <div className="input-hint">shift+enter for new line</div>}
     </div>
   )
 }
