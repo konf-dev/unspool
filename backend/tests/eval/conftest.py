@@ -60,16 +60,10 @@ def pytest_collection_modifyitems(
 
 @pytest.fixture(scope="session")
 def eval_config(request: pytest.FixtureRequest) -> dict[str, Any]:
-    model = request.config.getoption("--eval-model") or os.environ.get(
-        "LLM_MODEL", "gpt-4.1"
-    )
-    judge_model = os.environ.get("EVAL_JUDGE_MODEL", "gpt-4.1")
-    judge_provider = os.environ.get("EVAL_JUDGE_PROVIDER", "openai")
+    judge_model = os.environ.get("EVAL_JUDGE_MODEL", "qwen2.5-coder:32b")
     return {
         "target": request.config.getoption("--eval-target"),
-        "model": model,
         "judge_model": judge_model,
-        "judge_provider": judge_provider,
         "commit_sha": os.environ.get("GITHUB_SHA", "local"),
     }
 

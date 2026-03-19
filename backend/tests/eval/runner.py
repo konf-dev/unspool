@@ -1,157 +1,272 @@
-"""Eval runner: executes the agent loop with controlled context and mocked tools."""
+"""Eval runner: two-phase E2E testing against the deployed API.
 
+Phase 1 (send_all_scenarios): Fire messages to Railway, collect responses + trace IDs.
+Phase 2 (enrich_from_langfuse): Batch-fetch tool call data from Langfuse after ingestion.
+"""
+
+import asyncio
 import json
+import os
 import uuid
 from typing import Any
-from unittest.mock import AsyncMock, patch
 
-from src.agent.loop import run_agent
-from src.agent.types import ToolResult
+import httpx
 
+API_URL = os.environ.get("EVAL_API_URL", "https://api.unspool.life")
+EVAL_API_KEY = os.environ.get("EVAL_API_KEY", "")
+ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY", "")
 
-# Plausible tool results for eval — the agent should respond well regardless
-_TOOL_RESULTS: dict[str, Any] = {
-    "save_items": {"saved": True, "count": 0},  # count set dynamically
-    "mark_done": {"marked": True, "item": "task"},
-    "pick_next": {
-        "item": {
-            "interpreted_action": "Email prof about extension",
-            "energy_estimate": "low",
-            "deadline_at": None,
-            "raw_text": "email prof about extension",
-        }
-    },
-    "search": {"results": [], "count": 0},
-    "get_upcoming": {"items": [], "events": []},
-    "get_progress": {"done_today": 2, "done_this_week": 8, "open": 12},
-    "update_item": {"updated": True},
-    "remove_item": {"removed": True},
-    "save_preference": {"saved": True},
-    "decompose_task": {"steps": ["step 1", "step 2", "step 3"]},
-    "remember": {"noted": True},
-    "save_event": {"saved": True, "event_id": "evt-123"},
-    "log_entry": {"logged": True},
-    "get_tracker_summary": {"entries": [], "summary": "no data yet"},
-    "save_note": {"saved": True},
-    "schedule_action": {"scheduled": True},
-    "manage_collection": {"ok": True},
-}
+LANGFUSE_HOST = os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com")
+LANGFUSE_PUBLIC_KEY = os.environ.get("LANGFUSE_PUBLIC_KEY", "")
+LANGFUSE_SECRET_KEY = os.environ.get("LANGFUSE_SECRET_KEY", "")
 
 
-def _make_tool_handler(tool_results: dict[str, Any] | None = None) -> AsyncMock:
-    results = {**_TOOL_RESULTS, **(tool_results or {})}
-
-    async def _handler(
-        name: str, args: dict[str, Any], user_id: str, state: Any
-    ) -> ToolResult:
-        result = results.get(name, {"ok": True})
-
-        # Dynamic: save_items count
-        if name == "save_items" and "items" in args:
-            result = {**result, "count": len(args["items"])}
-
-        return ToolResult(
-            tool_call_id="",
-            name=name,
-            output=json.dumps(result),
+async def cleanup_eval_user() -> None:
+    """Delete all data for the eval user before a run."""
+    if not ADMIN_API_KEY:
+        return
+    async with httpx.AsyncClient(timeout=15) as client:
+        await client.delete(
+            f"{API_URL}/admin/eval-cleanup",
+            headers={"X-Admin-Key": ADMIN_API_KEY},
         )
 
-    mock = AsyncMock(side_effect=_handler)
-    return mock
+
+async def send_message(message: str, session_id: str) -> "EvalResult":
+    """POST to /api/chat, parse SSE stream. Returns an EvalResult (no Langfuse data yet)."""
+    async with httpx.AsyncClient(timeout=90) as client:
+        async with client.stream(
+            "POST",
+            f"{API_URL}/api/chat",
+            json={"message": message, "session_id": session_id},
+            headers={
+                "Authorization": f"Bearer eval:{EVAL_API_KEY}",
+                "Content-Type": "application/json",
+            },
+        ) as resp:
+            resp.raise_for_status()
+            # Railway edge may add its own X-Trace-Id — take the first one (ours)
+            raw_trace = resp.headers.get("x-trace-id", "")
+            trace_id = raw_trace.split(",")[0].strip()
+
+            tokens: list[str] = []
+            tool_names_sse: list[str] = []
+
+            async for line in resp.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
+                try:
+                    event = json.loads(line.removeprefix("data: "))
+                except json.JSONDecodeError:
+                    continue
+
+                if event.get("type") == "token":
+                    tokens.append(event.get("content", ""))
+                elif (
+                    event.get("type") == "tool_status" and event.get("status") == "done"
+                ):
+                    tool_names_sse.append(event.get("tool", ""))
+
+            return EvalResult(
+                response="".join(tokens),
+                tool_names_sse=tool_names_sse,
+                trace_id=trace_id,
+                session_id=session_id,
+            )
 
 
 async def run_eval_scenario(
     conversation: list[dict[str, str]],
-    context_block: str = "",
-    profile: dict[str, Any] | None = None,
-    tool_results: dict[str, Any] | None = None,
-    seed_messages: list[dict[str, Any]] | None = None,
+    **kwargs: Any,
 ) -> "EvalResult":
-    """Run the agent loop for an eval scenario.
+    """Compat wrapper: send a single scenario's conversation and return the result.
 
-    Args:
-        conversation: List of {"role": "user", "content": "..."} messages.
-            Multi-turn: runs the agent for each user message sequentially.
-        context_block: Pre-built <context> block for the system prompt.
-        profile: User profile dict (tone, timezone, etc).
-        tool_results: Override default tool results for specific tools.
-        seed_messages: Pre-existing conversation history.
-
-    Returns:
-        EvalResult with response text, tool calls, and metadata.
+    Used by Layer 1 eval tests (conversation_quality, personality, etc.).
+    Does NOT fetch Langfuse data — those tests only need the response text.
     """
-    default_profile: dict[str, Any] = {
-        "timezone": "America/New_York",
-        "tone_preference": "casual",
-        "length_preference": "medium",
-        "pushiness_preference": "gentle",
-        "uses_emoji": False,
-        "primary_language": "en",
-        "display_name": "Test User",
-    }
-    merged_profile = {**default_profile, **(profile or {})}
-    history = list(seed_messages or [])
-    user_id = f"eval-{uuid.uuid4().hex[:8]}"
-    trace_id = f"eval-{uuid.uuid4().hex[:12]}"
-
-    tool_handler = _make_tool_handler(tool_results)
-    all_responses: list[str] = []
-    all_tool_calls: list[dict[str, Any]] = []
-
+    session_id = f"eval-{uuid.uuid4().hex[:12]}"
+    result: EvalResult | None = None
     for turn in conversation:
         if turn["role"] != "user":
             continue
+        result = await send_message(turn["content"], session_id)
+    if not result:
+        return EvalResult(response="", tool_names_sse=[], trace_id="", session_id="")
+    return result
 
-        mock_context = AsyncMock(return_value=(context_block, merged_profile, history))
 
-        with (
-            patch("src.agent.loop.assemble_context", mock_context),
-            patch("src.agent.loop.execute_tool", tool_handler),
-        ):
-            response_text = ""
-            tool_calls: list[dict[str, Any]] = []
+async def send_all_scenarios(
+    scenarios: list[dict[str, Any]],
+) -> dict[str, "EvalResult"]:
+    """Phase 1: Send all scenario messages to Railway sequentially.
 
-            async for tag, payload in run_agent(user_id, turn["content"], trace_id):
-                if tag == "sse":
-                    pass  # SSE events not needed for eval
-                elif tag == "__state__":
-                    response_text = payload.response_text
-                    tool_calls = payload.tool_calls_made
+    Returns {scenario_id: EvalResult} with response + SSE data (no Langfuse yet).
+    """
+    results: dict[str, EvalResult] = {}
 
-        all_responses.append(response_text)
-        all_tool_calls.extend(tool_calls)
+    for scenario in scenarios:
+        scenario_id = scenario["id"]
+        session_id = f"eval-{uuid.uuid4().hex[:12]}"
 
-        # Add to history for multi-turn
-        history.append({"role": "user", "content": turn["content"]})
-        history.append({"role": "assistant", "content": response_text})
+        # Send each turn in the conversation
+        result: EvalResult | None = None
+        for turn in scenario["conversation"]:
+            if turn["role"] != "user":
+                continue
+            result = await send_message(turn["content"], session_id)
 
-    return EvalResult(
-        response=all_responses[-1] if all_responses else "",
-        all_responses=all_responses,
-        tool_calls=all_tool_calls,
-        user_id=user_id,
-        trace_id=trace_id,
-    )
+        if result:
+            results[scenario_id] = result
+
+    return results
+
+
+async def enrich_from_langfuse(
+    results: dict[str, "EvalResult"],
+) -> None:
+    """Phase 2: Batch-fetch tool call data from Langfuse for all results.
+
+    Mutates EvalResult objects in place, adding tool_calls and langfuse_trace_id.
+    """
+    if not LANGFUSE_PUBLIC_KEY or not LANGFUSE_SECRET_KEY:
+        return
+
+    auth = (LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY)
+
+    async with httpx.AsyncClient(timeout=30) as client:
+
+        async def _lf_get(url: str, **kwargs: Any) -> httpx.Response:
+            """GET with retry on 429."""
+            for attempt in range(4):
+                resp = await client.get(url, auth=auth, **kwargs)
+                if resp.status_code != 429:
+                    resp.raise_for_status()
+                    return resp
+                wait = float(resp.headers.get("retry-after", 2 * (attempt + 1)))
+                await asyncio.sleep(wait)
+            resp.raise_for_status()
+            return resp
+
+        for _scenario_id, result in results.items():
+            if not result.trace_id:
+                continue
+
+            # Throttle between scenarios to avoid 429
+            await asyncio.sleep(0.5)
+
+            # Find trace by sessionId
+            resp = await _lf_get(
+                f"{LANGFUSE_HOST}/api/public/traces",
+                params={"sessionId": result.trace_id, "limit": 1},
+            )
+            traces = resp.json().get("data", [])
+            if not traces:
+                continue
+
+            lf_trace = traces[0]
+            result.langfuse_trace_id = lf_trace.get("id", "")
+            observation_ids = lf_trace.get("observations", [])
+
+            # Fetch agent.run observation for tool_calls
+            for obs_id in observation_ids:
+                await asyncio.sleep(0.3)
+                resp = await _lf_get(
+                    f"{LANGFUSE_HOST}/api/public/observations/{obs_id}",
+                )
+                obs = resp.json()
+
+                if obs.get("name") != "agent.run":
+                    continue
+
+                output = obs.get("output")
+                tool_calls = _extract_tool_calls(output)
+                if tool_calls is not None:
+                    result.tool_calls = tool_calls
+                    break
+
+
+def _extract_tool_calls(output: Any) -> list[dict[str, Any]] | None:
+    """Extract tool_calls_made from an agent.run observation output."""
+    if isinstance(output, dict):
+        return output.get("tool_calls_made", [])
+
+    # Fallback: parse __state__ from generator output list
+    if isinstance(output, list):
+        for item in output:
+            if (
+                isinstance(item, list)
+                and len(item) == 2
+                and item[0] == "__state__"
+                and isinstance(item[1], dict)
+            ):
+                return item[1].get("tool_calls_made", [])
+
+    return None
+
+
+async def post_scores_to_langfuse(
+    langfuse_trace_id: str,
+    scenario_id: str,
+    tool_assertion_passed: bool,
+    judge_score: float,
+    judge_details: list[dict[str, Any]],
+) -> None:
+    """Post eval scores back to the Langfuse trace for dashboard visibility."""
+    if not LANGFUSE_PUBLIC_KEY or not LANGFUSE_SECRET_KEY or not langfuse_trace_id:
+        return
+
+    auth = (LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY)
+    async with httpx.AsyncClient(timeout=10) as client:
+        await client.post(
+            f"{LANGFUSE_HOST}/api/public/scores",
+            auth=auth,
+            json={
+                "traceId": langfuse_trace_id,
+                "name": "eval_tool_assertions",
+                "value": 1 if tool_assertion_passed else 0,
+                "dataType": "BOOLEAN",
+                "comment": f"scenario: {scenario_id}",
+            },
+        )
+        await client.post(
+            f"{LANGFUSE_HOST}/api/public/scores",
+            auth=auth,
+            json={
+                "traceId": langfuse_trace_id,
+                "name": "eval_judge_score",
+                "value": judge_score,
+                "dataType": "NUMERIC",
+                "comment": json.dumps(judge_details[:3]),
+            },
+        )
 
 
 class EvalResult:
     def __init__(
         self,
         response: str,
-        all_responses: list[str],
-        tool_calls: list[dict[str, Any]],
-        user_id: str,
+        tool_names_sse: list[str],
         trace_id: str,
+        session_id: str,
+        tool_calls: list[dict[str, Any]] | None = None,
+        langfuse_trace_id: str = "",
     ) -> None:
         self.response = response
-        self.all_responses = all_responses
-        self.tool_calls = tool_calls
-        self.user_id = user_id
+        self.all_responses = [response] if response else []
+        self.tool_names_sse = tool_names_sse
         self.trace_id = trace_id
+        self.session_id = session_id
+        self.tool_calls: list[dict[str, Any]] = tool_calls or []
+        self.langfuse_trace_id = langfuse_trace_id
 
     @property
     def tool_names(self) -> list[str]:
-        return [tc["name"] for tc in self.tool_calls]
+        """Tool names from Langfuse (full data) + SSE (fallback for presence)."""
+        names = [tc["name"] for tc in self.tool_calls]
+        for name in self.tool_names_sse:
+            if name not in names:
+                names.append(name)
+        return names
 
     def has_tool(self, name: str) -> bool:
         return name in self.tool_names
@@ -168,7 +283,7 @@ class EvalResult:
         return [tc["args"] for tc in self.tool_calls if tc["name"] == name]
 
     def any_tool_arg_contains(self, name: str, key: str, substring: str) -> bool:
-        """Check if any call to tool `name` has arg `key` containing `substring` (case-insensitive)."""
+        """Case-insensitive substring check on tool args."""
         for tc in self.tool_calls:
             if tc["name"] == name:
                 val = tc["args"].get(key)

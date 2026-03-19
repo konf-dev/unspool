@@ -8,12 +8,27 @@ from src.agent.system_prompt import build_system_prompt
 from src.agent.tools import execute_tool, get_tool_definitions
 from src.agent.types import AgentState, ToolCall
 from src.llm.registry import get_llm_provider
-from src.telemetry.langfuse_integration import observe
+from src.telemetry.langfuse_integration import observe, update_current_observation
 from src.telemetry.logger import get_logger
 
 _log = get_logger("agent.loop")
 
 MAX_ROUNDS = 5
+
+
+@observe("tool.execute")
+async def _execute_tool_observed(
+    name: str, args: dict[str, Any], user_id: str, state: AgentState
+) -> Any:
+    """Wraps execute_tool so each call appears as a Langfuse span."""
+    update_current_observation(
+        input={"tool": name, "args": args},
+    )
+    result = await execute_tool(name, args, user_id, state)
+    update_current_observation(
+        output={"result": result.output, "is_error": result.is_error},
+    )
+    return result
 
 
 @observe("agent.run")
@@ -115,7 +130,7 @@ async def run_agent(
                     "agent.tool_args_parse_failed", tool=tc.name, trace_id=trace_id
                 )
 
-            result = await execute_tool(tc.name, args, user_id, state)
+            result = await _execute_tool_observed(tc.name, args, user_id, state)
             result.tool_call_id = tc.id
 
             state.tool_calls_made.append(
@@ -159,6 +174,15 @@ async def run_agent(
 
         # Reset for next round
         text_chunks = []
+
+    update_current_observation(
+        output={
+            "response_text": state.response_text,
+            "tool_calls_made": state.tool_calls_made,
+            "input_tokens": state.total_input_tokens,
+            "output_tokens": state.total_output_tokens,
+        },
+    )
 
     yield ("sse", format_sse_event("done"))
     yield ("__state__", state)  # type: ignore[misc]

@@ -1,12 +1,14 @@
-"""LLM-as-judge: evaluates agent responses against criteria."""
+"""LLM-as-judge: evaluates agent responses against criteria using Ollama."""
 
 import asyncio
 import json
+import os
 from typing import Any
 
 from openai import AsyncOpenAI
 
-from src.config import get_settings
+_OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+_JUDGE_MODEL = os.environ.get("EVAL_JUDGE_MODEL", "qwen2.5-coder:32b")
 
 _MAX_RETRIES = 3
 _BACKOFF_BASE = 1.0
@@ -47,9 +49,8 @@ async def judge_criterion(
 
     Returns {"pass": bool, "reason": str}.
     """
-    settings = get_settings()
-    client = AsyncOpenAI(api_key=settings.LLM_API_KEY)
-    judge_model = model or "gpt-4.1"
+    client = AsyncOpenAI(base_url=f"{_OLLAMA_URL}/v1", api_key="ollama")
+    judge_model = model or _JUDGE_MODEL
 
     conv_text = "\n".join(f"{m['role'].upper()}: {m['content']}" for m in conversation)
 
