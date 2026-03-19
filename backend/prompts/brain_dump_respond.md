@@ -21,7 +21,7 @@ Bad responses: "Got it.", "That sounds like a lot!", "You've got this!", "Grocer
 What they said: <user_input>{{ user_message }}</user_input>
 
 {% if extracted_items %}
-{% set item_list = extracted_items['items'] if 'items' in extracted_items else [] %}
+{% set item_list = extracted_items.get('items') or extracted_items.get('results') or extracted_items.get('tasks') or [] %}
 You extracted {{ item_list | length }} actionable item(s).
 {% if extracted_items.get('non_actionable_notes') %}
 They also mentioned: {{ extracted_items['non_actionable_notes'] | join(", ") }}

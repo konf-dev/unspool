@@ -1,0 +1,276 @@
+# Functional/behavioral: 30 cases covering BUGS.md issues
+# Source: new cases derived from each known bug
+
+# BUG-001: deadline parsing shouldn't crash
+- description: "func_deadline_relative_tomorrow"
+  vars:
+    message: "finish the slides by tomorrow"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: not-contains
+      value: "sorry"
+    - type: llm-rubric
+      value: "The response confirms it captured a task with a deadline, without errors."
+
+- description: "func_deadline_relative_morning"
+  vars:
+    message: "do the thing by tomorrow morning"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: not-contains
+      value: "sorry"
+
+# BUG-002: date resolution with relative dates
+- description: "func_date_next_friday"
+  vars:
+    message: "the presentation is due next Friday"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: llm-rubric
+      value: "The response acknowledges a task with a Friday deadline."
+
+- description: "func_date_in_2_hours"
+  vars:
+    message: "remind me about the meeting in 2 hours"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: javascript
+      value: "output.length > 0"
+
+- description: "func_date_end_of_month"
+  vars:
+    message: "need to renew the lease by end of month"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: llm-rubric
+      value: "The response acknowledges a deadline toward end of month."
+
+# BUG-014: query_next should not say "all clear" inappropriately
+- description: "func_query_has_response"
+  vars:
+    message: "what should I do?"
+  assert:
+    - type: javascript
+      value: "output.length > 0"
+    - type: not-contains
+      value: "went wrong"
+
+# BUG-015: silent save failures — response should not claim success if save crashed
+- description: "func_save_integrity_multi"
+  vars:
+    message: "buy eggs, call mom, schedule dentist"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: llm-rubric
+      value: "The response confirms it captured/noted all three tasks."
+
+- description: "func_save_integrity_single"
+  vars:
+    message: "need to pay rent by the 1st"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: llm-rubric
+      value: "The response confirms capturing the rent payment task."
+
+# BUG-019: query_next should return ONE item, never multiple
+- description: "func_single_suggestion"
+  vars:
+    message: "I'm free for 30 minutes, what should I tackle?"
+  assert:
+    - type: not-contains
+      value: "1."
+    - type: not-contains
+      value: "also"
+    - type: not-contains
+      value: "and then"
+    - type: llm-rubric
+      value: "Does the response suggest exactly ONE task? It should not mention a second task, a backlog, or imply there are more things to do."
+
+- description: "func_single_suggestion_variant"
+  vars:
+    message: "what should I work on?"
+  assert:
+    - type: not-contains
+      value: "1."
+    - type: not-contains
+      value: "2."
+    - type: llm-rubric
+      value: "Suggests exactly ONE task, no list."
+
+# BUG-020: energy estimation
+- description: "func_energy_low_task"
+  vars:
+    message: "I need to text my mom back"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+
+- description: "func_energy_high_task"
+  vars:
+    message: "I need to write the entire project proposal from scratch"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+
+# BUG-025: pipeline crash on status_done/status_cant
+- description: "func_status_done_no_crash"
+  vars:
+    message: "finished the groceries"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: not-contains
+      value: "sorry"
+    - type: llm-rubric
+      value: "The response acknowledges the completion briefly."
+
+- description: "func_status_cant_no_crash"
+  vars:
+    message: "can't do the report today, push it"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: not-contains
+      value: "sorry"
+
+- description: "func_status_done_casual"
+  vars:
+    message: "texted mom back ✓"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: not-contains
+      value: "sorry"
+
+# General usability
+- description: "func_empty_response_check"
+  vars:
+    message: "hey"
+  assert:
+    - type: javascript
+      value: "output.length > 0"
+    - type: not-contains
+      value: "went wrong"
+
+- description: "func_thanks_response"
+  vars:
+    message: "thanks!"
+  assert:
+    - type: javascript
+      value: "output.length > 0 && output.length < 500"
+    - type: not-contains
+      value: "went wrong"
+
+- description: "func_ok_response"
+  vars:
+    message: "ok cool"
+  assert:
+    - type: javascript
+      value: "output.length > 0 && output.length < 300"
+
+# Fuzzy matching cases (from fuzzy_matching.yaml)
+- description: "func_fuzzy_typo"
+  vars:
+    message: "done with teh grocries"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: llm-rubric
+      value: "The response acknowledges completion despite the typos."
+
+- description: "func_fuzzy_abbreviation"
+  vars:
+    message: "finished the q report"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+
+- description: "func_fuzzy_emoji"
+  vars:
+    message: "groceries ✅"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+
+- description: "func_fuzzy_slang"
+  vars:
+    message: "knocked out the slides"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+
+- description: "func_fuzzy_vague"
+  vars:
+    message: "that thing I mentioned yesterday, it's done"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+
+# Multi-deadline in one message
+- description: "func_multi_deadline"
+  vars:
+    message: "report due Wednesday, slides due Thursday, email Jake by end of day"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: llm-rubric
+      value: "The response acknowledges multiple tasks with their respective deadlines."
+
+# Meta/capabilities
+- description: "func_meta_capabilities"
+  vars:
+    message: "what can you do?"
+  assert:
+    - type: javascript
+      value: "output.length > 0"
+    - type: llm-rubric
+      value: "The response describes capabilities without mentioning internal architecture or pipeline names."
+
+# Onboarding
+- description: "func_onboarding_first_time"
+  vars:
+    message: "hey, first time here. what is this?"
+  assert:
+    - type: llm-rubric
+      value: "The response explains what Unspool does and invites the user to start."
+
+# Skip with suggestion
+- description: "func_skip_and_suggest"
+  vars:
+    message: "nah not feeling that one, give me something else"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: llm-rubric
+      value: "The response accepts the rejection without guilt-tripping."
+
+# Wall of text brain dump
+- description: "func_wall_of_text"
+  vars:
+    message: "ok so I need to finish the quarterly report by Wednesday and also call the dentist and pick up groceries and text mom and schedule that meeting with Jake and figure out the insurance thing and renew my passport and clean the apartment and do laundry and also I had this idea for a podcast about productivity myths and I need to follow up on that email from Sarah and check if the car registration expired and book flights for the trip in May and return that package and find a new therapist and update my resume just in case and oh also water the plants"
+  assert:
+    - type: javascript
+      value: "output.length > 0"
+    - type: not-contains
+      value: "went wrong"
+    - type: llm-rubric
+      value: "The response acknowledges the brain dump without asking the user to repeat or organize it."
+
+# Emotional pipeline shouldn't crash
+- description: "func_emotional_no_crash"
+  vars:
+    message: "I'm so overwhelmed right now"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: not-contains
+      value: "sorry"
+    - type: javascript
+      value: "output.length > 0"

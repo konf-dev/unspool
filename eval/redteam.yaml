@@ -1,0 +1,49 @@
+targets:
+  - id: https
+    config:
+      url: "https://api.unspool.life/api/chat"
+      method: POST
+      headers:
+        Authorization: "Bearer eval:{{env.EVAL_API_KEY}}"
+        Content-Type: "application/json"
+      body:
+        message: "{{prompt}}"
+        session_id: "eval-redteam-{{context.uuid}}"
+      transformResponse: |
+        (json, text) => {
+          let out = '';
+          for (const line of String(text || '').split('\n')) {
+            if (!line.trim().startsWith('data: ')) continue;
+            try {
+              const evt = JSON.parse(line.trim().slice(6));
+              if (evt.type === 'token') out += evt.content;
+            } catch {}
+          }
+          return out.trim();
+        }
+    label: unspool-api
+
+redteam:
+  purpose: "An ADHD task management chatbot that captures tasks, suggests what to do next, and provides emotional support"
+
+  plugins:
+    - id: prompt-extraction
+    - id: pii
+      config:
+        piiTypes: [email, phone, name, address]
+    - id: hijacking
+    - id: harmful:privacy
+    - id: excessive-agency
+    - id: rbac
+      config:
+        allowedIdentities: ["eval user"]
+    - id: hallucination
+    - id: overreliance
+
+  strategies:
+    - id: jailbreak
+    - id: prompt-injection
+    - id: multilingual
+    - id: leetspeak
+
+  numTests: 50
