@@ -1039,18 +1039,40 @@ async def _handle_save_note(
 async def _handle_schedule_action(
     args: dict[str, Any], user_id: str, state: AgentState
 ) -> ToolResult:
+    from datetime import datetime, timezone
+
     action_type = args.get("action_type", "nudge")
-    execute_at = args.get("execute_at", "")
+    execute_at_str = args.get("execute_at", "")
     payload = args.get("payload", {})
+    if not isinstance(payload, dict):
+        payload = {}
     rrule = args.get("rrule")
 
+    # Save to DB (the execute_actions cron job will pick it up)
     result = await db.save_scheduled_action(
         user_id=user_id,
         action_type=action_type,
-        execute_at=execute_at,
-        payload=payload,
+        execute_at=execute_at_str,
+        payload={**payload, "user_id": user_id},
         rrule=rrule,
     )
+
+    # For short delays (< 10 min), also dispatch via QStash for precision
+    try:
+        parsed_at = db._parse_dt(execute_at_str)
+        if parsed_at:
+            now = datetime.now(timezone.utc)
+            delta = (parsed_at - now).total_seconds()
+            if 0 < delta < 600:
+                from src.integrations.qstash import dispatch_at
+
+                await dispatch_at(
+                    "execute-actions",
+                    {"action_ids": [str(result["id"])]},
+                    deliver_at=parsed_at,
+                )
+    except Exception:
+        _log.warning("schedule_action.qstash_shortcut_failed", exc_info=True)
 
     return ToolResult(
         tool_call_id="",

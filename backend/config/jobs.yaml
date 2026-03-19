@@ -6,6 +6,10 @@ cron_jobs:
     schedule: "0 * * * *"
     schedule_id: unspool-check-deadlines
 
+  execute-actions:
+    schedule: "* * * * *"
+    schedule_id: unspool-execute-actions
+
   expire-items:
     schedule: "0 */6 * * *"
     schedule_id: unspool-expire-items
@@ -14,6 +18,10 @@ cron_jobs:
     schedule: "0 */4 * * *"
     schedule_id: unspool-sync-calendar
 
+  generate-recurrences:
+    schedule: "0 2 * * *"
+    schedule_id: unspool-generate-recurrences
+
   detect-patterns:
     schedule: "0 3 * * *"
     schedule_id: unspool-detect-patterns
@@ -21,6 +29,10 @@ cron_jobs:
   evolve-graph:
     schedule: "0 4 * * *"
     schedule_id: unspool-evolve-graph
+
+  consolidate:
+    schedule: "30 4 * * *"
+    schedule_id: unspool-consolidate
 
   summarize:
     schedule: "0 5 * * *"

@@ -793,6 +793,26 @@
         "summary": "Check Deadlines"
       }
     },
+    "/jobs/consolidate": {
+      "post": {
+        "operationId": "consolidate_jobs_consolidate_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Consolidate Jobs Consolidate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Consolidate"
+      }
+    },
     "/jobs/decay-urgency": {
       "post": {
         "operationId": "decay_urgency_jobs_decay_urgency_post",
@@ -853,6 +873,26 @@
         "summary": "Evolve Graph"
       }
     },
+    "/jobs/execute-actions": {
+      "post": {
+        "operationId": "execute_actions_jobs_execute_actions_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Execute Actions Jobs Execute Actions Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Execute Actions"
+      }
+    },
     "/jobs/expire-items": {
       "post": {
         "operationId": "expire_items_jobs_expire_items_post",
@@ -871,6 +911,26 @@
           }
         },
         "summary": "Expire Items"
+      }
+    },
+    "/jobs/generate-recurrences": {
+      "post": {
+        "operationId": "generate_recurrences_jobs_generate_recurrences_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Generate Recurrences Jobs Generate Recurrences Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Generate Recurrences"
       }
     },
     "/jobs/process-conversation": {

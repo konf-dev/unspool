@@ -6,9 +6,12 @@ from pydantic import BaseModel
 
 from src.auth.qstash_auth import verify_qstash_signature
 from src.jobs.check_deadlines import run_check_deadlines
+from src.jobs.consolidate import run_consolidate
 from src.jobs.detect_patterns import run_detect_patterns
 from src.jobs.evolve_graph import run_evolve_graph
+from src.jobs.execute_actions import run_execute_actions
 from src.jobs.expire_items import run_expire_items
+from src.jobs.generate_recurrences import run_generate_recurrences
 from src.jobs.process_message import run_process_message
 from src.jobs.reset_notifications import run_reset_notifications
 from src.jobs.summarize_conversations import run_summarize_conversations
@@ -107,6 +110,33 @@ async def summarize_conversations() -> dict:
     _log.info("job.start", job="summarize_conversations", trace_id=trace_id)
     result = await run_summarize_conversations()
     _log.info("job.done", job="summarize_conversations", trace_id=trace_id)
+    return result
+
+
+@router.post("/execute-actions")
+async def execute_actions() -> dict:
+    trace_id = str(uuid.uuid4())
+    _log.info("job.start", job="execute_actions", trace_id=trace_id)
+    result = await run_execute_actions()
+    _log.info("job.done", job="execute_actions", trace_id=trace_id)
+    return result
+
+
+@router.post("/generate-recurrences")
+async def generate_recurrences() -> dict:
+    trace_id = str(uuid.uuid4())
+    _log.info("job.start", job="generate_recurrences", trace_id=trace_id)
+    result = await run_generate_recurrences()
+    _log.info("job.done", job="generate_recurrences", trace_id=trace_id)
+    return result
+
+
+@router.post("/consolidate")
+async def consolidate() -> dict:
+    trace_id = str(uuid.uuid4())
+    _log.info("job.start", job="consolidate", trace_id=trace_id)
+    result = await run_consolidate()
+    _log.info("job.done", job="consolidate", trace_id=trace_id)
     return result
 
 
