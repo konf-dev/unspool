@@ -27,6 +27,7 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=10000)
     session_id: str = Field(..., min_length=1, max_length=100)
+    timezone: str | None = Field(default=None, max_length=50)
 
 
 async def _check_gate(user_id: str) -> None:
@@ -182,6 +183,13 @@ async def chat(
     )
 
     await _check_gate(user_id)
+
+    # Silently sync browser timezone to profile
+    if request.timezone:
+        try:
+            await db.update_profile(user_id, timezone=request.timezone)
+        except Exception:
+            pass
 
     user_msg = await db.save_message(
         user_id=user_id,

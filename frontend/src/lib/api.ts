@@ -65,7 +65,11 @@ export function sendMessage(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ message, session_id: sessionId }),
+    body: JSON.stringify({
+      message,
+      session_id: sessionId,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    }),
     signal: controller.signal,
     onmessage(event) {
       const parsed = parseSSEEvent(event.data)
