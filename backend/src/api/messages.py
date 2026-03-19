@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends, Query
 from src.auth.supabase_auth import get_current_user
 from src.db import supabase as db
 from src.llm.registry import get_llm_provider
-from src.orchestrator.config_loader import load_config
-from src.orchestrator.prompt_renderer import render_prompt
+from src.config_loader import load_config
+from src.prompt_renderer import render_prompt
 from src.telemetry.logger import get_logger
 
 _log = get_logger("api.messages")

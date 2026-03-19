@@ -8,18 +8,13 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from src.agent.loop import run_agent
 from src.auth.supabase_auth import get_current_user
-from src.config import get_settings
 from src.telemetry.langfuse_integration import observe, update_current_trace
 from src.db import redis, supabase as db
 from src.integrations.qstash import dispatch_job
-from src.orchestrator.config_loader import load_config
-from src.orchestrator.context import assemble_context
-from src.orchestrator.engine import execute_pipeline
-from src.orchestrator.intent import classify_intent
-from src.orchestrator.types import Context
+from src.config_loader import load_config
 from src.telemetry.logger import get_logger
-from src.tools.registry import get_tool_registry
 
 _log = get_logger("api.chat")
 
@@ -81,11 +76,8 @@ async def _stream_response(
     user_id: str,
     message: str,
     trace_id: str,
-    context_out: list[Context],
-    agent_state_out: list[Any] | None = None,
+    agent_state_out: list[Any],
 ) -> AsyncIterator[str]:
-    settings = get_settings()
-
     update_current_trace(
         user_id=user_id,
         session_id=trace_id,
@@ -100,85 +92,11 @@ async def _stream_response(
             message=message[:500],
         )
 
-        if settings.USE_AGENT:
-            from src.agent.loop import run_agent
-
-            async for tag, payload in run_agent(user_id, message, trace_id):
-                if tag == "__state__" and agent_state_out is not None:
-                    agent_state_out.append(payload)
-                elif tag == "sse":
-                    yield payload
-            return
-
-        # Pipeline path (existing)
-        context = Context(
-            user_id=user_id,
-            trace_id=trace_id,
-            user_message=message,
-        )
-
-        intent_name, pipeline_name, confidence = await classify_intent(message, context)
-
-        context = await assemble_context(user_id, trace_id, message, intent_name)
-
-        _log.info(
-            "chat.pipeline_start",
-            trace_id=trace_id,
-            intent=intent_name,
-            pipeline=pipeline_name,
-            confidence=confidence,
-            context_fields=[
-                f
-                for f in (
-                    "profile",
-                    "open_items",
-                    "recent_messages",
-                    "urgent_items",
-                    "memories",
-                    "entities",
-                    "calendar_events",
-                    "graph_context",
-                )
-                if getattr(context, f, None) is not None
-            ],
-        )
-
-        tool_registry = get_tool_registry()
-
-        async for token in execute_pipeline(pipeline_name, context, tool_registry):
-            event = json.dumps({"type": "token", "content": token})
-            yield f"data: {event}\n\n"
-
-        context_out.append(context)
-
-        done_event = json.dumps({"type": "done"})
-        yield f"data: {done_event}\n\n"
-
-
-async def _dispatch_post_processing(
-    context: Context,
-    user_msg_id: str,
-    assistant_msg_id: str,
-) -> None:
-    if not context.post_processing_jobs:
-        return
-
-    try:
-        jobs_config = load_config("jobs")
-    except FileNotFoundError:
-        _log.warning("chat.jobs_config_missing")
-        return
-
-    dispatch_map = jobs_config.get("dispatch_map", {})
-
-    for job in context.post_processing_jobs:
-        endpoint = dispatch_map.get(job.job, job.job.replace("_", "-"))
-        payload = {
-            "user_id": context.user_id,
-            "trace_id": context.trace_id,
-            "message_ids": [user_msg_id, assistant_msg_id],
-        }
-        await dispatch_job(endpoint, payload, delay=job.delay)
+        async for tag, payload in run_agent(user_id, message, trace_id):
+            if tag == "__state__":
+                agent_state_out.append(payload)
+            elif tag == "sse":
+                yield payload
 
 
 async def _save_and_dispatch(
@@ -187,7 +105,6 @@ async def _save_and_dispatch(
     session_id: str,
     user_msg_id: str,
     collected_tokens: list[str],
-    context_out: list[Context],
     agent_state_out: list[Any],
     stream_state: dict[str, bool],
 ) -> None:
@@ -228,25 +145,20 @@ async def _save_and_dispatch(
     ):
         return
 
-    # Agent path: dispatch based on agent state flags
-    if agent_state_out:
-        agent_state = agent_state_out[0]
-        should_dispatch = agent_state.should_ingest or agent_state.saved_items
-        if should_dispatch:
-            payload = {
-                "user_id": user_id,
-                "trace_id": trace_id,
-                "message_ids": [user_msg_id, assistant_msg_id],
-                "tool_calls": agent_state.tool_calls_made,
-                "ingest": agent_state.should_ingest,
-                "embeddings": agent_state.saved_items,
-            }
-            await dispatch_job("process-message", payload, delay=10)
+    if not agent_state_out:
         return
 
-    # Pipeline path: dispatch based on context post_processing_jobs
-    if context_out:
-        await _dispatch_post_processing(context_out[0], user_msg_id, assistant_msg_id)
+    agent_state = agent_state_out[0]
+    if agent_state.should_ingest or agent_state.saved_items:
+        payload = {
+            "user_id": user_id,
+            "trace_id": trace_id,
+            "message_ids": [user_msg_id, assistant_msg_id],
+            "tool_calls": agent_state.tool_calls_made,
+            "ingest": agent_state.should_ingest,
+            "embeddings": agent_state.saved_items,
+        }
+        await dispatch_job("process-message", payload, delay=10)
 
 
 @router.post("/chat")
@@ -274,7 +186,6 @@ async def chat(
     user_msg_id = str(user_msg["id"])
 
     collected_tokens: list[str] = []
-    context_out: list[Context] = []
     agent_state_out: list[Any] = []
     stream_state: dict[str, bool] = {"failed": False, "completed": False}
     save_lock = asyncio.Lock()
@@ -283,7 +194,7 @@ async def chat(
         try:
             try:
                 async for chunk in _stream_response(
-                    user_id, request.message, trace_id, context_out, agent_state_out
+                    user_id, request.message, trace_id, agent_state_out
                 ):
                     if '"type": "token"' in chunk:
                         try:
@@ -340,7 +251,6 @@ async def chat(
                     session_id=request.session_id,
                     user_msg_id=user_msg_id,
                     collected_tokens=collected_tokens,
-                    context_out=context_out,
                     agent_state_out=agent_state_out,
                     stream_state=stream_state,
                 )

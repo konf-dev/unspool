@@ -6,7 +6,7 @@ from src.db.supabase import (
     update_profile,
 )
 from src.integrations.push import send_push_notification
-from src.orchestrator.config_loader import load_config
+from src.config_loader import load_config
 from src.telemetry.langfuse_integration import observe
 from src.telemetry.logger import get_logger
 

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import tiktoken
 
 from src.graph.types import ActiveSubgraph, Node
-from src.orchestrator.config_loader import load_config
+from src.config_loader import load_config
 from src.telemetry.logger import get_logger
 
 _log = get_logger("graph.serialization")

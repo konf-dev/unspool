@@ -49,7 +49,9 @@ class TestToolDefinitions:
         tools = get_tool_definitions()
         for tool in tools:
             desc = tool["function"]["description"]
-            assert len(desc) > 30, f"{tool['function']['name']} has too short a description"
+            assert len(desc) > 30, (
+                f"{tool['function']['name']} has too short a description"
+            )
 
 
 class TestRememberHandler:
@@ -88,7 +90,10 @@ class TestSaveItemsHandler:
 
         async def mock_save_item(**kwargs):
             saved_calls.append(kwargs)
-            return {"id": "item-1", "interpreted_action": kwargs.get("interpreted_action", "")}
+            return {
+                "id": "item-1",
+                "interpreted_action": kwargs.get("interpreted_action", ""),
+            }
 
         async def mock_save_event(**kwargs):
             return {"id": "event-1"}
@@ -124,7 +129,9 @@ class TestSaveItemsHandler:
     async def test_save_items_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
         state = _make_state()
         monkeypatch.setattr("src.agent.tools.db.save_item", lambda **kw: {"id": "x"})
-        monkeypatch.setattr("src.agent.tools.db.save_item_event", lambda **kw: {"id": "x"})
+        monkeypatch.setattr(
+            "src.agent.tools.db.save_item_event", lambda **kw: {"id": "x"}
+        )
 
         result = await execute_tool("save_items", {"items": []}, "test-user", state)
 
@@ -141,7 +148,9 @@ class TestMarkDoneHandler:
         monkeypatch.setattr("src.agent.tools.fuzzy_match_item", mock_fuzzy)
 
         state = _make_state()
-        result = await execute_tool("mark_done", {"text": "something"}, "test-user", state)
+        result = await execute_tool(
+            "mark_done", {"text": "something"}, "test-user", state
+        )
 
         assert result.is_error is True
         assert "Could not find" in result.output
@@ -162,7 +171,9 @@ class TestMarkDoneHandler:
         monkeypatch.setattr("src.agent.tools.db.save_item_event", mock_event)
 
         state = _make_state()
-        result = await execute_tool("mark_done", {"text": "laundry"}, "test-user", state)
+        result = await execute_tool(
+            "mark_done", {"text": "laundry"}, "test-user", state
+        )
 
         assert result.is_error is False
         data = json.loads(result.output)
@@ -183,7 +194,9 @@ class TestPickNextHandler:
         assert "clear" in result.output.lower() or "no open" in result.output.lower()
 
     @pytest.mark.asyncio
-    async def test_pick_next_returns_item(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_pick_next_returns_item(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         items = [
             {
                 "id": "item-1",

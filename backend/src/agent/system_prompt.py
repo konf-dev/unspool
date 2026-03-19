@@ -1,6 +1,6 @@
 from typing import Any
 
-from src.orchestrator.prompt_renderer import render_prompt
+from src.prompt_renderer import render_prompt
 from src.telemetry.logger import get_logger
 
 _log = get_logger("agent.system_prompt")

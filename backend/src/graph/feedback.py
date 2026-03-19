@@ -6,7 +6,7 @@ import re
 from src.graph import db
 from src.graph.types import ActiveSubgraph, FeedbackResult
 from src.llm.registry import get_llm_provider
-from src.orchestrator.config_loader import load_config
+from src.config_loader import load_config
 from src.telemetry.logger import get_logger
 
 _log = get_logger("graph.feedback")

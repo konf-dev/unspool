@@ -5,7 +5,7 @@ import asyncio
 from src.graph import db
 from src.graph.triggers import get_trigger
 from src.graph.types import ActiveSubgraph, Edge, Node, TriggerResult
-from src.orchestrator.config_loader import load_config
+from src.config_loader import load_config
 from src.telemetry.logger import get_logger
 
 _log = get_logger("graph.retrieval")
