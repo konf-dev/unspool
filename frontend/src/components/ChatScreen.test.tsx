@@ -53,6 +53,7 @@ vi.mock('../hooks/usePWAInstall', () => ({
   }),
 }))
 
+import { UIModeProvider } from '../contexts/UIMode'
 import { ChatScreen } from './ChatScreen'
 import type { Message } from '../types'
 
@@ -66,12 +67,14 @@ const WELCOME: Message = {
 
 function renderChat(messages: Message[] = [WELCOME]) {
   return render(
-    <ChatScreen
-      initialMessages={messages}
-      token="test-token"
-      userId="test-user"
-      onSignOut={vi.fn()}
-    />,
+    <UIModeProvider>
+      <ChatScreen
+        initialMessages={messages}
+        token="test-token"
+        userId="test-user"
+        onSignOut={vi.fn()}
+      />
+    </UIModeProvider>,
   )
 }
 
@@ -130,6 +133,7 @@ describe('ChatScreen', () => {
       expect.any(Function),
       expect.any(Function),
       expect.any(Function),
+      expect.any(Function),
     )
   })
 
@@ -142,6 +146,11 @@ describe('ChatScreen', () => {
 
     expect(screen.getByText('first message')).toBeInTheDocument()
     expect(screen.getByText('second message')).toBeInTheDocument()
+  })
+
+  it('shows mode toggle button', () => {
+    renderChat()
+    expect(screen.getByLabelText(/switch to chat mode/i)).toBeInTheDocument()
   })
 
   it('clears draft from localStorage on send', async () => {
