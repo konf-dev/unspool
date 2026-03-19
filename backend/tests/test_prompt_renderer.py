@@ -17,7 +17,10 @@ class TestRenderPrompt:
     def test_agent_system_renders(self) -> None:
         result = render_prompt(
             "agent_system.md",
-            {"profile": {"tone_preference": "warm"}, "context": "<context>test</context>"},
+            {
+                "profile": {"tone_preference": "warm"},
+                "context": "<context>test</context>",
+            },
         )
         assert "Unspool" in result
         assert "warm" in result
