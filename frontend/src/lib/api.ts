@@ -86,6 +86,18 @@ export function sendMessage(
   return controller
 }
 
+interface MessagesResponse {
+  messages: Array<{
+    id: string
+    user_id: string
+    role: 'user' | 'assistant'
+    content: string
+    created_at: string
+    metadata: Record<string, unknown> | null
+  }>
+  has_more: boolean
+}
+
 export async function fetchMessages(
   token: string,
   limit?: number,
@@ -108,7 +120,16 @@ export async function fetchMessages(
     throw new Error(`Failed to fetch messages: ${response.status}`)
   }
 
-  return (await response.json()) as Message[]
+  const data = (await response.json()) as MessagesResponse
+  return data.messages
+    .map((msg) => ({
+      id: msg.id,
+      role: msg.role,
+      content: msg.content,
+      createdAt: msg.created_at,
+      metadata: msg.metadata ?? undefined,
+    }))
+    .reverse()
 }
 
 export { getApiUrl }

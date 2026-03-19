@@ -15,13 +15,13 @@ const SEQUENCES: DemoStep[][] = [
     {
       role: 'user',
       content:
-        'I need to call the dentist, my lease renewal is due friday, I had a side project idea about plant watering, should text sarah back, and I think my car registration is expiring?',
+        'dentist, lease renewal friday, plant watering idea, text sarah, car registration expiring?',
       delay: 1500,
     },
     {
       role: 'assistant',
       content:
-        "got all five.\nlease renewal — friday, I'll bring this up wednesday\ncall dentist — I'll remind you during business hours\ntext sarah — easy one, want to do it now?\ncar registration — I'll check when it's due\nplant watering project — saved the idea",
+        "got all five.\nlease renewal — friday. surfacing wednesday.\ndentist — next business hours.\ntext sarah — quick one, now?\ncar registration — checking.\nplant watering — idea saved.",
       delay: 2500,
     },
   ],
@@ -33,7 +33,7 @@ const SEQUENCES: DemoStep[][] = [
     },
     {
       role: 'assistant',
-      content: "text sarah back — it's quick and you'll feel good after",
+      content: "text sarah back — quick, and it's been a few days.",
       actions: [
         { label: 'done', value: '__demo_done' },
         { label: 'skip', value: '__demo_skip' },
@@ -45,7 +45,7 @@ const SEQUENCES: DemoStep[][] = [
   [
     {
       role: 'assistant',
-      content: "want to try it? sign in and I'll remember everything for you",
+      content: "want to try? sign in and I remember everything.",
       actions: [
         { label: 'continue with Google', value: '__demo_google' },
         { label: 'use email', value: '__demo_email' },

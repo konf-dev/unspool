@@ -28,11 +28,10 @@ function getInitialRoute(): Route {
 const WELCOME_MESSAGE: Message = {
   id: 'welcome',
   role: 'assistant',
-  content:
-    "hey, i'm unspool. just type whatever's on your mind — tasks, ideas, deadlines, random thoughts. i'll keep track of everything so you don't have to.",
+  content: 'hey — dump anything on me. tasks, ideas, deadlines, random thoughts. i sort it out.',
   createdAt: new Date().toISOString(),
   actions: [
-    { label: 'suggest something', value: 'what should I do?' },
+    { label: 'what should I do?', value: 'what should I do?' },
     { label: 'just dumping', value: 'brain dump time' },
   ],
 }

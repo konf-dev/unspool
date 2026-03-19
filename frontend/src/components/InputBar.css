@@ -97,6 +97,27 @@
   transform: scale(0.92);
 }
 
+.input-hint {
+  text-align: center;
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  padding: var(--spacing-xs) 0;
+  animation: hintFade 8s ease forwards;
+}
+
+@keyframes hintFade {
+  0% { opacity: 0; }
+  5% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (pointer: coarse) {
+  .input-hint {
+    display: none;
+  }
+}
+
 @supports not (backdrop-filter: blur(1px)) {
   .input-bar-textarea {
     background: rgba(30, 30, 40, 0.92);
