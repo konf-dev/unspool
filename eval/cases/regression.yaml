@@ -1,0 +1,280 @@
+# Regression guards: one case per known bug from BUGS.md
+# If a bug is fixed, these ensure it stays fixed.
+
+# BUG-001: fromisoformat crash on non-ISO deadline strings
+- description: "reg_bug001_relative_deadline"
+  vars:
+    message: "do the thing by tomorrow morning"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: not-contains
+      value: "sorry"
+  tags: ["regression", "BUG-001"]
+
+- description: "reg_bug001_casual_deadline"
+  vars:
+    message: "finish the essay by tomorrow"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: not-contains
+      value: "sorry"
+  tags: ["regression", "BUG-001"]
+
+# BUG-002: no current datetime in extraction
+- description: "reg_bug002_next_friday"
+  vars:
+    message: "presentation due next Friday"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: llm-rubric
+      value: "The response acknowledges a deadline for Friday."
+  tags: ["regression", "BUG-002"]
+
+- description: "reg_bug002_tomorrow"
+  vars:
+    message: "call the doctor tomorrow"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+  tags: ["regression", "BUG-002"]
+
+# BUG-003: no timezone on extracted datetimes
+- description: "reg_bug003_timezone"
+  vars:
+    message: "submit the report by 5pm today"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+  tags: ["regression", "BUG-003"]
+
+# BUG-005: no remind-me scheduling
+- description: "reg_bug005_remind_me"
+  vars:
+    message: "remind me in 20 minutes to check the oven"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: javascript
+      value: "output.length > 0"
+  tags: ["regression", "BUG-005"]
+
+# BUG-014: query_next says "nothing to do" when items exist
+- description: "reg_bug014_nothing_to_do"
+  vars:
+    message: "what should I do?"
+  assert:
+    - type: not-contains
+      value: "all clear"
+    - type: not-contains
+      value: "no items"
+  tags: ["regression", "BUG-014"]
+
+- description: "reg_bug014_whats_next"
+  vars:
+    message: "what's next?"
+  assert:
+    - type: not-contains
+      value: "nothing"
+    - type: not-contains
+      value: "plate is clear"
+  tags: ["regression", "BUG-014"]
+
+# BUG-015: silent save failures
+- description: "reg_bug015_confirms_save"
+  vars:
+    message: "need to pay rent by the 1st and renew my gym membership"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+  tags: ["regression", "BUG-015"]
+
+# BUG-017: model too weak for date resolution
+- description: "reg_bug017_date_year"
+  vars:
+    message: "the conference is March 20th"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+  tags: ["regression", "BUG-017"]
+
+# BUG-018: unsolicited empathy
+- description: "reg_bug018_neutral_exam"
+  vars:
+    message: "I have an exam Friday"
+  assert:
+    - type: not-contains
+      value: "overwhelm"
+    - type: not-contains
+      value: "stressful"
+    - type: not-contains
+      value: "you're stuck"
+    - type: llm-rubric
+      value: "Matter-of-fact response matching the user's neutral tone. No emotional language."
+  tags: ["regression", "BUG-018"]
+
+- description: "reg_bug018_neutral_tasks"
+  vars:
+    message: "laundry, dishes, vacuum the living room"
+  assert:
+    - type: not-contains
+      value: "lot on your plate"
+    - type: not-contains
+      value: "overwhelm"
+    - type: not-contains
+      value: "you've got this"
+    - type: llm-rubric
+      value: "Simply acknowledges the tasks without adding emotional language about being busy."
+  tags: ["regression", "BUG-018"]
+
+- description: "reg_bug018_neutral_morning"
+  vars:
+    message: "morning. need to send that email and prep for the meeting"
+  assert:
+    - type: not-contains
+      value: "tough"
+    - type: not-contains
+      value: "hang in there"
+    - type: not-contains
+      value: "you've got this"
+    - type: llm-rubric
+      value: "Matches casual morning tone without projecting stress."
+  tags: ["regression", "BUG-018"]
+
+- description: "reg_bug018_neutral_groceries"
+  vars:
+    message: "need to buy milk and eggs"
+  assert:
+    - type: not-contains
+      value: "overwhelm"
+    - type: not-contains
+      value: "lot on your plate"
+    - type: not-contains
+      value: "you've got this"
+  tags: ["regression", "BUG-018"]
+
+# BUG-019: multiple suggestions
+- description: "reg_bug019_single_item"
+  vars:
+    message: "what should I do?"
+  assert:
+    - type: not-contains
+      value: "1."
+    - type: not-contains
+      value: "2."
+    - type: llm-rubric
+      value: "Suggests exactly ONE task."
+  tags: ["regression", "BUG-019"]
+
+# BUG-020: energy estimation defaults to medium
+- description: "reg_bug020_low_energy"
+  vars:
+    message: "I need to text my mom back"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+  tags: ["regression", "BUG-020"]
+
+# BUG-021: intent confusion on ambiguous inputs
+- description: "reg_bug021_search_vs_upcoming"
+  vars:
+    message: "when is that meeting with Jake?"
+  assert:
+    - type: llm-rubric
+      value: "The response searches for a specific meeting with Jake, not listing all upcoming events."
+  tags: ["regression", "BUG-021"]
+
+# BUG-022: emotional calibration doesn't scale
+- description: "reg_bug022_low_emotion_no_empathy"
+  vars:
+    message: "pick up the dry cleaning"
+  assert:
+    - type: not-contains
+      value: "overwhelm"
+    - type: not-contains
+      value: "you've got this"
+    - type: llm-rubric
+      value: "Simple brief acknowledgment, no emotional commentary."
+  tags: ["regression", "BUG-022"]
+
+# BUG-023: cheerleader language
+- description: "reg_bug023_no_cheerleading"
+  vars:
+    message: "laundry, dishes, vacuum"
+  assert:
+    - type: not-contains
+      value: "you've got this"
+    - type: not-contains
+      value: "one step"
+    - type: not-contains
+      value: "tackle"
+  tags: ["regression", "BUG-023"]
+
+- description: "reg_bug023_no_cheerleading_next"
+  vars:
+    message: "what's next?"
+  assert:
+    - type: not-contains
+      value: "you've got this"
+    - type: not-contains
+      value: "crush it"
+    - type: not-contains
+      value: "let's do this"
+  tags: ["regression", "BUG-023"]
+
+# BUG-024: brain_dump triggers questions
+- description: "reg_bug024_no_questions"
+  vars:
+    message: "buy groceries"
+  assert:
+    - type: not-contains
+      value: "?"
+    - type: llm-rubric
+      value: "Captures the task without asking any follow-up questions."
+  tags: ["regression", "BUG-024"]
+
+- description: "reg_bug024_no_elaboration"
+  vars:
+    message: "pick up prescription"
+  assert:
+    - type: not-contains
+      value: "hassle"
+    - type: not-contains
+      value: "?"
+    - type: llm-rubric
+      value: "Brief confirmation, no commentary about how the task might feel."
+  tags: ["regression", "BUG-024"]
+
+# BUG-025: pipeline crash on status_done
+- description: "reg_bug025_status_done_crash"
+  vars:
+    message: "finished the report"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: not-contains
+      value: "sorry"
+  tags: ["regression", "BUG-025"]
+
+- description: "reg_bug025_status_cant_crash"
+  vars:
+    message: "skip that one for now"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: not-contains
+      value: "sorry"
+  tags: ["regression", "BUG-025"]
+
+# Multi-deadline regression
+- description: "reg_multi_deadline"
+  vars:
+    message: "report due Wednesday, slides due Thursday, email Jake by end of day"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: llm-rubric
+      value: "Acknowledges multiple tasks with deadlines."
+  tags: ["regression"]

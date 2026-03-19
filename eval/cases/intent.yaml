@@ -1,0 +1,295 @@
+# Intent classification: 35 cases across 10 intents
+# Source: migrated from backend/tests/eval_archived/golden/intent_classification.yaml
+# Method: llm-rubric judges response characteristics (we can't inspect pipeline name via promptfoo)
+
+# --- brain_dump (5) ---
+- description: "intent_brain_dump_simple"
+  vars:
+    message: "I need to buy groceries and pick up my dry cleaning"
+  assert:
+    - type: llm-rubric
+      value: "The response acknowledges capturing/noting tasks. It does NOT ask 'what should you do next' or search for something."
+    - type: not-contains
+      value: "what should"
+    - type: not-contains
+      value: "coming up"
+
+- description: "intent_brain_dump_deadline"
+  vars:
+    message: "finish the report by Friday and email it to Sarah"
+  assert:
+    - type: llm-rubric
+      value: "The response confirms it captured one or more tasks with a deadline, without asking clarifying questions."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "intent_brain_dump_multi"
+  vars:
+    message: "oh also I need to call the dentist, renew my passport, and figure out that insurance thing"
+  assert:
+    - type: llm-rubric
+      value: "The response acknowledges multiple captured tasks without listing them back as a numbered list."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "intent_brain_dump_idea"
+  vars:
+    message: "I had an idea for the blog post — something about productivity myths"
+  assert:
+    - type: llm-rubric
+      value: "The response captures an idea, not treating it as an urgent task."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "intent_brain_dump_implicit"
+  vars:
+    message: "my car registration expires next month"
+  assert:
+    - type: llm-rubric
+      value: "The response captures this as something to track, recognizing the implicit task."
+    - type: not-contains
+      value: "went wrong"
+
+# --- query_next (4) ---
+- description: "intent_query_next_direct"
+  vars:
+    message: "what should I do right now?"
+  assert:
+    - type: llm-rubric
+      value: "The response suggests exactly ONE specific task to do, or says there's nothing if the user has no items."
+    - type: not-contains
+      value: "1."
+
+- description: "intent_query_next_informal"
+  vars:
+    message: "I've got 20 minutes, what's up?"
+  assert:
+    - type: llm-rubric
+      value: "The response suggests one task that fits a 20-minute window, or acknowledges the time constraint."
+
+- description: "intent_query_next_energy"
+  vars:
+    message: "I'm feeling lazy, anything easy I can knock out?"
+  assert:
+    - type: llm-rubric
+      value: "The response suggests one low-energy task, acknowledging the user wants something easy."
+
+- description: "intent_query_next_bored"
+  vars:
+    message: "bored. what's next"
+  assert:
+    - type: llm-rubric
+      value: "The response suggests one task casually, matching the user's terse tone."
+
+# --- query_search (3) ---
+- description: "intent_query_search_specific"
+  vars:
+    message: "what did I say about the dentist?"
+  assert:
+    - type: llm-rubric
+      value: "The response searches for and returns information about dentist-related items, or says it doesn't have anything about the dentist."
+
+- description: "intent_query_search_when"
+  vars:
+    message: "when is that meeting with Jake?"
+  assert:
+    - type: llm-rubric
+      value: "The response searches for a specific meeting with Jake and provides the time/date, or says it doesn't have that info."
+
+- description: "intent_query_search_recall"
+  vars:
+    message: "do I have anything related to the apartment?"
+  assert:
+    - type: llm-rubric
+      value: "The response searches for apartment-related items, not listing upcoming deadlines generically."
+
+# --- query_upcoming (3) ---
+- description: "intent_query_upcoming_week"
+  vars:
+    message: "what do I have coming up this week?"
+  assert:
+    - type: llm-rubric
+      value: "The response shows upcoming items/deadlines for the week, or says there's nothing upcoming."
+
+- description: "intent_query_upcoming_tomorrow"
+  vars:
+    message: "anything due tomorrow?"
+  assert:
+    - type: llm-rubric
+      value: "The response checks for items due tomorrow specifically."
+
+- description: "intent_query_upcoming_deadlines"
+  vars:
+    message: "show me my deadlines"
+  assert:
+    - type: llm-rubric
+      value: "The response lists upcoming deadlines, or says there are none."
+
+# --- status_done (4) ---
+- description: "intent_status_done_explicit"
+  vars:
+    message: "done with the groceries"
+  assert:
+    - type: llm-rubric
+      value: "The response acknowledges the completion of groceries briefly."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "intent_status_done_finished"
+  vars:
+    message: "finished the quarterly report"
+  assert:
+    - type: llm-rubric
+      value: "The response acknowledges finishing the report."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "intent_status_done_check"
+  vars:
+    message: "I called the dentist, check that off"
+  assert:
+    - type: llm-rubric
+      value: "The response acknowledges the dentist call is done."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "intent_status_done_casual"
+  vars:
+    message: "texted mom back ✓"
+  assert:
+    - type: llm-rubric
+      value: "The response acknowledges the completion."
+    - type: not-contains
+      value: "went wrong"
+
+# --- status_cant (3) ---
+- description: "intent_status_cant_skip"
+  vars:
+    message: "skip the groceries for now"
+  assert:
+    - type: llm-rubric
+      value: "The response acknowledges skipping/postponing groceries without guilt-tripping."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "intent_status_cant_postpone"
+  vars:
+    message: "can't do the report today, push it"
+  assert:
+    - type: llm-rubric
+      value: "The response acknowledges postponing the report."
+    - type: not-contains
+      value: "went wrong"
+
+- description: "intent_status_cant_nah"
+  vars:
+    message: "nah not feeling that one, give me something else"
+  assert:
+    - type: llm-rubric
+      value: "The response accepts the rejection and either suggests an alternative task or acknowledges."
+
+# --- emotional (4) ---
+- description: "intent_emotional_overwhelmed"
+  vars:
+    message: "I'm so overwhelmed right now, everything is piling up"
+  assert:
+    - type: llm-rubric
+      value: "The response provides emotional support without suggesting specific tasks. It validates the user's feelings."
+    - type: not-contains
+      value: "1."
+
+- description: "intent_emotional_frustrated"
+  vars:
+    message: "ugh I can't focus on anything today"
+  assert:
+    - type: llm-rubric
+      value: "The response acknowledges the frustration without lecturing about focus or productivity."
+
+- description: "intent_emotional_happy"
+  vars:
+    message: "I actually got so much done today! feeling great"
+  assert:
+    - type: llm-rubric
+      value: "The response shares in the positive emotion briefly without being over-the-top."
+
+- description: "intent_emotional_vent"
+  vars:
+    message: "my boss keeps adding things to my plate and I'm about to lose it"
+  assert:
+    - type: llm-rubric
+      value: "The response validates the frustration without suggesting the user calm down or offering unsolicited advice."
+
+# --- meta (2) ---
+- description: "intent_meta_how"
+  vars:
+    message: "how do you decide what to suggest next?"
+  assert:
+    - type: llm-rubric
+      value: "The response explains how it picks suggestions (urgency, energy, deadlines) at a high level."
+
+- description: "intent_meta_what"
+  vars:
+    message: "what can you do?"
+  assert:
+    - type: llm-rubric
+      value: "The response describes its capabilities (capture tasks, suggest what to do, track deadlines, etc.)."
+
+# --- onboarding (2) ---
+- description: "intent_onboarding_hi"
+  vars:
+    message: "hi"
+  assert:
+    - type: javascript
+      value: "output.length > 0"
+    - type: not-contains
+      value: "went wrong"
+
+- description: "intent_onboarding_intro"
+  vars:
+    message: "hey, first time here. what is this?"
+  assert:
+    - type: llm-rubric
+      value: "The response explains what Unspool does in a welcoming way, inviting the user to just start typing."
+
+# --- conversation (3) ---
+- description: "intent_conversation_thanks"
+  vars:
+    message: "thanks!"
+  assert:
+    - type: javascript
+      value: "output.length > 0 && output.length < 500"
+    - type: not-contains
+      value: "went wrong"
+
+- description: "intent_conversation_chat"
+  vars:
+    message: "how's the weather today?"
+  assert:
+    - type: javascript
+      value: "output.length > 0"
+    - type: not-contains
+      value: "went wrong"
+
+- description: "intent_conversation_ok"
+  vars:
+    message: "ok cool"
+  assert:
+    - type: javascript
+      value: "output.length > 0 && output.length < 300"
+
+# --- ambiguous edge cases (2) ---
+- description: "intent_edge_emotional_dump"
+  vars:
+    message: "I'm stressed about the exam on Friday"
+  assert:
+    - type: llm-rubric
+      value: "The response handles a mix of emotion (stressed) and task (exam Friday). It should at minimum acknowledge the stress, optionally capture the exam."
+
+- description: "intent_edge_done_with_context"
+  vars:
+    message: "just got back from the store"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: javascript
+      value: "output.length > 0"

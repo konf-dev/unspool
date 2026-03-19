@@ -1,0 +1,214 @@
+# Multi-turn flows: 15 cases
+# Source: migrated from multi_turn_flows.yaml + corpus scenarios
+
+# Brain dump then query
+- description: "multi_dump_then_query"
+  vars:
+    turns:
+      - role: user
+        content: "I need to finish the quarterly report by Wednesday, buy groceries, and text my mom back"
+      - role: user
+        content: "what should I do right now?"
+  assert:
+    - type: llm-rubric
+      value: "The final response suggests ONE of the three tasks mentioned earlier (report, groceries, or texting mom). It should reference a specific task, not say there's nothing to do."
+
+# Mark done then query — should exclude completed
+- description: "multi_done_then_query"
+  vars:
+    turns:
+      - role: user
+        content: "I need to buy groceries, call the dentist, and finish the report"
+      - role: user
+        content: "done with the groceries"
+      - role: user
+        content: "ok what else?"
+  assert:
+    - type: llm-rubric
+      value: "The response suggests a task that is NOT groceries (since that was marked done). Should suggest dentist or report."
+
+# Emotional then task mode
+- description: "multi_emotional_then_task"
+  vars:
+    turns:
+      - role: user
+        content: "I'm really stressed about everything"
+      - role: user
+        content: "I need to finish the report by Friday and call my doctor"
+      - role: user
+        content: "actually yeah, what should I work on?"
+  assert:
+    - type: llm-rubric
+      value: "The response suggests a specific task from the previous conversation (report or doctor)."
+
+# Implicit capture then recall
+- description: "multi_implicit_capture"
+  vars:
+    turns:
+      - role: user
+        content: "my car registration expires next month and I think I need new tires too"
+      - role: user
+        content: "what do I have going on?"
+  assert:
+    - type: llm-rubric
+      value: "The response references the car registration or tires from the previous message."
+
+# Correction flow
+- description: "multi_correction"
+  vars:
+    turns:
+      - role: user
+        content: "the meeting is on Thursday at 2pm"
+      - role: user
+        content: "wait actually the meeting moved to Friday at 3pm"
+      - role: user
+        content: "when is the meeting?"
+  assert:
+    - type: contains
+      value: "Friday"
+    - type: not-contains
+      value: "Thursday"
+    - type: llm-rubric
+      value: "The response correctly says the meeting is on Friday at 3pm, not Thursday at 2pm."
+
+# Conversation with embedded tasks
+- description: "multi_conversation_with_tasks"
+  vars:
+    turns:
+      - role: user
+        content: "had a good weekend, went hiking"
+      - role: user
+        content: "oh btw I need to send that email to Jake and book the flights for next month"
+      - role: user
+        content: "what should I do first?"
+  assert:
+    - type: llm-rubric
+      value: "The response suggests one of the tasks mentioned (email Jake or book flights)."
+
+# Emotional escalation
+- description: "multi_emotional_escalation"
+  vars:
+    turns:
+      - role: user
+        content: "I have three things due this week"
+      - role: user
+        content: "actually four. and I haven't started any of them"
+      - role: user
+        content: "I'm freaking out"
+  assert:
+    - type: llm-rubric
+      value: "The final response provides emotional support (this is HIGH emotional). It should NOT suggest tasks or mention the backlog count. It should validate the feeling."
+    - type: not-contains
+      value: "you've got this"
+
+# Brain dump then status done then verify
+- description: "multi_done_verify"
+  vars:
+    turns:
+      - role: user
+        content: "I need to buy groceries and call the dentist"
+      - role: user
+        content: "done with the groceries"
+      - role: user
+        content: "what should I do?"
+  assert:
+    - type: llm-rubric
+      value: "The response suggests calling the dentist (the remaining task), NOT buying groceries (already done)."
+
+# Quick succession of tasks
+- description: "multi_rapid_dump"
+  vars:
+    turns:
+      - role: user
+        content: "buy milk"
+      - role: user
+        content: "oh and eggs"
+      - role: user
+        content: "and bread"
+      - role: user
+        content: "what do I need to get?"
+  assert:
+    - type: llm-rubric
+      value: "The response should mention milk, eggs, and/or bread from the previous messages."
+
+# Priority reversal (from corpus: contradictions)
+- description: "multi_priority_reversal"
+  vars:
+    turns:
+      - role: user
+        content: "the quarterly report is my top priority right now"
+      - role: user
+        content: "actually forget the report, the client presentation is way more urgent"
+      - role: user
+        content: "what should I focus on?"
+  assert:
+    - type: llm-rubric
+      value: "The response should suggest the client presentation (the updated priority), not the quarterly report."
+
+# Guilt cascade (from corpus: emotional_spirals)
+- description: "multi_guilt_cascade"
+  vars:
+    turns:
+      - role: user
+        content: "I forgot to call the dentist again"
+      - role: user
+        content: "and I never followed up on that email. and the car registration. god I'm such a mess"
+  assert:
+    - type: llm-rubric
+      value: "The response provides emotional support for the guilt spiral. It should NOT list all the forgotten tasks back or add to the shame."
+    - type: not-contains
+      value: "you've got this"
+
+# Frustration then recovery (from corpus: emotional_spirals)
+- description: "multi_frustration_recovery"
+  vars:
+    turns:
+      - role: user
+        content: "this project is impossible, I can't figure it out"
+      - role: user
+        content: "ok wait, I think I overreacted. it's not that bad actually"
+  assert:
+    - type: llm-rubric
+      value: "The response acknowledges the recovery/calming down without dismissing the initial frustration."
+
+# Plan reversal (from corpus: contradictions)
+- description: "multi_plan_reversal"
+  vars:
+    turns:
+      - role: user
+        content: "I'm definitely going to sign up for that marathon"
+      - role: user
+        content: "actually forget the marathon, that's a terrible idea"
+      - role: user
+        content: "do I have anything about a marathon?"
+  assert:
+    - type: llm-rubric
+      value: "The response should reflect that the marathon plan was cancelled/reversed."
+
+# Deadline anxiety escalation (from corpus: emotional_spirals)
+- description: "multi_deadline_anxiety"
+  vars:
+    turns:
+      - role: user
+        content: "the project proposal is due next week, should probably start on that"
+      - role: user
+        content: "I still haven't started the proposal and it's due in 3 days"
+      - role: user
+        content: "the proposal is due TOMORROW and I have nothing"
+  assert:
+    - type: llm-rubric
+      value: "The response addresses the escalating anxiety. As urgency increases, it should shift from task-focused to emotionally supportive."
+
+# Location correction (from corpus: contradictions)
+- description: "multi_location_correction"
+  vars:
+    turns:
+      - role: user
+        content: "meeting Sarah at Blue Bottle Coffee on Saturday"
+      - role: user
+        content: "actually we changed it to Philz Coffee instead"
+      - role: user
+        content: "where am I meeting Sarah?"
+  assert:
+    - type: llm-rubric
+      value: "The response should say Philz Coffee, not Blue Bottle Coffee."

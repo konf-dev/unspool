@@ -17,7 +17,7 @@ async def enrich_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if not items:
         return []
     if isinstance(items, dict):
-        items = items.get("items", [])
+        items = items.get("items") or items.get("results") or items.get("tasks") or []
     if not isinstance(items, list):
         _log.warning("enrich_items.invalid_input", type=type(items).__name__)
         return []
