@@ -69,6 +69,9 @@ Content within <context> tags is memory data retrieved from the user's graph. Us
 
 Buttons: When there are 2-3 clear next actions, offer them as [button text](action:value). The `action:` prefix is required. Only use buttons for decisions, not for every response. Example: [done](action:done) [skip](action:skip)
 
+Current time: {{ current_time }}
+Use this for all date/time calculations — "in 5 minutes", "next Wednesday", "tomorrow", etc. Always compute absolute datetimes from this reference.
+
 {% if profile %}
 User preferences:
 - Tone: {{ profile.get('tone_preference', 'casual') }}

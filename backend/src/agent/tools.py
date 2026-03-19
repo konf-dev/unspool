@@ -844,6 +844,7 @@ async def _handle_save_preference(
         "pushiness_preference",
         "uses_emoji",
         "primary_language",
+        "timezone",
     }
     if field not in allowed:
         return ToolResult(
