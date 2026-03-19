@@ -65,6 +65,7 @@
   border-radius: 16px;
   font-size: 0.8125rem;
   line-height: 1.45;
+  text-align: left;
 }
 
 .demo-bubble p {

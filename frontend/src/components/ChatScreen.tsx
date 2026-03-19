@@ -69,6 +69,8 @@ export function ChatScreen({
   const pendingActionsRef = useRef<ActionButton[] | null>(null)
   const firstTokenReceivedRef = useRef(false)
   const userAbortedRef = useRef(false)
+  const accumulatedRef = useRef('')
+  const rafRef = useRef<number | null>(null)
   const sessionIdRef = useRef(getSessionId())
   const pwaPromptShownRef = useRef(false)
 
@@ -152,8 +154,7 @@ export function ChatScreen({
       pendingActionsRef.current = null
       firstTokenReceivedRef.current = false
       userAbortedRef.current = false
-
-      let accumulated = ''
+      accumulatedRef.current = ''
 
       const controller = sendMessage(
         first,
@@ -164,23 +165,34 @@ export function ChatScreen({
             firstTokenReceivedRef.current = true
             setIsThinking(false)
           }
-          accumulated += t
-          setStreamingContent(accumulated)
+          accumulatedRef.current += t
+          if (rafRef.current === null) {
+            rafRef.current = requestAnimationFrame(() => {
+              setStreamingContent(accumulatedRef.current)
+              rafRef.current = null
+            })
+          }
         },
         (actions) => {
           pendingActionsRef.current = actions
         },
         () => {
+          if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current)
+            rafRef.current = null
+          }
+          const finalContent = accumulatedRef.current
+
           const assistantMessage: Message = {
             id: `assistant-${Date.now()}`,
             role: 'assistant',
-            content: accumulated,
+            content: finalContent,
             createdAt: new Date().toISOString(),
             actions: pendingActionsRef.current ?? undefined,
           }
 
           setMessages((prev) => [...prev, assistantMessage])
-          setLastAssistantContent(accumulated)
+          setLastAssistantContent(finalContent)
           setStreamingContent(null)
           setIsStreaming(false)
           setIsThinking(false)
@@ -193,6 +205,10 @@ export function ChatScreen({
           }
         },
         () => {
+          if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current)
+            rafRef.current = null
+          }
           if (userAbortedRef.current) {
             userAbortedRef.current = false
             return
@@ -276,8 +292,7 @@ export function ChatScreen({
       pendingActionsRef.current = null
       firstTokenReceivedRef.current = false
       userAbortedRef.current = false
-
-      let accumulated = ''
+      accumulatedRef.current = ''
 
       const controller = sendMessage(
         text,
@@ -288,23 +303,34 @@ export function ChatScreen({
             firstTokenReceivedRef.current = true
             setIsThinking(false)
           }
-          accumulated += t
-          setStreamingContent(accumulated)
+          accumulatedRef.current += t
+          if (rafRef.current === null) {
+            rafRef.current = requestAnimationFrame(() => {
+              setStreamingContent(accumulatedRef.current)
+              rafRef.current = null
+            })
+          }
         },
         (actions) => {
           pendingActionsRef.current = actions
         },
         () => {
+          if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current)
+            rafRef.current = null
+          }
+          const finalContent = accumulatedRef.current
+
           const assistantMessage: Message = {
             id: `assistant-${Date.now()}`,
             role: 'assistant',
-            content: accumulated,
+            content: finalContent,
             createdAt: new Date().toISOString(),
             actions: pendingActionsRef.current ?? undefined,
           }
 
           setMessages((prev) => [...prev, assistantMessage])
-          setLastAssistantContent(accumulated)
+          setLastAssistantContent(finalContent)
           setStreamingContent(null)
           setIsStreaming(false)
           setIsThinking(false)
@@ -313,6 +339,10 @@ export function ChatScreen({
           firstTokenReceivedRef.current = false
         },
         () => {
+          if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current)
+            rafRef.current = null
+          }
           if (userAbortedRef.current) {
             userAbortedRef.current = false
             return
