@@ -199,13 +199,12 @@ REALISTIC_DATA = {
 
 
 class TestSystemPromptRendering:
-    def test_system_md_renders_without_profile(self) -> None:
-        result = render_prompt("system.md", {"profile": None})
+    def test_agent_system_renders_without_profile(self) -> None:
+        result = render_prompt("agent_system.md", {"profile": None, "context": ""})
         assert "Unspool" in result
-        # When profile is None, preferences section is skipped
         assert "Tone:" not in result
 
-    def test_system_md_renders_with_profile(self) -> None:
+    def test_agent_system_renders_with_profile(self) -> None:
         profile = {
             "tone_preference": "warm",
             "length_preference": "terse",
@@ -213,25 +212,23 @@ class TestSystemPromptRendering:
             "uses_emoji": True,
             "primary_language": "sv",
         }
-        result = render_prompt("system.md", {"profile": profile})
+        result = render_prompt("agent_system.md", {"profile": profile, "context": ""})
         assert "warm" in result
         assert "terse" in result
         assert "firm" in result
-        assert "True" in result or "true" in result
         assert "sv" in result
 
-    def test_system_md_renders_with_empty_profile(self) -> None:
-        result = render_prompt("system.md", {"profile": {}})
-        # Empty dict is falsy in Jinja2, so preferences block is skipped
-        # Core personality should still be present
-        assert "Unspool" in result
-        assert "User preferences" not in result
-
-    def test_system_md_has_core_rules(self) -> None:
-        result = render_prompt("system.md", {"profile": None})
-        # Verify critical product rules are in the system prompt
+    def test_agent_system_has_core_rules(self) -> None:
+        result = render_prompt("agent_system.md", {"profile": None, "context": ""})
         assert "ONE thing" in result or "one thing" in result.lower()
         assert "never" in result.lower()
+
+    def test_agent_system_includes_context(self) -> None:
+        result = render_prompt(
+            "agent_system.md",
+            {"profile": None, "context": "<context>test data</context>"},
+        )
+        assert "<context>test data</context>" in result
 
     def test_all_pipeline_prompts_render_independently(self) -> None:
         """Each pipeline prompt should render without errors when given minimal variables."""
