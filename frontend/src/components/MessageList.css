@@ -75,8 +75,23 @@
   }
 }
 
+.tool-status-label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  animation: toolStatusFadeIn 200ms ease both;
+}
+
+@keyframes toolStatusFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .jump-to-bottom {
     transition: none;
+  }
+  .tool-status-label {
+    animation: none;
   }
 }

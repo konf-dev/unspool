@@ -37,6 +37,20 @@ describe('parseSSEEvent', () => {
     const result = parseSSEEvent(JSON.stringify({ type: 'token' }))
     expect(result).toEqual({ type: 'token', content: undefined })
   })
+
+  it('parses a tool_status running event', () => {
+    const result = parseSSEEvent(
+      JSON.stringify({ type: 'tool_status', tool: 'save_items', status: 'running' }),
+    )
+    expect(result).toEqual({ type: 'tool_status', tool: 'save_items', status: 'running' })
+  })
+
+  it('parses a tool_status done event', () => {
+    const result = parseSSEEvent(
+      JSON.stringify({ type: 'tool_status', tool: 'pick_next', status: 'done' }),
+    )
+    expect(result).toEqual({ type: 'tool_status', tool: 'pick_next', status: 'done' })
+  })
 })
 
 describe('fetchMessages', () => {

@@ -11,8 +11,10 @@ function useMocks(): boolean {
 }
 
 export interface ParsedSSEEvent {
-  type: 'token' | 'actions' | 'done' | 'unknown'
+  type: 'token' | 'actions' | 'tool_status' | 'done' | 'unknown'
   content?: string
+  tool?: string
+  status?: 'running' | 'done'
 }
 
 export function parseSSEEvent(data: string): ParsedSSEEvent {
@@ -28,6 +30,12 @@ export function parseSSEEvent(data: string): ParsedSSEEvent {
       return { type: 'token', content: parsed.content }
     case 'actions':
       return { type: 'actions', content: parsed.content }
+    case 'tool_status':
+      return {
+        type: 'tool_status',
+        tool: (parsed as { tool?: string }).tool,
+        status: (parsed as { status?: string }).status as 'running' | 'done',
+      }
     case 'done':
       return { type: 'done' }
     default:
@@ -41,6 +49,7 @@ export function sendMessage(
   token: string,
   onToken: (token: string) => void,
   onActions?: (actions: ActionButton[]) => void,
+  onToolStatus?: (tool: string, status: 'running' | 'done') => void,
   onDone?: () => void,
   onError?: (err: unknown) => void,
 ): AbortController {
@@ -69,6 +78,11 @@ export function sendMessage(
           if (onActions && parsed.content) {
             const actions = JSON.parse(parsed.content) as ActionButton[]
             onActions(actions)
+          }
+          break
+        case 'tool_status':
+          if (onToolStatus && parsed.tool && parsed.status) {
+            onToolStatus(parsed.tool, parsed.status)
           }
           break
         case 'done':

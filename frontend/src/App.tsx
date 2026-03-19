@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { Message } from './types'
 import { fetchMessages } from './lib/api'
 import { useAuth } from './hooks/useAuth'
+import { UIModeProvider } from './contexts/UIMode'
 import { LandingPage } from './components/LandingPage'
 import { LoginScreen } from './components/LoginScreen'
 import { ChatScreen } from './components/ChatScreen'
@@ -157,21 +158,23 @@ export function App() {
   }
 
   return (
-    <div className={fadeClass}>
-      {route === 'privacy' && <PrivacyPage onBack={handleBackToLanding} />}
-      {route === 'terms' && <TermsPage onBack={handleBackToLanding} />}
-      {route === 'landing' && <LandingPage onGetStarted={handleGetStarted} />}
-      {route === 'login' && (
-        <LoginScreen onSignInWithGoogle={signInWithGoogle} onSignInWithEmail={signInWithEmail} />
-      )}
-      {route === 'chat' && (
-        <ChatScreen
-          initialMessages={messages}
-          token={token ?? ''}
-          userId={userId ?? ''}
-          onSignOut={signOut}
-        />
-      )}
-    </div>
+    <UIModeProvider>
+      <div className={fadeClass}>
+        {route === 'privacy' && <PrivacyPage onBack={handleBackToLanding} />}
+        {route === 'terms' && <TermsPage onBack={handleBackToLanding} />}
+        {route === 'landing' && <LandingPage onGetStarted={handleGetStarted} />}
+        {route === 'login' && (
+          <LoginScreen onSignInWithGoogle={signInWithGoogle} onSignInWithEmail={signInWithEmail} />
+        )}
+        {route === 'chat' && (
+          <ChatScreen
+            initialMessages={messages}
+            token={token ?? ''}
+            userId={userId ?? ''}
+            onSignOut={signOut}
+          />
+        )}
+      </div>
+    </UIModeProvider>
   )
 }

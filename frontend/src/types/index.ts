@@ -1,3 +1,5 @@
+export type UIMode = 'chat' | 'thought'
+
 export type MessageRole = 'user' | 'assistant'
 
 export interface ActionButton {
@@ -29,7 +31,7 @@ export interface ChatState {
   pendingActions: ActionButton[] | null
 }
 
-export type SSEEventType = 'token' | 'actions' | 'done' | 'error'
+export type SSEEventType = 'token' | 'actions' | 'tool_status' | 'done' | 'error'
 
 export interface SSEEvent {
   type: SSEEventType
