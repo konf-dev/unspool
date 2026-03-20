@@ -29,7 +29,7 @@ class LLMProvider(Protocol):
         **kwargs: Any,
     ) -> LLMResult: ...
 
-    async def stream(
+    def stream(
         self,
         messages: list[dict[str, Any]],
         model: str | None = None,

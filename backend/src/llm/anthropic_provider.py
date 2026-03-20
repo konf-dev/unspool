@@ -121,3 +121,14 @@ class AnthropicProvider:
                 content += block.text
 
         return schema.model_validate_json(content)
+
+    def stream_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        model: str | None = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[Any]:
+        # Not implemented yet for Anthropic in this codebase
+        raise NotImplementedError("stream_with_tools not implemented for Anthropic")
+        yield  # type: ignore
