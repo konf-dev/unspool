@@ -213,6 +213,22 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
           }
         ],
         "responses": {
@@ -243,6 +259,29 @@
           }
         },
         "summary": "Get Recent Errors"
+      }
+    },
+    "/admin/errors/summary": {
+      "get": {
+        "operationId": "get_error_summary_admin_errors_summary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Error Summary Admin Errors Summary Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Error Summary"
       }
     },
     "/admin/eval-cleanup": {

@@ -176,11 +176,14 @@ async def run_agent(
         text_chunks = []
 
     update_current_observation(
+        input={"user_message": message, "message_count": len(messages)},
         output={
             "response_text": state.response_text,
             "tool_calls_made": state.tool_calls_made,
-            "input_tokens": state.total_input_tokens,
-            "output_tokens": state.total_output_tokens,
+        },
+        usage={
+            "input": state.total_input_tokens,
+            "output": state.total_output_tokens,
         },
     )
 

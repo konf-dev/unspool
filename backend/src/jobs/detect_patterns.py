@@ -1,7 +1,8 @@
 import json
 from datetime import datetime, timezone
 
-from src.telemetry.langfuse_integration import observe
+from src.telemetry.error_reporting import report_error
+from src.telemetry.langfuse_integration import observe, update_current_observation
 
 from src.db.supabase import (
     _get_pool,
@@ -80,7 +81,8 @@ async def run_detect_patterns() -> dict:
                 import json as _json
 
                 existing_patterns = _json.loads(existing_patterns)
-        except Exception:
+        except Exception as e:
+            report_error("detect_patterns.profile_load_failed", e, user_id=user_id)
             existing_patterns = {}
 
         merged = {**existing_patterns, **patterns}
@@ -123,6 +125,7 @@ async def _has_enough_data(user_id: str, analysis: dict) -> bool:
     return True
 
 
+@observe("pattern.llm_analysis")
 async def _run_llm_analysis(
     user_id: str,
     analysis_name: str,
@@ -141,12 +144,20 @@ async def _run_llm_analysis(
 
     try:
         rendered = render_prompt(prompt_name, variables)
+        llm_messages = [
+            {"role": "system", "content": rendered},
+            {"role": "user", "content": "Analyze and return results as JSON."},
+        ]
         provider = get_llm_provider()
-        result = await provider.generate(
-            [
-                {"role": "system", "content": rendered},
-                {"role": "user", "content": "Analyze and return results as JSON."},
-            ]
+        result = await provider.generate(llm_messages)
+        update_current_observation(
+            model=analysis.get("model"),
+            input=llm_messages,
+            output=result.content,
+            usage={
+                "input": result.input_tokens,
+                "output": result.output_tokens,
+            },
         )
 
         parsed = json.loads(result.content)
@@ -163,20 +174,11 @@ async def _run_llm_analysis(
 
         return parsed
 
-    except json.JSONDecodeError:
-        _log.warning(
-            "detect_patterns.llm_parse_failed",
-            prompt=prompt_name,
-            user_id=user_id,
-        )
+    except json.JSONDecodeError as e:
+        report_error("detect_patterns.llm_parse_failed", e, user_id=user_id)
         return None
-    except Exception:
-        _log.warning(
-            "detect_patterns.llm_analysis_failed",
-            prompt=prompt_name,
-            user_id=user_id,
-            exc_info=True,
-        )
+    except Exception as e:
+        report_error("detect_patterns.llm_analysis_failed", e, user_id=user_id)
         return None
 
 
@@ -195,7 +197,8 @@ async def _gather_data(
         try:
             profile = await get_profile(user_id)
             variables["current_patterns"] = profile.get("patterns", {})
-        except Exception:
+        except Exception as e:
+            report_error("detect_patterns.gather_patterns_failed", e, user_id=user_id)
             variables["current_patterns"] = {}
 
     elif data_type == "preferences":
@@ -213,7 +216,8 @@ async def _gather_data(
                 "uses_emoji": profile.get("uses_emoji", False),
                 "primary_language": profile.get("primary_language", "en"),
             }
-        except Exception:
+        except Exception as e:
+            report_error("detect_patterns.gather_prefs_failed", e, user_id=user_id)
             variables["current_profile"] = {}
 
     elif data_type == "memories":

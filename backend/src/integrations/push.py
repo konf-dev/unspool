@@ -5,6 +5,7 @@ from pywebpush import WebPushException, webpush
 
 from src.config import get_settings
 from src.db.supabase import delete_push_subscription
+from src.telemetry.error_reporting import report_error
 from src.telemetry.logger import get_logger
 
 _log = get_logger("integrations.push")
@@ -53,15 +54,11 @@ async def send_push_notification(
                     await delete_push_subscription(
                         user_id, subscription_info["endpoint"]
                     )
-                except Exception:
-                    _log.warning("push.delete_subscription_failed", exc_info=True)
+                except Exception as e:
+                    report_error("push.delete_subscription_failed", e, user_id=user_id)
             return False
-        _log.warning(
-            "push.failed",
-            endpoint=subscription_info["endpoint"][:50],
-            error=str(exc),
-        )
+        report_error("push.failed", exc, user_id=user_id)
         return False
-    except Exception:
-        _log.warning("push.unexpected_error", exc_info=True)
+    except Exception as e:
+        report_error("push.unexpected_error", e, user_id=user_id)
         return False

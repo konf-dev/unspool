@@ -10,6 +10,8 @@ from src.llm.embedding import OpenAIEmbedding
 from src.llm.registry import get_llm_provider
 from src.config_loader import load_config
 from src.prompt_renderer import render_prompt
+from src.telemetry.error_reporting import report_error
+from src.telemetry.langfuse_integration import observe, update_current_observation
 from src.telemetry.logger import get_logger
 from src.graph.types import Correction, IngestOutput
 
@@ -40,6 +42,7 @@ def _is_valid_uuid(val: str) -> bool:
         return False
 
 
+@observe("graph.ingest")
 async def quick_ingest(
     user_id: str,
     message: str,
@@ -75,19 +78,30 @@ async def quick_ingest(
         },
     )
 
+    llm_messages = [
+        {"role": "system", "content": rendered},
+        {"role": "user", "content": message},
+    ]
+
     provider = get_llm_provider()
     try:
         result = await provider.generate(
-            [
-                {"role": "system", "content": rendered},
-                {"role": "user", "content": message},
-            ],
+            llm_messages,
             model=model,
+        )
+        update_current_observation(
+            model=model,
+            input=llm_messages,
+            output=result.content,
+            usage={
+                "input": result.input_tokens,
+                "output": result.output_tokens,
+            },
         )
         raw_json = _extract_json(result.content)
         output = IngestOutput(**raw_json)
     except Exception as e:
-        _log.warning("graph.ingest.failed", error=str(e), user_id=user_id)
+        report_error("graph.ingest.failed", e, user_id=user_id)
         return []
 
     if len(output.nodes) > max_nodes:

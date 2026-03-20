@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from src.agent.loop import run_agent
 from src.auth.supabase_auth import get_current_user
+from src.telemetry.error_reporting import report_error
 from src.telemetry.langfuse_integration import (
     observe,
     update_current_trace,
@@ -47,8 +48,8 @@ async def _check_gate(user_id: str) -> None:
         else:
             tier = await db.get_user_tier(user_id)
             await redis.session_set(user_id, "tier", tier)
-    except Exception:
-        _log.warning("gate.tier_check_failed", user_id=user_id, exc_info=True)
+    except Exception as e:
+        report_error("gate.tier_check_failed", e, user_id=user_id)
 
     tier_config = rate_limits.get(tier, rate_limits.get("free", {}))
     daily_limit = tier_config.get("daily_messages", 10)
@@ -58,8 +59,8 @@ async def _check_gate(user_id: str) -> None:
 
     try:
         allowed, remaining = await redis.rate_limit_check(user_id, daily_limit)
-    except Exception:
-        _log.warning("gate.rate_limit_check_failed", user_id=user_id, exc_info=True)
+    except Exception as e:
+        report_error("gate.rate_limit_check_failed", e, user_id=user_id)
         return  # fail open — let the request through if Redis is down
 
     if not allowed:
@@ -188,8 +189,8 @@ async def chat(
     if request.timezone:
         try:
             await db.update_profile(user_id, timezone=request.timezone)
-        except Exception:
-            pass
+        except Exception as e:
+            report_error("chat.timezone_sync_failed", e, user_id=user_id)
 
     user_msg = await db.save_message(
         user_id=user_id,

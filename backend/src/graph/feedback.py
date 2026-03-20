@@ -7,11 +7,14 @@ from src.graph import db
 from src.graph.types import ActiveSubgraph, FeedbackResult
 from src.llm.registry import get_llm_provider
 from src.config_loader import load_config
+from src.telemetry.error_reporting import report_error
+from src.telemetry.langfuse_integration import observe, update_current_observation
 from src.telemetry.logger import get_logger
 
 _log = get_logger("graph.feedback")
 
 
+@observe("graph.feedback")
 async def detect_feedback(
     response_text: str,
     subgraph: ActiveSubgraph,
@@ -47,11 +50,21 @@ Return JSON:
   "suppressions": ["..."]
 }}"""
 
+    llm_messages = [{"role": "user", "content": prompt}]
     provider = get_llm_provider()
     try:
         result = await provider.generate(
-            [{"role": "user", "content": prompt}],
+            llm_messages,
             model=model,
+        )
+        update_current_observation(
+            model=model,
+            input=llm_messages,
+            output=result.content,
+            usage={
+                "input": result.input_tokens,
+                "output": result.output_tokens,
+            },
         )
         raw = result.content.strip()
         try:
@@ -64,7 +77,7 @@ Return JSON:
                 return FeedbackResult()
         return FeedbackResult(**data)
     except Exception as e:
-        _log.warning("graph.feedback_detection_failed", error=str(e))
+        report_error("graph.feedback_detection_failed", e, user_id=user_id)
         return FeedbackResult()
 
 

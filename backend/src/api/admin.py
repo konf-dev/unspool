@@ -160,16 +160,47 @@ async def eval_cleanup() -> dict[str, Any]:
 @router.get("/errors")
 async def get_recent_errors(
     limit: int = Query(default=20, le=100),
+    source: str | None = Query(default=None),
 ) -> list[dict[str, Any]]:
+    pool = get_pool()
+    if source:
+        rows = await pool.fetch(
+            """
+            SELECT id, trace_id, user_id, source, error_type, error_message,
+                   stacktrace, metadata, created_at
+            FROM error_log
+            WHERE source = $1
+            ORDER BY created_at DESC
+            LIMIT $2
+            """,
+            source,
+            limit,
+        )
+    else:
+        rows = await pool.fetch(
+            """
+            SELECT id, trace_id, user_id, source, error_type, error_message,
+                   stacktrace, metadata, created_at
+            FROM error_log
+            ORDER BY created_at DESC
+            LIMIT $1
+            """,
+            limit,
+        )
+    return [dict(r) for r in rows]
+
+
+@router.get("/errors/summary")
+async def get_error_summary() -> list[dict[str, Any]]:
     pool = get_pool()
     rows = await pool.fetch(
         """
-        SELECT id, user_id, role, content, created_at, metadata
-        FROM messages
-        WHERE (metadata->>'error')::boolean = true
-        ORDER BY created_at DESC
-        LIMIT $1
-        """,
-        limit,
+        SELECT source, error_type, COUNT(*) as count,
+               MAX(created_at) as last_seen
+        FROM error_log
+        WHERE created_at > now() - interval '24 hours'
+        GROUP BY source, error_type
+        ORDER BY count DESC
+        """
     )
     return [dict(r) for r in rows]

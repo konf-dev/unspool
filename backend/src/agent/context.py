@@ -2,6 +2,7 @@ import asyncio
 from typing import Any
 
 from src.db import supabase as db
+from src.telemetry.error_reporting import report_error
 from src.telemetry.langfuse_integration import observe
 from src.telemetry.logger import get_logger
 from src.tools.graph_tools import fetch_graph_context
@@ -32,30 +33,30 @@ async def assemble_context(
         nonlocal profile
         try:
             profile = await db.get_profile(user_id)
-        except Exception:
-            _log.warning("context.profile_failed", user_id=user_id)
+        except Exception as e:
+            report_error("context.profile_failed", e, user_id=user_id)
 
     async def _load_messages() -> None:
         nonlocal recent_messages
         try:
             msgs = await db.get_messages(user_id, limit=20)
             recent_messages = list(reversed(msgs))
-        except Exception:
-            _log.warning("context.messages_failed", user_id=user_id)
+        except Exception as e:
+            report_error("context.messages_failed", e, user_id=user_id)
 
     async def _load_graph() -> None:
         nonlocal graph_context
         try:
             graph_context = await fetch_graph_context(user_id, message=message)
-        except Exception:
-            _log.warning("context.graph_failed", user_id=user_id)
+        except Exception as e:
+            report_error("context.graph_failed", e, user_id=user_id)
 
     async def _load_calendar() -> None:
         nonlocal calendar_events
         try:
             calendar_events = await db.get_calendar_events_filtered(user_id)
-        except Exception:
-            _log.warning("context.calendar_failed", user_id=user_id)
+        except Exception as e:
+            report_error("context.calendar_failed", e, user_id=user_id)
 
     await asyncio.gather(
         _load_profile(),
