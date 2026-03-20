@@ -95,6 +95,7 @@ class OpenAIProvider:
         **kwargs: Any,
     ) -> AsyncIterator[StreamEvent]:
         from openai.types.chat import ChatCompletionToolParam
+
         response = await self._client.chat.completions.create(
             model=model or self._default_model,
             messages=cast(list[ChatCompletionMessageParam], messages),
