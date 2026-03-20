@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from src.auth.supabase_auth import get_current_user
 from src.db.supabase import save_push_subscription
 from src.integrations.stripe import create_checkout_session, handle_webhook
+from src.telemetry.error_reporting import report_error
 from src.telemetry.logger import get_logger
 
 _log = get_logger("api.subscribe")
@@ -31,13 +32,13 @@ async def subscribe(user_id: str = Depends(get_current_user)) -> dict:
     try:
         profile = await get_profile(user_id)
         email = profile.get("display_name", "") if profile else ""
-    except Exception:
-        pass
+    except Exception as e:
+        report_error("subscribe.profile_load_failed", e, user_id=user_id)
 
     try:
         url = await create_checkout_session(user_id, email=email or user_id)
-    except Exception:
-        _log.error("subscribe.checkout_failed", user_id=user_id, exc_info=True)
+    except Exception as e:
+        report_error("subscribe.checkout_failed", e, user_id=user_id)
         raise HTTPException(status_code=500, detail="Could not create checkout session")
     return {"url": url}
 
@@ -66,7 +67,7 @@ async def stripe_webhook(request: Request) -> dict:
     try:
         result = await handle_webhook(payload, signature)
     except Exception as exc:
-        _log.warning("stripe.webhook_error", error=str(exc))
+        report_error("stripe.webhook_error", exc)
         raise HTTPException(
             status_code=400, detail="Webhook verification failed"
         ) from exc

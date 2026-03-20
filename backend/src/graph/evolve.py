@@ -10,6 +10,8 @@ from src.llm.embedding import OpenAIEmbedding
 from src.llm.registry import get_llm_provider
 from src.config_loader import load_config
 from src.prompt_renderer import render_prompt
+from src.telemetry.error_reporting import report_error
+from src.telemetry.langfuse_integration import observe, update_current_observation
 from src.telemetry.logger import get_logger
 
 _log = get_logger("graph.evolve")
@@ -23,6 +25,7 @@ def _is_valid_uuid(val: str) -> bool:
         return False
 
 
+@observe("graph.evolve")
 async def evolve_graph(user_id: str) -> EvolutionResult:
     """
     Evolution cycle:
@@ -78,7 +81,7 @@ async def evolve_graph(user_id: str) -> EvolutionResult:
             synthesis = await _llm_synthesis(user_id, all_nodes, ingest_cfg)
             await _apply_synthesis(user_id, synthesis, result)
         except Exception as e:
-            _log.warning("graph.synthesis_failed", error=str(e))
+            report_error("graph.synthesis_failed", e, user_id=user_id)
 
     decayed = await db.decay_edges(
         user_id,
@@ -98,6 +101,7 @@ async def evolve_graph(user_id: str) -> EvolutionResult:
     return result
 
 
+@observe("graph.synthesis")
 async def _llm_synthesis(
     user_id: str, nodes: list[dict], ingest_cfg: dict
 ) -> EvolutionOutput:
@@ -122,10 +126,20 @@ async def _llm_synthesis(
         },
     )
 
+    llm_messages = [{"role": "user", "content": rendered}]
     provider = get_llm_provider()
     result = await provider.generate(
-        [{"role": "user", "content": rendered}],
+        llm_messages,
         model=model,
+    )
+    update_current_observation(
+        model=model,
+        input=llm_messages,
+        output=result.content,
+        usage={
+            "input": result.input_tokens,
+            "output": result.output_tokens,
+        },
     )
 
     raw = result.content.strip()
@@ -159,7 +173,7 @@ async def _apply_synthesis(
             await db.update_node_status(merge.remove_node_id, "merged")
             result.nodes_merged += 1
         except Exception as e:
-            _log.warning("graph.merge_failed", error=str(e))
+            report_error("graph.merge_failed", e)
 
     for edge in synthesis.new_edges:
         if not (_is_valid_uuid(edge.from_node_id) and _is_valid_uuid(edge.to_node_id)):
@@ -172,7 +186,7 @@ async def _apply_synthesis(
             )
             result.edges_created += 1
         except Exception as e:
-            _log.warning("graph.edge_create_failed", error=str(e))
+            report_error("graph.edge_create_failed", e)
 
     result.contradictions_found += len(synthesis.contradictions)
 
@@ -182,4 +196,4 @@ async def _apply_synthesis(
         try:
             await db.update_node_content(refinement.node_id, refinement.new_content)
         except Exception as e:
-            _log.warning("graph.refinement_failed", error=str(e))
+            report_error("graph.refinement_failed", e)

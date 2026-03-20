@@ -4,6 +4,7 @@ from typing import Any
 from qstash import AsyncQStash
 
 from src.config import get_settings
+from src.telemetry.error_reporting import report_error
 from src.telemetry.logger import get_logger
 
 _log = get_logger("integrations.qstash")
@@ -54,14 +55,7 @@ async def dispatch_job(
         )
         return msg_id
     except Exception as exc:
-        _log.error(
-            "qstash.dispatch_failed",
-            endpoint=endpoint,
-            url=url,
-            error=str(exc),
-            error_type=type(exc).__name__,
-            exc_info=True,
-        )
+        report_error("qstash.dispatch_failed", exc, endpoint=endpoint)
         return None
 
 
@@ -90,15 +84,7 @@ async def schedule_cron(
         )
         return sid
     except Exception as exc:
-        _log.error(
-            "qstash.cron_registration_failed",
-            endpoint=endpoint,
-            cron=cron_expression,
-            url=url,
-            error=str(exc),
-            error_type=type(exc).__name__,
-            exc_info=True,
-        )
+        report_error("qstash.cron_registration_failed", exc, endpoint=endpoint)
         return None
 
 
@@ -132,11 +118,6 @@ async def dispatch_at(
             message_id=msg_id,
         )
         return msg_id
-    except Exception:
-        _log.error(
-            "qstash.schedule_at_failed",
-            endpoint=endpoint,
-            deliver_at=deliver_at.isoformat(),
-            exc_info=True,
-        )
+    except Exception as exc:
+        report_error("qstash.schedule_at_failed", exc, endpoint=endpoint)
         return None

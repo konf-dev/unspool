@@ -4,6 +4,7 @@ from typing import Any
 from src.agent.types import AgentState, ToolResult
 from src.db import supabase as db
 from src.llm.registry import get_embedding_provider
+from src.telemetry.error_reporting import report_error
 from src.telemetry.logger import get_logger
 from src.tools.item_matching import fuzzy_match_item
 from src.tools.momentum_tools import pick_next_item
@@ -657,8 +658,8 @@ async def _handle_search(
         if status_filter:
             items = [i for i in items if i.get("status") == status_filter]
         results.extend(items)
-    except Exception:
-        _log.warning("search.embedding_failed", exc_info=True)
+    except Exception as e:
+        report_error("search.embedding_failed", e, user_id=user_id)
         items = await db.search_items_text(user_id, query, limit=5)
         results.extend(items)
 
@@ -1074,8 +1075,8 @@ async def _handle_schedule_action(
                     {"action_ids": [str(result["id"])]},
                     deliver_at=parsed_at,
                 )
-    except Exception:
-        _log.warning("schedule_action.qstash_shortcut_failed", exc_info=True)
+    except Exception as e:
+        report_error("schedule_action.qstash_shortcut_failed", e, user_id=user_id)
 
     return ToolResult(
         tool_call_id="",

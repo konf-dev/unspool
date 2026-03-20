@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -486,6 +487,31 @@ async def save_llm_usage(
         latency_ms,
         ttft_ms,
         config_hash,
+    )
+
+
+async def save_error(
+    source: str,
+    error_type: str,
+    error_message: str,
+    stacktrace: str | None = None,
+    trace_id: str | None = None,
+    user_id: str | None = None,
+    metadata: dict | None = None,
+) -> None:
+    pool = _get_pool()
+    await pool.execute(
+        """
+        INSERT INTO error_log (source, error_type, error_message, stacktrace, trace_id, user_id, metadata)
+        VALUES ($1, $2, $3, $4, $5, $6::uuid, $7::jsonb)
+        """,
+        source,
+        error_type,
+        error_message,
+        stacktrace,
+        trace_id,
+        user_id,
+        json.dumps(metadata or {}),
     )
 
 

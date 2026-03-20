@@ -9,6 +9,8 @@ from src.db import supabase as db
 from src.llm.registry import get_llm_provider
 from src.config_loader import load_config
 from src.prompt_renderer import render_prompt
+from src.telemetry.error_reporting import report_error
+from src.telemetry.langfuse_integration import observe, update_current_observation
 from src.telemetry.logger import get_logger
 
 _log = get_logger("api.messages")
@@ -72,8 +74,8 @@ async def _eval_days_absent(
         days_absent = (datetime.now(timezone.utc) - last_dt).days
         if days_absent >= min_days:
             return {"days_absent": days_absent, "profile": profile or {}}
-    except (ValueError, TypeError):
-        pass
+    except (ValueError, TypeError) as e:
+        report_error("proactive.days_absent_parse_failed", e, user_id=user_id)
     return None
 
 
@@ -112,8 +114,8 @@ async def _eval_slipped_items(
                     "days_absent": days_absent,
                     "profile": profile or {},
                 }
-    except (ValueError, TypeError):
-        pass
+    except (ValueError, TypeError) as e:
+        report_error("proactive.slipped_items_parse_failed", e, user_id=user_id)
     return None
 
 
@@ -139,6 +141,7 @@ async def _evaluate_trigger(
     return await evaluator(params, user_id, profile)
 
 
+@observe("proactive.check")
 async def _check_proactive(user_id: str) -> dict[str, Any] | None:
     try:
         proactive_config = load_config("proactive")
@@ -156,8 +159,8 @@ async def _check_proactive(user_id: str) -> dict[str, Any] | None:
     profile = None
     try:
         profile = await db.get_profile(user_id)
-    except Exception:
-        pass
+    except Exception as e:
+        report_error("proactive.profile_failed", e, user_id=user_id)
 
     for trigger_name, trigger_config in sorted_triggers:
         if not trigger_config.get("enabled", True):
@@ -175,20 +178,24 @@ async def _check_proactive(user_id: str) -> dict[str, Any] | None:
 
         try:
             rendered = render_prompt(prompt_file, template_vars)
+            llm_messages = [
+                {"role": "system", "content": rendered},
+                {"role": "user", "content": "Generate the proactive message."},
+            ]
             provider = get_llm_provider()
-            result = await provider.generate(
-                messages=[
-                    {"role": "system", "content": rendered},
-                    {"role": "user", "content": "Generate the proactive message."},
-                ],
+            result = await provider.generate(messages=llm_messages)
+            update_current_observation(
+                input=llm_messages,
+                output=result.content,
+                usage={
+                    "input": result.input_tokens,
+                    "output": result.output_tokens,
+                },
             )
             content = result.content.strip()
-        except Exception:
-            _log.warning(
-                "proactive.render_failed",
-                trigger=trigger_name,
-                user_id=user_id,
-                exc_info=True,
+        except Exception as e:
+            report_error(
+                "proactive.render_failed", e, user_id=user_id, trigger=trigger_name
             )
             continue
 
@@ -201,12 +208,9 @@ async def _check_proactive(user_id: str) -> dict[str, Any] | None:
             )
             _log.info("proactive.sent", trigger=trigger_name, user_id=user_id)
             return msg
-        except Exception:
-            _log.warning(
-                "proactive.save_failed",
-                trigger=trigger_name,
-                user_id=user_id,
-                exc_info=True,
+        except Exception as e:
+            report_error(
+                "proactive.save_failed", e, user_id=user_id, trigger=trigger_name
             )
             continue
 
