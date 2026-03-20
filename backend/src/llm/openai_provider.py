@@ -94,10 +94,11 @@ class OpenAIProvider:
         model: str | None = None,
         **kwargs: Any,
     ) -> AsyncIterator[StreamEvent]:
+        from openai.types.chat import ChatCompletionToolParam
         response = await self._client.chat.completions.create(
             model=model or self._default_model,
             messages=cast(list[ChatCompletionMessageParam], messages),
-            tools=tools,
+            tools=cast(list[ChatCompletionToolParam], tools),
             stream=True,
             stream_options={"include_usage": True},
             **kwargs,
