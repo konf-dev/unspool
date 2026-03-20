@@ -2,12 +2,13 @@ from src.config import get_settings
 from src.llm.anthropic_provider import AnthropicProvider
 from src.llm.embedding import AnthropicEmbedding, OpenAIEmbedding
 from src.llm.openai_provider import OpenAIProvider
+from src.llm.protocol import LLMProvider
 
-_llm_cache: dict[str, AnthropicProvider | OpenAIProvider] = {}
+_llm_cache: dict[str, LLMProvider] = {}
 _embedding_cache: dict[str, OpenAIEmbedding | AnthropicEmbedding] = {}
 
 
-def get_llm_provider(provider: str | None = None) -> AnthropicProvider | OpenAIProvider:
+def get_llm_provider(provider: str | None = None) -> LLMProvider:
     settings = get_settings()
     name = provider or settings.LLM_PROVIDER
 

@@ -44,7 +44,7 @@ class LLMProvider(Protocol):
         **kwargs: Any,
     ) -> BaseModel: ...
 
-    async def stream_with_tools(
+    def stream_with_tools(
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],

@@ -36,7 +36,7 @@ async def run_agent(
     user_id: str,
     message: str,
     trace_id: str,
-) -> AsyncIterator[tuple[str, AgentState]]:
+) -> AsyncIterator[tuple[str, Any]]:
     """Run the agent loop. Yields SSE-formatted strings.
 
     Returns the AgentState via the final yield as a tuple ("__state__", state).
@@ -122,7 +122,7 @@ async def run_agent(
                 format_sse_event("tool_status", tool=tc.name, status="running"),
             )
 
-        async def _run_one_tool(tc: ToolCall):
+        async def _run_one_tool(tc: ToolCall) -> Any:
             try:
                 args = json.loads(tc.arguments) if tc.arguments else {}
             except json.JSONDecodeError:
