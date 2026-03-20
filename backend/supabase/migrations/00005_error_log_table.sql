@@ -20,7 +20,12 @@ CREATE INDEX IF NOT EXISTS idx_error_log_user_id ON error_log (user_id);
 ALTER TABLE error_log ENABLE ROW LEVEL SECURITY;
 
 -- Admin-only access (service role key).
-CREATE POLICY IF NOT EXISTS "Service role full access on error_log"
-    ON error_log
-    FOR ALL
-    USING (auth.role() = 'service_role');
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'error_log' AND policyname = 'Service role full access on error_log'
+  ) THEN
+    CREATE POLICY "Service role full access on error_log"
+      ON error_log FOR ALL USING (auth.role() = 'service_role');
+  END IF;
+END $$;
