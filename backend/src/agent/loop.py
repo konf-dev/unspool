@@ -137,6 +137,7 @@ async def run_agent(
         # Run tools in parallel
         tasks = [_run_one_tool(tc) for tc in pending_calls.values()]
         import asyncio
+
         results = await asyncio.gather(*tasks)
 
         for tc, result, args in results:
