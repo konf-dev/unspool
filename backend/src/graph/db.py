@@ -22,6 +22,8 @@ def _row_to_dict(row) -> dict:
             d[k] = v.isoformat()
         elif hasattr(v, "tolist"):
             d[k] = v.tolist()
+        elif hasattr(v, "to_list"):
+            d[k] = v.to_list()
     return d
 
 

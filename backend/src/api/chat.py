@@ -257,18 +257,17 @@ async def chat(
             # covers the disconnect case where BackgroundTask would be skipped.
             # Lock prevents double-save if generator is closed concurrently.
             async with save_lock:
-                if stream_state.get("saved"):
-                    return
-                stream_state["saved"] = True
-                await _save_and_dispatch(
-                    user_id=user_id,
-                    trace_id=trace_id,
-                    session_id=request.session_id,
-                    user_msg_id=user_msg_id,
-                    collected_tokens=collected_tokens,
-                    agent_state_out=agent_state_out,
-                    stream_state=stream_state,
-                )
+                if not stream_state.get("saved"):
+                    stream_state["saved"] = True
+                    await _save_and_dispatch(
+                        user_id=user_id,
+                        trace_id=trace_id,
+                        session_id=request.session_id,
+                        user_msg_id=user_msg_id,
+                        collected_tokens=collected_tokens,
+                        agent_state_out=agent_state_out,
+                        stream_state=stream_state,
+                    )
 
     return StreamingResponse(
         wrapped_stream(),
