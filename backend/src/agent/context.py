@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 from typing import Any
 
 from src.db import supabase as db
@@ -54,7 +55,9 @@ async def assemble_context(
     async def _load_calendar() -> None:
         nonlocal calendar_events
         try:
-            calendar_events = await db.get_calendar_events_filtered(user_id)
+            calendar_events = await db.get_calendar_events_filtered(
+                user_id, since=datetime.now(timezone.utc)
+            )
         except Exception as e:
             report_error("context.calendar_failed", e, user_id=user_id)
 

@@ -122,6 +122,7 @@ async def run_agent(
                 format_sse_event("tool_status", tool=tc.name, status="running"),
             )
 
+        async def _run_one_tool(tc: ToolCall):
             try:
                 args = json.loads(tc.arguments) if tc.arguments else {}
             except json.JSONDecodeError:
@@ -129,10 +130,16 @@ async def run_agent(
                 _log.warning(
                     "agent.tool_args_parse_failed", tool=tc.name, trace_id=trace_id
                 )
+            res = await _execute_tool_observed(tc.name, args, user_id, state)
+            res.tool_call_id = tc.id
+            return tc, res, args
 
-            result = await _execute_tool_observed(tc.name, args, user_id, state)
-            result.tool_call_id = tc.id
+        # Run tools in parallel
+        tasks = [_run_one_tool(tc) for tc in pending_calls.values()]
+        import asyncio
+        results = await asyncio.gather(*tasks)
 
+        for tc, result, args in results:
             state.tool_calls_made.append(
                 {
                     "name": tc.name,
