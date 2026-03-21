@@ -22,7 +22,7 @@ if [[ -z "${ADMIN_API_KEY:-}" ]]; then
     exit 1
 fi
 
-EXPECTED_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+EXPECTED_SHA=$(git rev-parse --short=8 HEAD 2>/dev/null || echo "unknown")
 
 passed=0
 failed=0
