@@ -40,7 +40,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     log.info("tools.registered")
 
     if settings.ENVIRONMENT != "development":
-        from src.integrations.qstash import schedule_cron
+        from src.integrations.qstash import (
+            delete_schedule,
+            list_schedules,
+            schedule_cron,
+        )
         from src.config_loader import load_config as _load_config
 
         log.info("cron.registering", api_url=settings.API_URL)
@@ -55,6 +59,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             log.info(
                 "cron.schedules_registered", count=len(jobs_config.get("cron_jobs", {}))
             )
+
+            # Clean up stale unspool-* schedules not in current config
+            valid_ids = {
+                job_def["schedule_id"]
+                for job_def in jobs_config.get("cron_jobs", {}).values()
+                if "schedule_id" in job_def
+            }
+            existing = await list_schedules()
+            for sched in existing:
+                sid = getattr(sched, "schedule_id", None)
+                if sid and sid.startswith("unspool-") and sid not in valid_ids:
+                    await delete_schedule(sid)
+                    log.info("cron.stale_schedule_deleted", schedule_id=sid)
         except Exception:
             log.error("cron.registration_failed", exc_info=True)
 

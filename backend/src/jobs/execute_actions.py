@@ -1,8 +1,8 @@
 """Execute pending scheduled actions — nudges, check-ins, reminders.
 
-Runs every minute via cron. Finds actions where execute_at <= now(),
-dispatches them as either push notifications or proactive chat messages,
-and handles recurring actions via RRULE.
+Safety-net poll runs hourly via consolidated cron. Most actions are delivered
+precisely via QStash dispatch_at, but this catches failed dispatches and
+actions scheduled >7 days out (QStash free tier max delay).
 """
 
 import json
@@ -15,9 +15,12 @@ from src.telemetry.logger import get_logger
 
 _log = get_logger("jobs.execute_actions")
 
+_SEVEN_DAYS_SECONDS = 604800
+
 
 @observe("job.execute_actions")
 async def run_execute_actions() -> dict[str, Any]:
+    """Safety-net poll: find and execute all overdue pending actions."""
     pending = await db.get_pending_actions()
     _log.info("execute_actions.start", count=len(pending))
 
@@ -26,52 +29,78 @@ async def run_execute_actions() -> dict[str, Any]:
 
     for action in pending:
         action_id = str(action["id"])
-        user_id = str(action["user_id"])
-        action_type = action.get("action_type", "nudge")
-        payload = action.get("payload", {})
-        if isinstance(payload, str):
-            try:
-                payload = json.loads(payload)
-            except (json.JSONDecodeError, TypeError):
-                payload = {}
+        claimed = await db.claim_action(action_id)
+        if not claimed:
+            continue
 
-        try:
-            await _dispatch_action(user_id, action_type, payload)
-            await _record_notification(
-                user_id=user_id,
-                channel="push" if action_type == "nudge" else "proactive",
-                body=payload.get("message", action_type),
-                trigger_type=action_type,
-                trigger_id=action_id,
-            )
-            await db.update_action_status(action_id, "executed")
-
-            # Handle recurring: schedule next occurrence
-            rrule = action.get("rrule")
-            if rrule:
-                next_at = _next_occurrence(rrule, datetime.now(timezone.utc))
-                if next_at:
-                    await db.save_scheduled_action(
-                        user_id=user_id,
-                        action_type=action_type,
-                        execute_at=next_at,
-                        payload=payload,
-                        rrule=rrule,
-                    )
-
+        result = await execute_single_action(claimed)
+        if result == "executed":
             executed += 1
-        except Exception:
-            _log.warning(
-                "execute_actions.action_failed",
-                action_id=action_id,
-                user_id=user_id,
-                exc_info=True,
-            )
-            await db.update_action_status(action_id, "failed")
+        elif result == "failed":
             failed += 1
 
     _log.info("execute_actions.done", executed=executed, failed=failed)
     return {"executed": executed, "failed": failed}
+
+
+async def execute_single_action(action: dict[str, Any]) -> str:
+    """Execute a single action. Expects the action to already be claimed
+    (status='executing'). Returns 'executed' or 'failed'."""
+    action_id = str(action["id"])
+    user_id = str(action["user_id"])
+    action_type = action.get("action_type", "nudge")
+    payload = action.get("payload", {})
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except (json.JSONDecodeError, TypeError):
+            payload = {}
+
+    try:
+        await _dispatch_action(user_id, action_type, payload)
+        await _record_notification(
+            user_id=user_id,
+            channel="push" if action_type == "nudge" else "proactive",
+            body=payload.get("message", action_type),
+            trigger_type=action_type,
+            trigger_id=action_id,
+        )
+        await db.update_action_status(action_id, "executed")
+
+        # Handle recurring: schedule next occurrence and dispatch_at it
+        rrule = action.get("rrule")
+        if rrule:
+            next_at = _next_occurrence(rrule, datetime.now(timezone.utc))
+            if next_at:
+                new_action = await db.save_scheduled_action(
+                    user_id=user_id,
+                    action_type=action_type,
+                    execute_at=next_at,
+                    payload=payload,
+                    rrule=rrule,
+                )
+                delta = (next_at - datetime.now(timezone.utc)).total_seconds()
+                if 0 < delta <= _SEVEN_DAYS_SECONDS:
+                    from src.integrations.qstash import dispatch_at
+
+                    msg_id = await dispatch_at(
+                        "execute-action",
+                        {"action_ids": [str(new_action["id"])]},
+                        deliver_at=next_at,
+                    )
+                    if msg_id:
+                        await db.mark_action_dispatched(new_action["id"], msg_id)
+
+        return "executed"
+    except Exception:
+        _log.warning(
+            "execute_actions.action_failed",
+            action_id=action_id,
+            user_id=user_id,
+            exc_info=True,
+        )
+        await db.update_action_status(action_id, "failed")
+        return "failed"
 
 
 async def _dispatch_action(
@@ -83,7 +112,6 @@ async def _dispatch_action(
     message = payload.get("message", "")
 
     if action_type == "nudge":
-        # Send push notification if user has subscriptions
         subs = await db.get_push_subscriptions(user_id)
         if subs:
             from src.integrations.push import send_push_notification
@@ -98,11 +126,9 @@ async def _dispatch_action(
                 )
             await _update_last_notification(user_id)
         else:
-            # No push subscriptions — queue as proactive message
             await _queue_proactive(user_id, message or "reminder", action_type)
 
     elif action_type in ("check_in", "ask_question", "surface_item"):
-        # These are conversational — queue as proactive messages
         await _queue_proactive(user_id, message or action_type, action_type)
 
     else:

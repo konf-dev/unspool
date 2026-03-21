@@ -7,8 +7,10 @@ import pytest
 
 from src.integrations.qstash import (
     _build_url,
+    delete_schedule,
     dispatch_at,
     dispatch_job,
+    list_schedules,
     schedule_cron,
 )
 
@@ -194,7 +196,7 @@ class TestDispatchAt:
         ):
             mock_settings.return_value = MagicMock(API_URL="https://api.test.com")
             result = await dispatch_at(
-                "nudge-item", {"item_id": "i1"}, deliver_at=target_time
+                "execute-action", {"action_ids": ["a1"]}, deliver_at=target_time
             )
 
         assert result == "msg-at-1"
@@ -206,7 +208,7 @@ class TestDispatchAt:
     async def test_dispatch_at_rejects_naive_datetime(self) -> None:
         naive_time = datetime(2026, 3, 20, 14, 0, 0)  # no tzinfo
         with pytest.raises(ValueError, match="timezone-aware"):
-            await dispatch_at("nudge-item", {}, deliver_at=naive_time)
+            await dispatch_at("execute-action", {}, deliver_at=naive_time)
 
     @pytest.mark.asyncio
     async def test_dispatch_at_failure_returns_none(self) -> None:
@@ -219,6 +221,62 @@ class TestDispatchAt:
             patch("src.integrations.qstash.get_settings") as mock_settings,
         ):
             mock_settings.return_value = MagicMock(API_URL="https://api.test.com")
-            result = await dispatch_at("nudge-item", {}, deliver_at=target_time)
+            result = await dispatch_at("execute-action", {}, deliver_at=target_time)
 
         assert result is None
+
+
+class TestListSchedules:
+    @pytest.fixture(autouse=True)
+    def _reset_client(self) -> None:
+        import src.integrations.qstash as mod
+
+        mod._client = None
+
+    @pytest.mark.asyncio
+    async def test_list_schedules_returns_list(self) -> None:
+        mock_client = MagicMock()
+        mock_sched = MagicMock(schedule_id="unspool-check-deadlines")
+        mock_client.schedule.list = AsyncMock(return_value=[mock_sched])
+
+        with patch("src.integrations.qstash._get_client", return_value=mock_client):
+            result = await list_schedules()
+
+        assert len(result) == 1
+        assert result[0].schedule_id == "unspool-check-deadlines"
+
+    @pytest.mark.asyncio
+    async def test_list_schedules_failure_returns_empty(self) -> None:
+        mock_client = MagicMock()
+        mock_client.schedule.list = AsyncMock(side_effect=RuntimeError("fail"))
+
+        with patch("src.integrations.qstash._get_client", return_value=mock_client):
+            result = await list_schedules()
+
+        assert result == []
+
+
+class TestDeleteSchedule:
+    @pytest.fixture(autouse=True)
+    def _reset_client(self) -> None:
+        import src.integrations.qstash as mod
+
+        mod._client = None
+
+    @pytest.mark.asyncio
+    async def test_delete_schedule_calls_client(self) -> None:
+        mock_client = MagicMock()
+        mock_client.schedule.delete = AsyncMock()
+
+        with patch("src.integrations.qstash._get_client", return_value=mock_client):
+            await delete_schedule("unspool-old-job")
+
+        mock_client.schedule.delete.assert_called_once_with("unspool-old-job")
+
+    @pytest.mark.asyncio
+    async def test_delete_schedule_failure_does_not_raise(self) -> None:
+        mock_client = MagicMock()
+        mock_client.schedule.delete = AsyncMock(side_effect=RuntimeError("fail"))
+
+        with patch("src.integrations.qstash._get_client", return_value=mock_client):
+            await delete_schedule("unspool-old-job")
