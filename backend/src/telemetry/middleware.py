@@ -14,7 +14,7 @@ _log = get_logger("http")
 
 
 def _get_git_sha() -> str:
-    sha = os.environ.get("GIT_SHA")
+    sha = os.environ.get("GIT_SHA") or os.environ.get("RAILWAY_GIT_COMMIT_SHA")
     if sha:
         return sha[:8]
     try:
