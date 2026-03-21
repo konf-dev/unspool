@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && node -e \"const fs=require('fs');fs.writeFileSync('dist/version.json',JSON.stringify({git_sha:process.env.VERCEL_GIT_COMMIT_SHA||'dev'}))\"",
     "preview": "vite preview",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "test": "vitest run"

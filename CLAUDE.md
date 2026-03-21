@@ -230,40 +230,49 @@ API_URL=http://localhost:8000
 
 ## Post-Push Verification
 
-After every push to `main`, verify the deployment succeeded. **All steps are required.** Do NOT skip step 5 — a healthy endpoint does NOT mean new code is deployed. Railway and Vercel can silently serve stale builds.
+After every push to `main`, run the diagnostic script:
 
 ```bash
-# 1. Check backend health
+./scripts/diagnose.sh
+```
+
+This checks CI status, backend/frontend SHA matching, all service connectivity (DB, Redis, QStash, LLM, Langfuse), recent errors, and deployment platform status. Requires `ADMIN_API_KEY` in environment or `.env`.
+
+<details>
+<summary>Manual commands (reference)</summary>
+
+```bash
+# Backend health + SHA
 curl -s https://api.unspool.life/health | jq
 
-# 2. Check for recent errors
+# Deep health (all services)
+curl -s -H "X-Admin-Key: $ADMIN_API_KEY" https://api.unspool.life/admin/health/deep | jq
+
+# Recent errors
 curl -s -H "X-Admin-Key: $ADMIN_API_KEY" https://api.unspool.life/admin/errors?limit=5 | jq
 
-# 3. Check GitHub Actions CI status
+# CI status
 gh run list --limit 3
 
-# 4. Smoke test the chat endpoint
+# Smoke test (expect 401)
 curl -s -X POST https://api.unspool.life/api/chat \
   -H "Content-Type: application/json" \
   -d '{"message":"hi","session_id":"smoke-test"}' \
   -w "\nHTTP %{http_code}\n" | tail -5
-# Expected: 401 (Missing Bearer token)
 
-# 5. Verify deployments actually picked up the new code
-# Railway: check latest deploy is SUCCESS (not SKIPPED or FAILED)
+# Railway deploys
 railway deployment list | head -5
-# If SKIPPED: Railway didn't rebuild. Run `railway up` from backend/ to force deploy.
-# If FAILED: check build logs with `railway logs --build <deployment-id>`
 
-# Vercel: check latest deploy is Ready (not Error)
+# Vercel deploys
 npx vercel ls | head -5
-# If Error: check build logs with `npx vercel inspect <deployment-url> --logs`
 ```
+
+</details>
 
 ### Deploy gotchas
 - **Railway SKIPPED deploys:** Railway may skip git-triggered deploys if it thinks nothing changed (snapshot hash caching). This does NOT mean the code is up to date. Always verify with `railway deployment list`. If skipped, force deploy with `cd backend && railway up`.
 - **Vercel frontend build:** The `frontend` project runs `tsc && vite build`. Any TypeScript error in test files will fail the build. Always run `cd frontend && npx tsc --noEmit` before pushing.
-- **Stale code is silent:** Health checks pass even when serving old code. The only way to confirm new code is running is to check deployment status or verify new behavior in logs/Langfuse traces.
+- **Stale code is silent:** The `/health` endpoint now returns `git_sha`, and `diagnose.sh` compares it against the local HEAD. If the SHA doesn't match after a deploy, the deploy didn't pick up your code.
 
 ## Debugging Production Issues
 
