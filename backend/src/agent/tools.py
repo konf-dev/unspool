@@ -3,6 +3,7 @@ from typing import Any
 
 from src.agent.types import AgentState, ToolResult
 from src.db import supabase as db
+from src.db.utils import normalize_datetime
 from src.llm.registry import get_embedding_provider
 from src.telemetry.error_reporting import report_error
 from src.telemetry.logger import get_logger
@@ -1063,7 +1064,8 @@ async def _handle_schedule_action(
 
     # For short delays (< 10 min), also dispatch via QStash for precision
     try:
-        parsed_at = db._parse_dt(execute_at_str)
+        user_tz = await db._get_user_tz(user_id)
+        parsed_at = normalize_datetime(execute_at_str, user_tz)
         if parsed_at:
             now = datetime.now(timezone.utc)
             delta = (parsed_at - now).total_seconds()
