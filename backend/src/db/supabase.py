@@ -1268,6 +1268,7 @@ async def save_event(
     is_all_day: bool = False,
     rrule: str | None = None,
     description: str | None = None,
+    source: str = "app",
 ) -> dict[str, Any]:
     pool = _get_pool()
 

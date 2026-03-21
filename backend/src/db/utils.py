@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from typing import Any
 from zoneinfo import ZoneInfo
 from dateutil import parser
 from src.telemetry.logger import get_logger

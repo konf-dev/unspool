@@ -1,6 +1,4 @@
-import pytest
 from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
 from src.db.utils import normalize_datetime
 
 def test_normalize_datetime_iso():
