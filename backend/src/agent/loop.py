@@ -81,8 +81,11 @@ async def run_agent(
 
         async for event in provider.stream_with_tools(messages, tools):
             if event.type == "text_delta":
-                yield ("sse", format_sse_event("token", content=event.content))
+                # Only yield text immediately if NO tool calls are being made in this round.
+                # If tool calls are present, we buffer until they succeed.
                 text_chunks.append(event.content)
+                if not has_tool_calls:
+                    yield ("sse", format_sse_event("token", content=event.content))
 
             elif event.type == "tool_call_start":
                 has_tool_calls = True
@@ -106,10 +109,14 @@ async def run_agent(
                 state.total_input_tokens += event.input_tokens
                 state.total_output_tokens += event.output_tokens
 
-        if text_chunks:
-            state.response_text += "".join(text_chunks)
+        full_text = "".join(text_chunks)
+        if full_text:
+            state.response_text += full_text
 
         if not has_tool_calls:
+            # If we had buffered text because we thought there might be tool calls,
+            # but none arrived (unlikely in one round, but for completeness):
+            # This case is handled by the "not has_tool_calls" yield above.
             break
 
         # Execute tool calls and build messages for next round
@@ -140,7 +147,11 @@ async def run_agent(
 
         results = await asyncio.gather(*tasks)
 
+        any_error = False
         for tc, result, args in results:
+            if result.is_error:
+                any_error = True
+
             state.tool_calls_made.append(
                 {
                     "name": tc.name,
@@ -167,6 +178,13 @@ async def run_agent(
             )
 
             yield ("sse", format_sse_event("tool_status", tool=tc.name, status="done"))
+
+        # If tools were successful AND there was buffered text, yield it now.
+        # If there was an error, we do NOT yield the text because it might
+        # contain a false confirmation like "Saved!".
+        if not any_error and text_chunks:
+            # Since we didn't yield during the stream, we yield now.
+            yield ("sse", format_sse_event("token", content="".join(text_chunks)))
 
         # Add assistant message with tool calls
         assistant_msg: dict[str, Any] = {

@@ -143,6 +143,24 @@ async def _evaluate_trigger(
 
 @observe("proactive.check")
 async def _check_proactive(user_id: str) -> dict[str, Any] | None:
+    profile = None
+    try:
+        profile = await db.get_profile(user_id)
+    except Exception as e:
+        report_error("proactive.profile_failed", e, user_id=user_id)
+        return None
+
+    # Check cooldown (6 hours)
+    if profile and profile.get("last_proactive_at"):
+        last_dt = profile["last_proactive_at"]
+        if isinstance(last_dt, str):
+            last_dt = datetime.fromisoformat(last_dt)
+        
+        diff = datetime.now(timezone.utc) - last_dt
+        if diff.total_seconds() < 6 * 3600:
+            _log.info("proactive.cooldown_active", user_id=user_id, seconds_remaining=6*3600 - diff.total_seconds())
+            return None
+
     try:
         proactive_config = load_config("proactive")
     except FileNotFoundError:
@@ -155,12 +173,6 @@ async def _check_proactive(user_id: str) -> dict[str, Any] | None:
         triggers.items(),
         key=lambda t: t[1].get("priority", 99),
     )
-
-    profile = None
-    try:
-        profile = await db.get_profile(user_id)
-    except Exception as e:
-        report_error("proactive.profile_failed", e, user_id=user_id)
 
     for trigger_name, trigger_config in sorted_triggers:
         if not trigger_config.get("enabled", True):
@@ -200,6 +212,9 @@ async def _check_proactive(user_id: str) -> dict[str, Any] | None:
             continue
 
         try:
+            # Mark the time before saving the message to ensure cooldown even if save fails partially
+            await db.update_profile(user_id, last_proactive_at=datetime.now(timezone.utc))
+
             msg = await db.save_message(
                 user_id=user_id,
                 role="assistant",
@@ -225,15 +240,44 @@ async def get_messages(
 ) -> dict[str, Any]:
     is_initial_load = before is None
 
+    proactive_injected = []
     if is_initial_load:
+        # 1. Freshly generated proactive triggers (cooldown-managed)
         proactive_msg = await _check_proactive(user_id)
         if proactive_msg:
-            _log.info("messages.proactive_sent", user_id=user_id)
+            proactive_injected.append(_serialize_message(proactive_msg))
+            _log.info("messages.proactive_generated", user_id=user_id)
+
+        # 2. Queued proactive messages (reminders, nudges)
+        queued = await db.get_unconsumed_proactive_messages(user_id)
+        if queued:
+            ids = [str(q["id"]) for q in queued]
+            # Convert to message format for frontend
+            for q in queued:
+                proactive_injected.append(
+                    {
+                        "id": str(q["id"]),
+                        "role": "assistant",
+                        "content": q["content"],
+                        "createdAt": q["created_at"].isoformat(),
+                        "metadata": {
+                            "type": "proactive",
+                            "trigger": q["trigger_type"],
+                            "is_queued": True,
+                        },
+                    }
+                )
+            await db.mark_proactive_messages_delivered(user_id, ids)
+            _log.info("messages.queued_proactive_delivered", count=len(queued), user_id=user_id)
 
     messages = await db.get_messages(user_id, limit=limit, before_id=before)
     serialized = [_serialize_message(m) for m in messages]
 
+    # Prepend any injected messages to the results
+    # (they should appear as the most recent messages)
+    all_messages = proactive_injected + serialized
+
     return {
-        "messages": serialized,
+        "messages": all_messages,
         "has_more": len(messages) == limit,
     }
