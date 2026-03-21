@@ -152,6 +152,11 @@ export function sendMessage(
         }
       }
     },
+    onclose() {
+      // Stream closed — never retry. Each chat message is a one-shot request;
+      // retrying would duplicate the user message in the DB.
+      throw new Error('stream closed')
+    },
     onerror(err) {
       // If it's a 429, we already handled it in onopen
       if (err.status === 429) {
@@ -159,8 +164,9 @@ export function sendMessage(
       }
       console.error('SSE error:', err)
       onError?.(err)
-      throw err
+      throw err // prevent retry
     },
+    openWhenHidden: true,
   })
 
   return controller

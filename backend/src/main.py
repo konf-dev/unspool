@@ -50,17 +50,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         log.info("cron.registering", api_url=settings.API_URL)
         try:
             jobs_config = _load_config("jobs")
-            for job_name, job_def in jobs_config.get("cron_jobs", {}).items():
-                await schedule_cron(
-                    endpoint=job_name,
-                    cron_expression=job_def["schedule"],
-                    schedule_id=job_def.get("schedule_id"),
-                )
-            log.info(
-                "cron.schedules_registered", count=len(jobs_config.get("cron_jobs", {}))
-            )
 
-            # Clean up stale unspool-* schedules not in current config
+            # Clean up stale unspool-* schedules BEFORE registering new ones
+            # to avoid hitting the maxSchedules quota limit.
             valid_ids = {
                 job_def["schedule_id"]
                 for job_def in jobs_config.get("cron_jobs", {}).values()
@@ -72,6 +64,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 if sid and sid.startswith("unspool-") and sid not in valid_ids:
                     await delete_schedule(sid)
                     log.info("cron.stale_schedule_deleted", schedule_id=sid)
+
+            for job_name, job_def in jobs_config.get("cron_jobs", {}).items():
+                await schedule_cron(
+                    endpoint=job_name,
+                    cron_expression=job_def["schedule"],
+                    schedule_id=job_def.get("schedule_id"),
+                )
+            log.info(
+                "cron.schedules_registered", count=len(jobs_config.get("cron_jobs", {}))
+            )
         except Exception:
             log.error("cron.registration_failed", exc_info=True)
 
