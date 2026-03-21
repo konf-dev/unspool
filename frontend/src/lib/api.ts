@@ -89,6 +89,7 @@ export function sendMessage(
   }
 
   const controller = new AbortController()
+  let streamDone = false
 
   void fetchEventSource(`${getApiUrl()}/api/chat`, {
     method: 'POST',
@@ -147,23 +148,26 @@ export function sendMessage(
             }
             break
           case 'done':
+            streamDone = true
             onDone?.()
             break
         }
       }
     },
     onclose() {
-      // Stream closed — never retry. Each chat message is a one-shot request;
-      // retrying would duplicate the user message in the DB.
+      if (streamDone) return
+      // Abnormal close before "done" — never retry. Each chat message is a
+      // one-shot request; retrying would duplicate the user message in the DB.
+      onError?.(new Error('connection lost'))
       throw new Error('stream closed')
     },
     onerror(err) {
-      // If it's a 429, we already handled it in onopen
       if (err.status === 429) {
         throw err // prevent retry
       }
-      console.error('SSE error:', err)
-      onError?.(err)
+      if (!streamDone) {
+        onError?.(err)
+      }
       throw err // prevent retry
     },
     openWhenHidden: true,
