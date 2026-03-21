@@ -1,20 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-API_URL="${API_URL:-https://api.unspool.life}"
-FRONTEND_URL="${FRONTEND_URL:-https://unspool.life}"
-
-# Load .env if present
-if [[ -f .env ]]; then
-    set -a
-    # shellcheck source=/dev/null
-    source .env
-    set +a
-elif [[ -f backend/.env ]]; then
-    set -a
-    # shellcheck source=/dev/null
-    source backend/.env
-    set +a
+# Always target production unless --local is passed
+if [[ "${1:-}" == "--local" ]]; then
+    API_URL="${API_URL:-http://localhost:8000}"
+    FRONTEND_URL="${FRONTEND_URL:-http://localhost:5173}"
+else
+    API_URL="https://api.unspool.life"
+    FRONTEND_URL="https://unspool.life"
 fi
 
 for cmd in curl jq; do
@@ -127,7 +120,7 @@ fi
 
 # --- 5. Frontend version ---
 version_json=$(curl -sf --max-time 10 "$FRONTEND_URL/version.json" 2>/dev/null || echo "")
-if [[ -n "$version_json" ]]; then
+if [[ -n "$version_json" ]] && echo "$version_json" | jq . &>/dev/null; then
     frontend_sha=$(echo "$version_json" | jq -r '.git_sha // "unknown"' | cut -c1-8)
     if [[ "$frontend_sha" == "$EXPECTED_SHA" ]]; then
         pass "Frontend SHA: $frontend_sha (matches)"
