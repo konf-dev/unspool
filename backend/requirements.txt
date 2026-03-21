@@ -192,3 +192,5 @@ wrapt==1.17.3
     # via langfuse
 yarl==1.23.0
     # via aiohttp
+python-dateutil==2.9.0.post0
+six==1.17.0
