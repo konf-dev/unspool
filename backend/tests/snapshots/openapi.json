@@ -35,6 +35,22 @@
         "title": "ChatRequest",
         "type": "object"
       },
+      "ExecuteActionRequest": {
+        "properties": {
+          "action_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Action Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "action_ids"
+        ],
+        "title": "ExecuteActionRequest",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -903,6 +919,46 @@
         "summary": "Evolve Graph"
       }
     },
+    "/jobs/execute-action": {
+      "post": {
+        "operationId": "execute_action_jobs_execute_action_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Execute Action Jobs Execute Action Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Execute Action"
+      }
+    },
     "/jobs/execute-actions": {
       "post": {
         "operationId": "execute_actions_jobs_execute_actions_post",
@@ -963,6 +1019,46 @@
         "summary": "Generate Recurrences"
       }
     },
+    "/jobs/hourly-maintenance": {
+      "post": {
+        "operationId": "hourly_maintenance_jobs_hourly_maintenance_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Hourly Maintenance Jobs Hourly Maintenance Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Hourly Maintenance"
+      }
+    },
+    "/jobs/nightly-batch": {
+      "post": {
+        "operationId": "nightly_batch_jobs_nightly_batch_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Nightly Batch Jobs Nightly Batch Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Nightly Batch"
+      }
+    },
     "/jobs/process-message": {
       "post": {
         "operationId": "process_message_jobs_process_message_post",
@@ -1021,26 +1117,6 @@
           }
         },
         "summary": "Reset Notifications"
-      }
-    },
-    "/jobs/summarize": {
-      "post": {
-        "operationId": "summarize_conversations_jobs_summarize_post",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Summarize Conversations Jobs Summarize Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Summarize Conversations"
       }
     },
     "/jobs/sync-calendar": {

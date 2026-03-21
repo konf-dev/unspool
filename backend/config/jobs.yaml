@@ -1,49 +1,20 @@
 # Job definitions — cron schedules and post-processing dispatch map.
 # Cron schedules are registered with QStash on startup (idempotent via schedule_id).
+# Consolidated from 10 individual crons to 3 to stay within QStash free tier (10 max schedules).
 
 cron_jobs:
-  check-deadlines:
+  hourly-maintenance:
     schedule: "0 * * * *"
-    schedule_id: unspool-check-deadlines
+    schedule_id: unspool-hourly-maintenance
 
-  execute-actions:
-    schedule: "* * * * *"
-    schedule_id: unspool-execute-actions
-
-  expire-items:
-    schedule: "0 */6 * * *"
-    schedule_id: unspool-expire-items
+  nightly-batch:
+    schedule: "0 3 * * *"
+    schedule_id: unspool-nightly-batch
 
   sync-calendar:
     schedule: "0 */4 * * *"
     schedule_id: unspool-sync-calendar
 
-  generate-recurrences:
-    schedule: "0 2 * * *"
-    schedule_id: unspool-generate-recurrences
-
-  detect-patterns:
-    schedule: "0 3 * * *"
-    schedule_id: unspool-detect-patterns
-
-  evolve-graph:
-    schedule: "0 4 * * *"
-    schedule_id: unspool-evolve-graph
-
-  consolidate:
-    schedule: "30 4 * * *"
-    schedule_id: unspool-consolidate
-
-  summarize:
-    schedule: "0 5 * * *"
-    schedule_id: unspool-summarize
-
-  reset-notifications:
-    schedule: "0 0 * * *"
-    schedule_id: unspool-reset-notifications
-
 # Maps post-processing job names to /jobs/ endpoint paths
 dispatch_map:
-  process_conversation: process-conversation
-  process_graph: process-graph
   process_message: process-message

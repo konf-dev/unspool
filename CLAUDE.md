@@ -117,15 +117,17 @@ CREATE TABLE user_profiles (
 
 ## Background Jobs
 
+Cron jobs are consolidated into 3 QStash schedules (free tier: 10 max schedules, 1,000 msgs/day). Scheduled actions use `dispatch_at` for precise delivery instead of polling.
+
 | Job | Endpoint | Schedule | What it does |
 |---|---|---|---|
-| Deadline scanner | POST /jobs/check-deadlines | Hourly | Send push for hard deadlines <24h away |
-| Urgency decay | POST /jobs/decay-urgency | Every 6h | Recalculate urgency scores, expire old items |
-| Process conversation | POST /jobs/process-conversation | After each chat (delayed 10s) | Embeddings, entity extraction, memory extraction |
-| Process graph | POST /jobs/process-graph | After each chat (delayed 5s) | Graph node/edge ingest, embedding, feedback |
+| Hourly maintenance | POST /jobs/hourly-maintenance | Hourly | Runs check-deadlines, execute-actions (safety-net poll), expire-items, generate-recurrences |
+| Nightly batch | POST /jobs/nightly-batch | Daily 3am UTC | Runs reset-notifications, detect-patterns, evolve-graph, consolidate |
 | Calendar sync | POST /jobs/sync-calendar | Every 4h | Fetch Google Calendar events |
-| Pattern detection | POST /jobs/detect-patterns | Daily | Config-driven LLM analyses (behavioral, preferences) |
-| Notification reset | POST /jobs/reset-notifications | Daily midnight | Reset notification_sent_today flag |
+| Execute action | POST /jobs/execute-action | On-demand (dispatch_at) | Execute specific scheduled actions by ID |
+| Process message | POST /jobs/process-message | After each chat (delayed) | Embeddings, entity extraction, graph ingest |
+
+Legacy individual endpoints (check-deadlines, execute-actions, etc.) are kept for backwards compatibility but no longer have their own cron schedules.
 
 ## Environment Variables
 

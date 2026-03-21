@@ -1498,6 +1498,31 @@ async def update_action_status(action_id: str, status: str) -> None:
     )
 
 
+async def mark_action_dispatched(action_id: str, qstash_message_id: str) -> None:
+    pool = _get_pool()
+    await pool.execute(
+        "UPDATE scheduled_actions SET qstash_message_id = $2 WHERE id = $1::uuid",
+        action_id,
+        qstash_message_id,
+    )
+
+
+async def claim_action(action_id: str) -> dict[str, Any] | None:
+    """Atomically claim a pending action for execution. Returns the action if
+    successfully claimed, None if already claimed by another process."""
+    pool = _get_pool()
+    row = await pool.fetchrow(
+        """
+        UPDATE scheduled_actions
+        SET status = 'executing'
+        WHERE id = $1::uuid AND status = 'pending'
+        RETURNING *
+        """,
+        action_id,
+    )
+    return dict(row) if row else None
+
+
 async def save_collection(
     user_id: str,
     name: str,

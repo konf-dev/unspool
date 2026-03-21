@@ -1062,23 +1062,25 @@ async def _handle_schedule_action(
         rrule=rrule,
     )
 
-    # For short delays (< 10 min), also dispatch via QStash for precision
+    # Dispatch via QStash for precise delivery (up to 7-day max delay)
     try:
         user_tz = await db._get_user_tz(user_id)
         parsed_at = normalize_datetime(execute_at_str, user_tz)
         if parsed_at:
             now = datetime.now(timezone.utc)
             delta = (parsed_at - now).total_seconds()
-            if 0 < delta < 600:
+            if 0 < delta <= 604800:  # 7 days in seconds
                 from src.integrations.qstash import dispatch_at
 
-                await dispatch_at(
-                    "execute-actions",
+                msg_id = await dispatch_at(
+                    "execute-action",
                     {"action_ids": [str(result["id"])]},
                     deliver_at=parsed_at,
                 )
+                if msg_id:
+                    await db.mark_action_dispatched(result["id"], msg_id)
     except Exception as e:
-        report_error("schedule_action.qstash_shortcut_failed", e, user_id=user_id)
+        report_error("schedule_action.qstash_dispatch_failed", e, user_id=user_id)
 
     return ToolResult(
         tool_call_id="",

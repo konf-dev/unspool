@@ -121,3 +121,23 @@ async def dispatch_at(
     except Exception as exc:
         report_error("qstash.schedule_at_failed", exc, endpoint=endpoint)
         return None
+
+
+async def list_schedules() -> list[Any]:
+    """List all QStash schedules."""
+    try:
+        client = _get_client()
+        return await client.schedule.list()
+    except Exception as exc:
+        report_error("qstash.list_schedules_failed", exc)
+        return []
+
+
+async def delete_schedule(schedule_id: str) -> None:
+    """Delete a QStash schedule by its schedule_id."""
+    try:
+        client = _get_client()
+        await client.schedule.delete(schedule_id)
+        _log.info("qstash.schedule_deleted", schedule_id=schedule_id)
+    except Exception as exc:
+        report_error("qstash.delete_schedule_failed", exc, schedule_id=schedule_id)

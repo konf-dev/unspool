@@ -66,20 +66,18 @@ From Settings → Database → Connection string:
 2. Copy token → `QSTASH_TOKEN`
 3. Copy signing keys → `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`
 
-### Set up cron schedules
-After deploying the backend, create QStash schedules:
+### Cron schedules
+Cron schedules are consolidated into 3 jobs (to stay within QStash free tier: 10 max schedules, 1,000 msgs/day):
 
 | Job | URL | Cron |
 |-----|-----|------|
-| Check deadlines | `POST https://your-api.railway.app/jobs/check-deadlines` | `0 * * * *` (hourly) |
-| Decay urgency | `POST https://your-api.railway.app/jobs/decay-urgency` | `0 */6 * * *` (every 6h) |
-| Sync calendar | `POST https://your-api.railway.app/jobs/sync-calendar` | `0 */4 * * *` (every 4h) |
-| Detect patterns | `POST https://your-api.railway.app/jobs/detect-patterns` | `0 3 * * *` (daily 3am) |
-| Reset notifications | `POST https://your-api.railway.app/jobs/reset-notifications` | `0 0 * * *` (daily midnight) |
+| Hourly maintenance | `POST .../jobs/hourly-maintenance` | `0 * * * *` (hourly) — check-deadlines, execute-actions, expire-items, generate-recurrences |
+| Nightly batch | `POST .../jobs/nightly-batch` | `0 3 * * *` (daily 3am) — reset-notifications, detect-patterns, evolve-graph, consolidate |
+| Sync calendar | `POST .../jobs/sync-calendar` | `0 */4 * * *` (every 4h) |
 
-`process-conversation` is triggered per-request, not on a cron.
+Scheduled actions (reminders, nudges) are delivered precisely via QStash `dispatch_at` one-shots to `/jobs/execute-action`, not via polling. The hourly poll is a safety net for failed dispatches and actions >7 days out.
 
-**Note:** Cron schedules are defined in `config/jobs.yaml` and registered with QStash automatically on production startup (idempotent via `schedule_id`). Manual QStash setup is only needed if auto-registration fails.
+**Note:** Cron schedules are defined in `config/jobs.yaml` and registered with QStash automatically on production startup (idempotent via `schedule_id`). Stale schedules from previous configs are cleaned up automatically. Manual QStash setup is only needed if auto-registration fails.
 
 ---
 
@@ -248,12 +246,11 @@ curl -H "X-Admin-Key: $ADMIN_API_KEY" https://api.unspool.life/admin/errors | jq
 
 | Method | Path | Schedule |
 |--------|------|----------|
-| POST | `/jobs/check-deadlines` | Hourly |
-| POST | `/jobs/decay-urgency` | Every 6h |
+| POST | `/jobs/hourly-maintenance` | Hourly (check-deadlines, execute-actions, expire-items, generate-recurrences) |
+| POST | `/jobs/nightly-batch` | Daily 3am UTC (reset-notifications, detect-patterns, evolve-graph, consolidate) |
 | POST | `/jobs/sync-calendar` | Every 4h |
-| POST | `/jobs/detect-patterns` | Daily |
-| POST | `/jobs/reset-notifications` | Daily (midnight UTC) |
-| POST | `/jobs/process-conversation` | Per-request (delayed 10s via QStash) |
+| POST | `/jobs/execute-action` | On-demand (QStash dispatch_at) |
+| POST | `/jobs/process-message` | Per-request (delayed via QStash) |
 
 ---
 

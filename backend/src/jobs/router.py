@@ -9,13 +9,13 @@ from src.jobs.check_deadlines import run_check_deadlines
 from src.jobs.consolidate import run_consolidate
 from src.jobs.detect_patterns import run_detect_patterns
 from src.jobs.evolve_graph import run_evolve_graph
-from src.jobs.execute_actions import run_execute_actions
+from src.jobs.execute_actions import execute_single_action, run_execute_actions
 from src.jobs.expire_items import run_expire_items
 from src.jobs.generate_recurrences import run_generate_recurrences
 from src.jobs.process_message import run_process_message
 from src.jobs.reset_notifications import run_reset_notifications
-from src.jobs.summarize_conversations import run_summarize_conversations
 from src.jobs.sync_calendar import run_sync_calendar
+from src.db import supabase as db
 from src.telemetry.logger import get_logger
 
 _log = get_logger("jobs.router")
@@ -29,6 +29,93 @@ class ProcessMessageRequest(BaseModel):
     tool_calls: list[dict[str, Any]] | None = None
     ingest: bool = False
     embeddings: bool = False
+
+
+class ExecuteActionRequest(BaseModel):
+    action_ids: list[str]
+
+
+# --- Consolidated endpoints (primary targets for cron) ---
+
+
+@router.post("/hourly-maintenance")
+async def hourly_maintenance() -> dict:
+    trace_id = str(uuid.uuid4())
+    _log.info("job.start", job="hourly_maintenance", trace_id=trace_id)
+
+    results: dict[str, Any] = {}
+    for name, fn in [
+        ("check_deadlines", run_check_deadlines),
+        ("execute_actions", run_execute_actions),
+        ("expire_items", run_expire_items),
+        ("generate_recurrences", run_generate_recurrences),
+    ]:
+        try:
+            results[name] = await fn()
+        except Exception as e:
+            _log.error(f"hourly.{name}_failed", exc_info=True)
+            results[name] = {"error": str(e)}
+
+    _log.info("job.done", job="hourly_maintenance", trace_id=trace_id)
+    return results
+
+
+@router.post("/nightly-batch")
+async def nightly_batch() -> dict:
+    trace_id = str(uuid.uuid4())
+    _log.info("job.start", job="nightly_batch", trace_id=trace_id)
+
+    results: dict[str, Any] = {}
+    for name, fn in [
+        ("reset_notifications", run_reset_notifications),
+        ("detect_patterns", run_detect_patterns),
+        ("evolve_graph", run_evolve_graph),
+        ("consolidate", run_consolidate),
+    ]:
+        try:
+            results[name] = await fn()
+        except Exception as e:
+            _log.error(f"nightly.{name}_failed", exc_info=True)
+            results[name] = {"error": str(e)}
+
+    _log.info("job.done", job="nightly_batch", trace_id=trace_id)
+    return results
+
+
+# --- Targeted dispatch endpoint (for QStash dispatch_at one-shots) ---
+
+
+@router.post("/execute-action")
+async def execute_action(request: ExecuteActionRequest) -> dict:
+    trace_id = str(uuid.uuid4())
+    _log.info(
+        "job.start",
+        job="execute_action",
+        trace_id=trace_id,
+        action_ids=request.action_ids,
+    )
+
+    executed = 0
+    failed = 0
+    skipped = 0
+
+    for action_id in request.action_ids:
+        claimed = await db.claim_action(action_id)
+        if not claimed:
+            skipped += 1
+            continue
+
+        result = await execute_single_action(claimed)
+        if result == "executed":
+            executed += 1
+        elif result == "failed":
+            failed += 1
+
+    _log.info("job.done", job="execute_action", trace_id=trace_id)
+    return {"executed": executed, "failed": failed, "skipped": skipped}
+
+
+# --- Legacy individual endpoints (kept for in-flight QStash messages) ---
 
 
 @router.post("/check-deadlines")
@@ -95,15 +182,6 @@ async def evolve_graph() -> dict:
     _log.info("job.start", job="evolve_graph", trace_id=trace_id)
     result = await run_evolve_graph()
     _log.info("job.done", job="evolve_graph", trace_id=trace_id)
-    return result
-
-
-@router.post("/summarize")
-async def summarize_conversations() -> dict:
-    trace_id = str(uuid.uuid4())
-    _log.info("job.start", job="summarize_conversations", trace_id=trace_id)
-    result = await run_summarize_conversations()
-    _log.info("job.done", job="summarize_conversations", trace_id=trace_id)
     return result
 
 
