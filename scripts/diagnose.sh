@@ -119,7 +119,7 @@ else
 fi
 
 # --- 5. Frontend version ---
-version_json=$(curl -sf --max-time 10 "$FRONTEND_URL/version.json" 2>/dev/null || echo "")
+version_json=$(curl -sfL --max-time 10 "$FRONTEND_URL/version.json" 2>/dev/null || echo "")
 if [[ -n "$version_json" ]] && echo "$version_json" | jq . &>/dev/null; then
     frontend_sha=$(echo "$version_json" | jq -r '.git_sha // "unknown"' | cut -c1-8)
     if [[ "$frontend_sha" == "$EXPECTED_SHA" ]]; then

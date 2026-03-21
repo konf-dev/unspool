@@ -15,7 +15,7 @@ os.environ.setdefault("LLM_MODEL", "test-model")
 os.environ.setdefault("LLM_MODEL_FAST", "test-model-fast")
 os.environ.setdefault("LLM_PROVIDER", "anthropic")
 os.environ.setdefault("EMBEDDING_API_KEY", "test-embedding-key")
-os.environ.setdefault("ADMIN_API_KEY", "test-admin-key")
+os.environ["ADMIN_API_KEY"] = "test-admin-key"
 os.environ.setdefault("LANGFUSE_HOST", "")
 os.environ.setdefault("LANGFUSE_PUBLIC_KEY", "")
 os.environ.setdefault("LANGFUSE_SECRET_KEY", "")
