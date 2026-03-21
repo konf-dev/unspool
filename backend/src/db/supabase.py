@@ -269,6 +269,8 @@ _PROFILE_ALLOWED_COLUMNS = frozenset(
         "google_calendar_connected",
         "notification_sent_today",
         "last_interaction_at",
+        "last_notification_at",
+        "last_proactive_at",
         "patterns",
     }
 )
