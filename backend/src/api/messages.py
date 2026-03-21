@@ -155,10 +155,14 @@ async def _check_proactive(user_id: str) -> dict[str, Any] | None:
         last_dt = profile["last_proactive_at"]
         if isinstance(last_dt, str):
             last_dt = datetime.fromisoformat(last_dt)
-        
+
         diff = datetime.now(timezone.utc) - last_dt
         if diff.total_seconds() < 6 * 3600:
-            _log.info("proactive.cooldown_active", user_id=user_id, seconds_remaining=6*3600 - diff.total_seconds())
+            _log.info(
+                "proactive.cooldown_active",
+                user_id=user_id,
+                seconds_remaining=6 * 3600 - diff.total_seconds(),
+            )
             return None
 
     try:
@@ -213,7 +217,9 @@ async def _check_proactive(user_id: str) -> dict[str, Any] | None:
 
         try:
             # Mark the time before saving the message to ensure cooldown even if save fails partially
-            await db.update_profile(user_id, last_proactive_at=datetime.now(timezone.utc))
+            await db.update_profile(
+                user_id, last_proactive_at=datetime.now(timezone.utc)
+            )
 
             msg = await db.save_message(
                 user_id=user_id,
@@ -268,7 +274,11 @@ async def get_messages(
                     }
                 )
             await db.mark_proactive_messages_delivered(user_id, ids)
-            _log.info("messages.queued_proactive_delivered", count=len(queued), user_id=user_id)
+            _log.info(
+                "messages.queued_proactive_delivered",
+                count=len(queued),
+                user_id=user_id,
+            )
 
     messages = await db.get_messages(user_id, limit=limit, before_id=before)
     serialized = [_serialize_message(m) for m in messages]

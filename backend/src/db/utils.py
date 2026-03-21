@@ -5,13 +5,13 @@ from src.telemetry.logger import get_logger
 
 _log = get_logger("db.utils")
 
+
 def normalize_datetime(
-    value: str | datetime | None, 
-    user_tz_name: str | None = None
+    value: str | datetime | None, user_tz_name: str | None = None
 ) -> datetime | None:
     """
     Parse a datetime string or object and return a UTC-normalized datetime.
-    
+
     1. If the input is already a datetime, ensure it's timezone-aware.
     2. If it's a string, try ISO format first, then fall back to dateutil.parser.
     3. If naive, assume user_tz_name (or UTC if missing).
@@ -19,7 +19,7 @@ def normalize_datetime(
     """
     if value is None:
         return None
-    
+
     dt = None
     if isinstance(value, datetime):
         dt = value
@@ -46,6 +46,6 @@ def normalize_datetime(
         except Exception:
             tz = timezone.utc
         dt = dt.replace(tzinfo=tz)
-    
+
     # Normalize to UTC
     return dt.astimezone(timezone.utc)
