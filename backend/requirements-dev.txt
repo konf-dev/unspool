@@ -14,7 +14,7 @@ annotated-doc==0.0.4
     # via fastapi
 annotated-types==0.7.0
     # via pydantic
-anthropic==0.84.0
+anthropic==0.86.0
     # via -r requirements.in
 anyio==4.12.1
     # via
@@ -236,6 +236,8 @@ pytest-httpx==0.36.0
     # via -r requirements-dev.in
 pytest-timeout==2.4.0
     # via -r requirements-dev.in
+python-dateutil==2.9.0.post0
+    # via -r requirements.in
 python-discovery==1.1.3
     # via virtualenv
 python-dotenv==1.2.2
@@ -249,7 +251,7 @@ pyyaml==6.0.3
     #   -r requirements.in
     #   pre-commit
     #   uvicorn
-qstash==3.2.0
+qstash==3.4.0
     # via -r requirements.in
 regex==2026.2.28
     # via tiktoken
@@ -263,8 +265,10 @@ requests==2.32.5
     #   tiktoken
 rich==14.3.3
     # via pip-audit
-ruff==0.15.6
+ruff==0.15.7
     # via -r requirements-dev.in
+six==1.17.0
+    # via python-dateutil
 sniffio==1.3.1
     # via
     #   anthropic
@@ -304,7 +308,7 @@ typing-inspection==0.4.2
     #   fastapi
     #   pydantic
     #   pydantic-settings
-upstash-redis==1.6.0
+upstash-redis==1.7.0
     # via -r requirements.in
 urllib3==2.6.3
     # via requests
@@ -328,5 +332,3 @@ zipp==3.23.0
 # The following packages are considered to be unsafe in a requirements file:
 pip==26.0.1
     # via pip-api
-python-dateutil==2.9.0.post0
-six==1.17.0
