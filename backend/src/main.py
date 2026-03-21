@@ -13,7 +13,7 @@ from src.api.subscribe import router as subscribe_router
 from src.jobs.router import router as jobs_router
 from src.config import get_settings
 from src.telemetry.logger import configure_logging, get_logger
-from src.telemetry.middleware import TraceMiddleware
+from src.telemetry.middleware import GIT_SHA, TraceMiddleware
 
 
 @asynccontextmanager
@@ -114,5 +114,5 @@ async def health() -> dict[str, str]:
     except RuntimeError:
         pass  # pool not initialized (e.g. development without DB)
     except Exception:
-        return {"status": "degraded", "db": "unreachable"}
-    return {"status": "ok"}
+        return {"status": "degraded", "db": "unreachable", "git_sha": GIT_SHA}
+    return {"status": "ok", "git_sha": GIT_SHA}

@@ -305,6 +305,26 @@
         "summary": "Eval Cleanup"
       }
     },
+    "/admin/health/deep": {
+      "get": {
+        "operationId": "health_deep_admin_health_deep_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Health Deep Admin Health Deep Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Deep"
+      }
+    },
     "/admin/jobs/recent": {
       "get": {
         "operationId": "get_recent_jobs_admin_jobs_recent_get",

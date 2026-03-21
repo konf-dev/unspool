@@ -1,6 +1,8 @@
 {
   "typeCheckingMode": "basic",
   "pythonVersion": "3.11",
+  "venvPath": "..",
+  "venv": ".venv",
   "include": ["src", "tests"],
   "exclude": ["**/__pycache__"]
 }

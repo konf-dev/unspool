@@ -1,10 +1,14 @@
+import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 
+from src.api.health_checks import run_all_checks
 from src.auth.admin_auth import verify_admin_key
+from src.config import get_settings
 from src.db.supabase import get_pool
 from src.telemetry.logger import get_logger
+from src.telemetry.middleware import GIT_SHA
 
 _log = get_logger("api.admin")
 
@@ -204,3 +208,23 @@ async def get_error_summary() -> list[dict[str, Any]]:
         """
     )
     return [dict(r) for r in rows]
+
+
+@router.get("/health/deep")
+async def health_deep() -> dict[str, Any]:
+    settings = get_settings()
+    start = time.perf_counter()
+
+    services = await run_all_checks()
+    total_ms = round((time.perf_counter() - start) * 1000)
+
+    any_error = any(s["status"] == "error" for s in services.values())
+    status = "degraded" if any_error else "ok"
+
+    return {
+        "status": status,
+        "git_sha": GIT_SHA,
+        "environment": settings.ENVIRONMENT,
+        "total_ms": total_ms,
+        "services": services,
+    }
