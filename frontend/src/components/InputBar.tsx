@@ -108,60 +108,59 @@ export function InputBar({ onSend, isStreaming, onStop }: InputBarProps) {
   const placeholder = isRecording ? 'listening...' : "what's on your mind?"
 
   const renderButton = () => {
-    if (hasText) {
-      return (
-        <button
-          className="input-bar-send"
-          type="button"
-          onClick={handleSend}
-          aria-label="Send message"
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M5 12L12 5L19 12M12 5V19"
-              stroke="#fff"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-      )
-    }
-
-    if (isStreaming) {
-      return (
-        <button
-          className="input-bar-stop"
-          type="button"
-          onClick={onStop}
-          aria-label="Stop generating"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <rect width="14" height="14" rx="2" fill="#fff" />
-          </svg>
-        </button>
-      )
-    }
-
     return (
-      <VoiceInput
-        isRecording={isRecording}
-        isSupported={isSupported}
-        onToggle={handleVoiceToggle}
-      />
+      <div className="input-bar-buttons">
+        {isStreaming && (
+          <button
+            className="input-bar-stop"
+            type="button"
+            onClick={onStop}
+            aria-label="Stop generating"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <rect width="14" height="14" rx="2" fill="#fff" />
+            </svg>
+          </button>
+        )}
+        {hasText ? (
+          <button
+            className="input-bar-send"
+            type="button"
+            onClick={handleSend}
+            aria-label="Send message"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M5 12L12 5L19 12M12 5V19"
+                stroke="#fff"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        ) : (
+          !isStreaming && (
+            <VoiceInput
+              isRecording={isRecording}
+              isSupported={isSupported}
+              onToggle={handleVoiceToggle}
+            />
+          )
+        )}
+      </div>
     )
   }
 

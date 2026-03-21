@@ -1,55 +1,64 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { parseSSEEvent, fetchMessages } from './api'
+import { parseSSEEvents, fetchMessages } from './api'
 
-describe('parseSSEEvent', () => {
+describe('parseSSEEvents', () => {
   it('parses a token event', () => {
-    const result = parseSSEEvent(JSON.stringify({ type: 'token', content: 'hello' }))
-    expect(result).toEqual({ type: 'token', content: 'hello' })
+    const result = parseSSEEvents(JSON.stringify({ type: 'token', content: 'hello' }))
+    expect(result).toEqual([{ type: 'token', content: 'hello' }])
   })
 
   it('parses a token event with empty string content', () => {
-    const result = parseSSEEvent(JSON.stringify({ type: 'token', content: '' }))
-    expect(result).toEqual({ type: 'token', content: '' })
+    const result = parseSSEEvents(JSON.stringify({ type: 'token', content: '' }))
+    expect(result).toEqual([{ type: 'token', content: '' }])
   })
 
   it('parses an actions event', () => {
     const actions = JSON.stringify([{ label: 'done', value: 'done' }])
-    const result = parseSSEEvent(JSON.stringify({ type: 'actions', content: actions }))
-    expect(result).toEqual({ type: 'actions', content: actions })
+    const result = parseSSEEvents(JSON.stringify({ type: 'actions', content: actions }))
+    expect(result).toEqual([{ type: 'actions', content: actions }])
   })
 
   it('parses a done event', () => {
-    const result = parseSSEEvent(JSON.stringify({ type: 'done' }))
-    expect(result).toEqual({ type: 'done' })
+    const result = parseSSEEvents(JSON.stringify({ type: 'done' }))
+    expect(result).toEqual([{ type: 'done' }])
   })
 
   it('returns unknown for invalid JSON', () => {
-    const result = parseSSEEvent('not json')
-    expect(result).toEqual({ type: 'unknown' })
+    const result = parseSSEEvents('not json')
+    expect(result).toEqual([{ type: 'unknown' }])
   })
 
   it('returns unknown for unrecognized event types', () => {
-    const result = parseSSEEvent(JSON.stringify({ type: 'ping' }))
-    expect(result).toEqual({ type: 'unknown' })
+    const result = parseSSEEvents(JSON.stringify({ type: 'ping' }))
+    expect(result).toEqual([{ type: 'unknown' }])
   })
 
   it('handles token event with undefined content', () => {
-    const result = parseSSEEvent(JSON.stringify({ type: 'token' }))
-    expect(result).toEqual({ type: 'token', content: undefined })
+    const result = parseSSEEvents(JSON.stringify({ type: 'token' }))
+    expect(result).toEqual([{ type: 'token', content: undefined }])
   })
 
   it('parses a tool_status running event', () => {
-    const result = parseSSEEvent(
+    const result = parseSSEEvents(
       JSON.stringify({ type: 'tool_status', tool: 'save_items', status: 'running' }),
     )
-    expect(result).toEqual({ type: 'tool_status', tool: 'save_items', status: 'running' })
+    expect(result).toEqual([{ type: 'tool_status', tool: 'save_items', status: 'running' }])
   })
 
   it('parses a tool_status done event', () => {
-    const result = parseSSEEvent(
+    const result = parseSSEEvents(
       JSON.stringify({ type: 'tool_status', tool: 'pick_next', status: 'done' }),
     )
-    expect(result).toEqual({ type: 'tool_status', tool: 'pick_next', status: 'done' })
+    expect(result).toEqual([{ type: 'tool_status', tool: 'pick_next', status: 'done' }])
+  })
+
+  it('parses multiple events in one chunk', () => {
+    const data = JSON.stringify({ type: 'token', content: 'a' }) + '\n\n' + JSON.stringify({ type: 'token', content: 'b' })
+    const result = parseSSEEvents(data)
+    expect(result).toEqual([
+      { type: 'token', content: 'a' },
+      { type: 'token', content: 'b' },
+    ])
   })
 })
 

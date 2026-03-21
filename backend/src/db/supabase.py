@@ -7,6 +7,7 @@ import asyncpg
 from pgvector.asyncpg import register_vector
 
 from src.config import get_settings
+from src.db.utils import normalize_datetime
 from src.telemetry.logger import get_logger
 
 _log = get_logger("db.supabase")
@@ -75,6 +76,38 @@ async def save_message(
         json.dumps(metadata or {}),
     )
     return dict(row)
+
+
+async def get_unconsumed_proactive_messages(user_id: str) -> list[dict[str, Any]]:
+    """Fetch active, non-expired, non-delivered proactive messages."""
+    pool = _get_pool()
+    rows = await pool.fetch(
+        """
+        SELECT * FROM proactive_messages
+        WHERE user_id = $1 AND status = 'pending' AND expires_at > now()
+        ORDER BY priority DESC, created_at ASC
+        """,
+        user_id,
+    )
+    return [dict(r) for r in rows]
+
+
+async def mark_proactive_messages_delivered(
+    user_id: str, message_ids: list[str]
+) -> None:
+    """Mark proactive messages as delivered."""
+    if not message_ids:
+        return
+    pool = _get_pool()
+    await pool.execute(
+        """
+        UPDATE proactive_messages
+        SET status = 'delivered', delivered_at = now()
+        WHERE user_id = $1 AND id = ANY($2::uuid[])
+        """,
+        user_id,
+        message_ids,
+    )
 
 
 async def get_messages(
@@ -148,19 +181,8 @@ async def save_item(
 
     # asyncpg requires datetime objects for TIMESTAMPTZ, not strings.
     # LLM extraction returns deadline_at as an ISO string.
-    parsed_deadline = None
-    if deadline_at is not None:
-        if isinstance(deadline_at, str):
-            try:
-                parsed_deadline = datetime.fromisoformat(deadline_at)
-            except ValueError:
-                _log.warning(
-                    "db.deadline_parse_failed",
-                    deadline_at=deadline_at,
-                )
-                parsed_deadline = None
-        else:
-            parsed_deadline = deadline_at
+    user_tz = await _get_user_tz(user_id)
+    parsed_deadline = normalize_datetime(deadline_at, user_tz)
 
     row = await pool.fetchrow(
         """
@@ -276,6 +298,12 @@ async def update_item(item_id: str, user_id: str, **fields: Any) -> dict[str, An
 
     _validate_columns(fields, _ITEM_ALLOWED_COLUMNS, "update_item")
 
+    user_tz = await _get_user_tz(user_id)
+    # Normalize datetime fields
+    for field in ["deadline_at", "nudge_after", "last_surfaced_at"]:
+        if field in fields:
+            fields[field] = normalize_datetime(fields[field], user_tz)
+
     pool = _get_pool()
     set_clauses = []
     params: list[Any] = []
@@ -369,6 +397,12 @@ async def search_items_text(
         limit,
     )
     return [dict(r) for r in rows]
+
+
+async def _get_user_tz(user_id: str) -> str | None:
+    """Helper to get user's timezone from profile."""
+    profile = await get_profile(user_id)
+    return profile.get("timezone")
 
 
 async def get_profile(user_id: str) -> dict[str, Any]:
@@ -1234,11 +1268,13 @@ async def save_event(
     is_all_day: bool = False,
     rrule: str | None = None,
     description: str | None = None,
-    source: str = "user",
 ) -> dict[str, Any]:
     pool = _get_pool()
-    parsed_start = _parse_dt(starts_at)
-    parsed_end = _parse_dt(ends_at)
+
+    user_tz = await _get_user_tz(user_id)
+    parsed_start = normalize_datetime(starts_at, user_tz)
+    parsed_end = normalize_datetime(ends_at, user_tz)
+
     row = await pool.fetchrow(
         """
         INSERT INTO events (user_id, title, starts_at, ends_at, is_all_day, rrule, description, source)
@@ -1317,8 +1353,11 @@ async def save_tracker_entry(
     recorded_at: str | datetime | None = None,
 ) -> dict[str, Any]:
     pool = _get_pool()
+    user_tz = await _get_user_tz(user_id)
     parsed_recorded = (
-        _parse_dt(recorded_at) if recorded_at else datetime.now(timezone.utc)
+        normalize_datetime(recorded_at, user_tz)
+        if recorded_at
+        else datetime.now(timezone.utc)
     )
     row = await pool.fetchrow(
         """
@@ -1417,7 +1456,8 @@ async def save_scheduled_action(
     import json as json_mod
 
     pool = _get_pool()
-    parsed_at = _parse_dt(execute_at)
+    user_tz = await _get_user_tz(user_id)
+    parsed_at = normalize_datetime(execute_at, user_tz)
     row = await pool.fetchrow(
         """
         INSERT INTO scheduled_actions (user_id, action_type, execute_at, payload, rrule)
@@ -1520,13 +1560,3 @@ async def get_user_collections(user_id: str) -> list[dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
-def _parse_dt(value: str | datetime | None) -> datetime | None:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return value
-    try:
-        return datetime.fromisoformat(value)
-    except (ValueError, TypeError):
-        _log.warning("db.datetime_parse_failed", value=str(value)[:50])
-        return None

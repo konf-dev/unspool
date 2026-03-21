@@ -11,20 +11,49 @@ function useMocks(): boolean {
 }
 
 export interface ParsedSSEEvent {
-  type: 'token' | 'actions' | 'tool_status' | 'done' | 'unknown'
+  type: 'token' | 'actions' | 'tool_status' | 'done' | 'error' | 'unknown'
   content?: string
   tool?: string
   status?: 'running' | 'done'
 }
 
-export function parseSSEEvent(data: string): ParsedSSEEvent {
-  let parsed: { type: string; content?: string }
+export function parseSSEEvents(data: string): ParsedSSEEvent[] {
+  // SSE can bundle multiple data: lines in one chunk.
+  // Each data line starts with "data: " and ends with "\n\n" usually,
+  // but fetchEventSource gives us the decoded data content.
+  // If multiple events were in one chunk, they might be separated by newlines
+  // or just be multiple JSON objects if the server didn't use standard SSE format correctly.
+  
+  const events: ParsedSSEEvent[] = []
+  
+  // Try parsing the whole thing as one JSON first
   try {
-    parsed = JSON.parse(data) as { type: string; content?: string }
+    const parsed = JSON.parse(data)
+    events.push(mapToSSEEvent(parsed))
+    return events
   } catch {
-    return { type: 'unknown' }
+    // If it fails, maybe it's multiple JSONs. 
+    // Brute force split by }{ and fix them
+    const parts = data.split('}\n\n{')
+    if (parts.length > 1) {
+      for (let i = 0; i < parts.length; i++) {
+        let p = parts[i] as string
+        if (i > 0) p = '{' + p
+        if (i < parts.length - 1) p = p + '}'
+        try {
+          events.push(mapToSSEEvent(JSON.parse(p)))
+        } catch {
+          // ignore malformed
+        }
+      }
+      return events
+    }
   }
+  
+  return [{ type: 'unknown' }]
+}
 
+function mapToSSEEvent(parsed: any): ParsedSSEEvent {
   switch (parsed.type) {
     case 'token':
       return { type: 'token', content: parsed.content }
@@ -33,9 +62,11 @@ export function parseSSEEvent(data: string): ParsedSSEEvent {
     case 'tool_status':
       return {
         type: 'tool_status',
-        tool: (parsed as { tool?: string }).tool,
-        status: (parsed as { status?: string }).status as 'running' | 'done',
+        tool: parsed.tool,
+        status: parsed.status,
       }
+    case 'error':
+      return { type: 'error', content: parsed.content }
     case 'done':
       return { type: 'done' }
     default:
@@ -51,7 +82,7 @@ export function sendMessage(
   onActions?: (actions: ActionButton[]) => void,
   onToolStatus?: (tool: string, status: 'running' | 'done') => void,
   onDone?: () => void,
-  onError?: (err: unknown) => void,
+  onError?: (err: any) => void,
 ): AbortController {
   if (useMocks()) {
     return mockSendMessage(message, onToken, onActions, onDone)
@@ -71,30 +102,61 @@ export function sendMessage(
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     }),
     signal: controller.signal,
+    async onopen(response) {
+      if (response.ok) {
+        return
+      }
+      if (response.status === 429) {
+        const body = await response.json()
+        const err = new Error(body.detail || 'Daily limit reached')
+        ;(err as any).status = 429
+        onError?.(err)
+        controller.abort()
+        return
+      }
+      const err = new Error(`Request failed with status ${response.status}`)
+      onError?.(err)
+      controller.abort()
+    },
     onmessage(event) {
-      const parsed = parseSSEEvent(event.data)
+      const events = parseSSEEvents(event.data)
 
-      switch (parsed.type) {
-        case 'token':
-          if (parsed.content !== undefined) onToken(parsed.content)
-          break
-        case 'actions':
-          if (onActions && parsed.content) {
-            const actions = JSON.parse(parsed.content) as ActionButton[]
-            onActions(actions)
-          }
-          break
-        case 'tool_status':
-          if (onToolStatus && parsed.tool && parsed.status) {
-            onToolStatus(parsed.tool, parsed.status)
-          }
-          break
-        case 'done':
-          onDone?.()
-          break
+      for (const parsed of events) {
+        switch (parsed.type) {
+          case 'token':
+            if (parsed.content !== undefined) onToken(parsed.content)
+            break
+          case 'actions':
+            if (onActions && parsed.content) {
+              try {
+                const actions = JSON.parse(parsed.content) as ActionButton[]
+                onActions(actions)
+              } catch {
+                // ignore
+              }
+            }
+            break
+          case 'tool_status':
+            if (onToolStatus && parsed.tool && parsed.status) {
+              onToolStatus(parsed.tool, parsed.status)
+            }
+            break
+          case 'error':
+            if (onError && parsed.content) {
+              onError(new Error(parsed.content))
+            }
+            break
+          case 'done':
+            onDone?.()
+            break
+        }
       }
     },
     onerror(err) {
+      // If it's a 429, we already handled it in onopen
+      if (err.status === 429) {
+        throw err // prevent retry
+      }
       console.error('SSE error:', err)
       onError?.(err)
       throw err

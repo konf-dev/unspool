@@ -30,9 +30,9 @@ async def check_momentum(user_id: str) -> dict[str, Any]:
 async def pick_next_item(
     items: list[dict[str, Any]] | None,
     user_id: str,
-) -> dict[str, Any] | None:
+) -> dict[str, Any]:
     if not items or not isinstance(items, list):
-        return None
+        return {"status": "no_items_found"}
 
     try:
         config = load_config("scoring")
@@ -68,10 +68,11 @@ async def pick_next_item(
         scored.append((score, item))
 
     if not scored:
-        return None
+        return {"status": "no_items_found"}
 
     scored.sort(key=lambda x: x[0], reverse=True)
     best = scored[0][1]
+    best["status"] = "success"
 
     _log.info(
         "pick_next.selected",
