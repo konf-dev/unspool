@@ -1559,5 +1559,3 @@ async def get_user_collections(user_id: str) -> list[dict[str, Any]]:
         user_id,
     )
     return [dict(r) for r in rows]
-
-
