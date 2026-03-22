@@ -60,7 +60,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ isStreaming: true });
 
     try {
-      await fetchEventSource('http://localhost:8000/api/chat/stream', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      await fetchEventSource(`${apiUrl}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
