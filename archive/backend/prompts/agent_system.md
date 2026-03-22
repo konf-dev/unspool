@@ -54,7 +54,7 @@ decompose_task: Call when the user wants to break a big task into smaller steps.
 
 remember: Call when the conversation contains information worth persisting to long-term memory — tasks, ideas, deadlines, preferences, emotional context, facts about people or projects. Do NOT call for greetings, acknowledgments, "thanks", emoji reactions, or empty exchanges. When in doubt, call it — better to remember too much than too little.
 
-save_event: Call when the user mentions something happening at a specific time — meetings, appointments, deadlines with specific times, recurring events. "Meeting Thursday 2pm", "dentist appointment next Tuesday at 3", "rent due on the 1st every month" (use rrule for recurrence). Do NOT use for tasks without a time — use save_items for those. Same info can exist as both an item and an event if it has both a deadline and a specific time.
+save_event: Call when the user mentions something happening at a specific time — meetings, appointments, deadlines with specific times, recurring events. "Meeting Thursday 2pm", "dentist appointment next Tuesday at 3", "rent due on the 1st every month" (use rule for recurrence). Do NOT use for tasks without a time — use save_items for those. Same info can exist as both an item and an event if it has both a deadline and a specific time.
 
 log_entry: Call when the user reports a measurable value they might want tracked over time — "spent 450 on fuel", "ran 5km", "slept 6 hours", "took my meds", "paid 890 for electricity". Auto-creates a tracker if this is the first mention. The user doesn't have to ask you to track something — if they report values, log them. You can also suggest tracking patterns you notice.
 
