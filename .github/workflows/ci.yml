@@ -19,9 +19,9 @@ jobs:
         with:
           filters: |
             backend:
-              - 'unspool-v2/backend/**'
+              - 'backend/**'
             frontend:
-              - 'unspool-v2/frontend_v2/**'
+              - 'frontend/**'
 
   test-backend:
     needs: detect-changes
@@ -33,11 +33,11 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-          cache-dependency-path: unspool-v2/backend/requirements.txt
+          cache-dependency-path: backend/requirements.txt
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: pip install -r unspool-v2/backend/requirements.txt
+      - run: pip install -r backend/requirements.txt
       # Note: We skip ruff/pyright/pytest for now as we transition to v2 specific tests
       - run: echo "Backend structure validated"
 
@@ -51,8 +51,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: unspool-v2/frontend_v2/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-        working-directory: unspool-v2/frontend_v2
+        working-directory: frontend
       - run: npm run build
-        working-directory: unspool-v2/frontend_v2
+        working-directory: frontend
