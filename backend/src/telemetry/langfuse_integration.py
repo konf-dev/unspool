@@ -40,8 +40,8 @@ def _init_langfuse() -> None:
         _callback_handler_cls = CallbackHandler
         _langfuse_available = True
         _log.info("langfuse.initialized", host=settings.LANGFUSE_HOST)
-    except ImportError:
-        _log.warning("langfuse.import_failed")
+    except Exception as e:
+        _log.warning("langfuse.import_failed", error=str(e), error_type=type(e).__name__)
 
 
 def is_langfuse_available() -> bool:
