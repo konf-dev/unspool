@@ -1,0 +1,25 @@
+# Urgency decay/ramp parameters
+decay:
+  soft_decay_factor: 0.95
+  auto_expire_days: 30
+  auto_expire_threshold: 0.1
+  hard_ramp:
+    overdue: 1.0
+    within_24h_base: 0.7
+    within_24h_divisor: 80
+    within_72h_base: 0.5
+    within_72h_divisor: 96
+
+# Momentum tracking
+momentum:
+  lookback_hours: 24
+  on_a_roll_threshold: 3
+
+# Push notification settings
+notifications:
+  quiet_hours_start: 1
+  quiet_hours_end: 7
+  deadline_window_hours: 24
+  title: "unspool"
+  body_single: "Deadline approaching: {action}"
+  body_multiple: "You have {count} items with deadlines in the next {hours} hours"

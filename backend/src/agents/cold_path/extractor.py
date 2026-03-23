@@ -1,117 +1,214 @@
-import logging
-from typing import Dict, Any, List
+"""Cold path extractor — with idempotency, semantic dedup, and event-first pattern."""
+
+import hashlib
 import uuid
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from openai import AsyncOpenAI
-import json
+from sqlalchemy import select
 
-from src.core.config import settings
-from src.core.graph import get_or_create_node, upsert_edge
-from src.agents.cold_path.schemas import ExtractionResult, ExtractedNode, ExtractedEdge
+from src.agents.cold_path.schemas import ExtractionResult
+from src.core.database import AsyncSessionLocal
+from src.core.graph import (
+    append_event,
+    get_or_create_node,
+    search_nodes_semantic,
+    upsert_edge,
+)
+from src.core.models import EventStream, GraphNode
+from src.core.settings import get_settings
+from src.integrations.openai import get_openai_client, get_embedding
+from src.telemetry.error_reporting import report_error
+from src.telemetry.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("cold_path.extractor")
 
-# Initialize the OpenAI client natively for Structured Outputs
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-
-# Define standard system status nodes
 STATUS_OPEN = "OPEN"
 STATUS_DONE = "DONE"
 
-async def ensure_status_nodes(session: AsyncSession, user_id: uuid.UUID):
-    """Ensures that the fundamental system nodes exist for the user."""
+# Cosine distance threshold for semantic dedup.
+# pgvector cosine_distance = 1 - cosine_similarity, so a distance of 0.1
+# means similarity >= 0.9.
+_DEDUP_MAX_DISTANCE = 0.1
+
+
+async def ensure_status_nodes(session, user_id: uuid.UUID):
     open_node = await get_or_create_node(session, user_id, STATUS_OPEN, "system_status")
     done_node = await get_or_create_node(session, user_id, STATUS_DONE, "system_status")
     return open_node, done_node
 
-async def run_extraction(raw_message: str, current_time_iso: str, timezone: str) -> ExtractionResult:
-    """Uses GPT-4o-mini with Structured Outputs to parse a brain dump into a Graph."""
-    
+
+async def run_extraction(
+    raw_message: str, current_time_iso: str, timezone: str,
+) -> ExtractionResult:
+    """Uses GPT with Structured Outputs to parse a brain dump into a Graph."""
+    settings = get_settings()
+    client = get_openai_client()
+
     system_prompt = f"""You are the Unspool Archiver, an expert at translating unstructured human brain dumps into a structured Knowledge Graph.
-    
+
 Current Time: {current_time_iso}
 User Timezone: {timezone}
 
 CRITICAL RULES:
 1. Everything is a Node. If a user has a task, the task is a Node.
-2. If a user describes a Task or an Action item, you MUST create an 'action' node AND you MUST create an edge of type 'IS_STATUS' pointing to a node with content 'OPEN'.
-3. If a user describes an event with a date, create an edge of type 'HAS_DEADLINE' and put the exact ISO8601 timestamp in the metadata under the key 'date'. Calculate the date intelligently based on the Current Time.
-4. If a user tracks a metric (e.g., "smoked 3 cigs"), create a 'concept' node for the metric ("cigs"), an 'action' node for the event ("smoked 3 cigs"), and a 'TRACKS_METRIC' edge between them, storing the value in metadata.
+2. If a user describes a Task or Action item, create an 'action' node AND an edge of type 'IS_STATUS' pointing to a node with content 'OPEN'.
+3. If a user describes an event with a date, create an edge of type 'HAS_DEADLINE' and put the exact ISO8601 timestamp in the metadata under the key 'date'.
+4. If a user tracks a metric (e.g., "smoked 3 cigs"), create a 'concept' node for the metric, an 'action' node for the event, and a 'TRACKS_METRIC' edge.
 5. De-duplicate concepts where possible.
-
-Example: "Need to finish my thesis by next Friday"
-Nodes: 
-  - {{"content": "Finish thesis", "node_type": "action"}}
-  - {{"content": "OPEN", "node_type": "system_status"}}
-Edges:
-  - {{"source_content": "Finish thesis", "target_content": "OPEN", "edge_type": "IS_STATUS"}}
-  - {{"source_content": "Finish thesis", "target_content": "Finish thesis", "edge_type": "HAS_DEADLINE", "metadata": {{"date": "2024-05-17T17:00:00Z"}}}}  <- (Target can be itself if it's a property of the node)
+6. If the message is purely conversational ("hey", "thanks", "lol"), return empty nodes and edges arrays.
 """
 
     response = await client.beta.chat.completions.parse(
-        model="gpt-4o-mini",
+        model=settings.LLM_MODEL_FAST,
         messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": raw_message}
+            {"role": "user", "content": raw_message},
         ],
         response_format=ExtractionResult,
     )
-    
+
     return response.choices[0].message.parsed
 
 
-async def process_brain_dump(session: AsyncSession, user_id: uuid.UUID, raw_message: str, current_time_iso: str, timezone: str):
-    """The main entry point for the Cold Path Archiver."""
-    
-    logger.info(f"Starting Cold Path extraction for user {user_id}")
-    
-    # 1. Ensure system nodes exist
-    await ensure_status_nodes(session, user_id)
-    
-    # 2. Run the LLM Extraction
-    extraction: ExtractionResult = await run_extraction(raw_message, current_time_iso, timezone)
-    
-    logger.info(f"Extracted {len(extraction.nodes)} nodes and {len(extraction.edges)} edges.")
-    
-    # 3. Create the Nodes
-    node_map = {} # Maps content string to UUID
-    
-    for enode in extraction.nodes:
-        # TODO: In the future, we should generate embeddings here and do a semantic search 
-        # to see if a similar node already exists (e.g. "Mom" vs "Mother") before creating a new one.
-        # For MVP, we use exact string matching via get_or_create_node.
-        db_node = await get_or_create_node(
-            session=session,
-            user_id=user_id,
-            content=enode.content,
-            node_type=enode.node_type
+async def _find_semantic_match(
+    session, user_id: uuid.UUID, content: str, node_type: str,
+) -> GraphNode | None:
+    """Return an existing node only if cosine similarity >= 0.9.
+
+    Uses pgvector's cosine_distance ordering with an explicit max_distance
+    filter so that dissimilar nodes are never returned, regardless of how
+    small the graph is.
+    """
+    try:
+        embedding = await get_embedding(content)
+        matches = await search_nodes_semantic(
+            session,
+            user_id,
+            embedding,
+            limit=1,
+            node_type=node_type,
+            max_distance=_DEDUP_MAX_DISTANCE,
         )
-        node_map[enode.content] = db_node.id
-        
-    # We must also ensure that targets that were implicitly referenced (like "OPEN") are in the map
-    open_node, done_node = await ensure_status_nodes(session, user_id)
-    node_map[STATUS_OPEN] = open_node.id
-    node_map[STATUS_DONE] = done_node.id
-        
-    # 4. Create the Edges
-    for edge in extraction.edges:
-        source_id = node_map.get(edge.source_content)
-        target_id = node_map.get(edge.target_content)
-        
-        if not source_id or not target_id:
-            logger.warning(f"Skipping edge: Could not resolve source '{edge.source_content}' or target '{edge.target_content}'")
-            continue
-            
-        await upsert_edge(
-            session=session,
-            user_id=user_id,
-            source_id=source_id,
-            target_id=target_id,
-            edge_type=edge.edge_type,
-            metadata=edge.metadata.model_dump(exclude_none=True) if edge.metadata else {}
+        if matches:
+            return matches[0]
+    except Exception:
+        logger.debug("cold_path.semantic_match_failed", content=content, exc_info=True)
+    return None
+
+
+def _idempotency_key(user_id: str, message: str) -> str:
+    """Hash of user_id + message for cold path idempotency."""
+    return hashlib.sha256(f"{user_id}:{message}".encode()).hexdigest()[:16]
+
+
+async def process_brain_dump(
+    user_id: uuid.UUID,
+    raw_message: str,
+    current_time_iso: str,
+    timezone: str,
+    trace_id: str | None = None,
+) -> None:
+    """The main entry point for the Cold Path Archiver. Idempotent."""
+    idem_key = _idempotency_key(str(user_id), raw_message)
+
+    async with AsyncSessionLocal() as session:
+        # Check idempotency — skip if already processed
+        existing = await session.execute(
+            select(EventStream).where(
+                EventStream.user_id == user_id,
+                EventStream.event_type == "ColdPathProcessed",
+                EventStream.payload["idempotency_key"].as_string() == idem_key,
+            ).limit(1)
         )
-        
-    # 5. Commit the transaction (writes to event_stream, graph_nodes, and graph_edges atomically)
-    await session.commit()
-    logger.info("Cold Path extraction completed and committed.")
+        if existing.scalar_one_or_none():
+            logger.info("cold_path.skipped_duplicate", user_id=str(user_id))
+            return
+
+        logger.info("cold_path.start", user_id=str(user_id), trace_id=trace_id)
+
+        # Ensure system nodes exist
+        await ensure_status_nodes(session, user_id)
+
+        # Run LLM extraction
+        try:
+            extraction = await run_extraction(raw_message, current_time_iso, timezone)
+        except Exception as e:
+            report_error(
+                "cold_path.extraction_failed", e,
+                user_id=str(user_id), trace_id=trace_id,
+            )
+            return
+
+        if not extraction.nodes and not extraction.edges:
+            logger.info("cold_path.no_entities", user_id=str(user_id))
+            await append_event(session, user_id, "ColdPathProcessed", {
+                "idempotency_key": idem_key, "nodes": 0, "edges": 0,
+            })
+            await session.commit()
+            return
+
+        logger.info(
+            "cold_path.extracted",
+            nodes=len(extraction.nodes),
+            edges=len(extraction.edges),
+        )
+
+        # Create nodes with semantic dedup
+        node_map: dict[str, uuid.UUID] = {}
+
+        for enode in extraction.nodes:
+            existing_node = await _find_semantic_match(
+                session, user_id, enode.content, enode.node_type,
+            )
+            if existing_node:
+                node_map[enode.content] = existing_node.id
+                logger.debug(
+                    "cold_path.dedup_match",
+                    content=enode.content,
+                    matched=existing_node.content,
+                )
+            else:
+                try:
+                    embedding = await get_embedding(enode.content)
+                except Exception:
+                    embedding = None
+                db_node = await get_or_create_node(
+                    session, user_id, enode.content, enode.node_type, embedding,
+                )
+                node_map[enode.content] = db_node.id
+
+        # Ensure status nodes in map
+        open_node, done_node = await ensure_status_nodes(session, user_id)
+        node_map[STATUS_OPEN] = open_node.id
+        node_map[STATUS_DONE] = done_node.id
+
+        # Create edges
+        for edge in extraction.edges:
+            source_id = node_map.get(edge.source_content)
+            target_id = node_map.get(edge.target_content)
+
+            if not source_id or not target_id:
+                logger.warning(
+                    "cold_path.edge_skipped",
+                    source=edge.source_content,
+                    target=edge.target_content,
+                )
+                continue
+
+            await upsert_edge(
+                session=session,
+                user_id=user_id,
+                source_id=source_id,
+                target_id=target_id,
+                edge_type=edge.edge_type,
+                metadata=edge.metadata.model_dump(exclude_none=True) if edge.metadata else {},
+            )
+
+        # Mark as processed
+        await append_event(session, user_id, "ColdPathProcessed", {
+            "idempotency_key": idem_key,
+            "nodes": len(extraction.nodes),
+            "edges": len(extraction.edges),
+        })
+
+        await session.commit()
+        logger.info("cold_path.complete", user_id=str(user_id), trace_id=trace_id)

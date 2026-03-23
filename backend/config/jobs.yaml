@@ -1,0 +1,15 @@
+# Job definitions — cron schedules and post-processing dispatch map.
+# Consolidated to 2 crons to stay within QStash free tier.
+
+cron_jobs:
+  hourly-maintenance:
+    schedule: "0 * * * *"
+    schedule_id: unspool-hourly-maintenance
+
+  nightly-batch:
+    schedule: "0 3 * * *"
+    schedule_id: unspool-nightly-batch
+
+# Maps post-processing job names to /jobs/ endpoint paths
+dispatch_map:
+  process_message: process-message

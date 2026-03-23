@@ -1,0 +1,22 @@
+# Graph memory system config
+
+retrieval:
+  semantic_limit: 15
+  temporal_window_hours: 48
+  recent_limit: 10
+  graph_walk_hops: 1
+  max_subgraph_nodes: 100
+
+serialization:
+  max_context_tokens: 4000
+
+evolution:
+  embedding_model: text-embedding-3-small
+  similarity_threshold: 0.8
+  dedup_threshold: 0.9
+  edge_decay_factor: 0.99
+  edge_decay_min: 0.01
+
+ingest:
+  model: gpt-4.1-mini
+  max_nodes: 10
