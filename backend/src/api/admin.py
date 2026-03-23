@@ -25,7 +25,7 @@ async def get_trace(trace_id: str) -> dict[str, Any]:
         messages = await session.execute(text("""
             SELECT id, user_id, event_type, payload, created_at
             FROM event_stream
-            WHERE payload->>'trace_id' = :trace_id
+            WHERE payload->'metadata'->>'trace_id' = :trace_id
             ORDER BY created_at
         """), {"trace_id": trace_id})
 

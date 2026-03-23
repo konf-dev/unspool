@@ -39,26 +39,71 @@ async def ensure_status_nodes(session, user_id: uuid.UUID):
 async def run_extraction(
     raw_message: str, current_time_iso: str, timezone: str,
 ) -> ExtractionResult:
-    """Uses GPT with Structured Outputs to parse a brain dump into a Graph."""
+    """Uses GPT with Structured Outputs to parse a brain dump into a Graph.
+
+    Uses the strong model (LLM_MODEL, not LLM_MODEL_FAST) because graph
+    quality is the foundation of the entire product — cheap extractions
+    that miss edges or relationships degrade everything downstream.
+    """
     settings = get_settings()
     client = get_openai_client()
 
-    system_prompt = f"""You are the Unspool Archiver, an expert at translating unstructured human brain dumps into a structured Knowledge Graph.
+    system_prompt = f"""You are the Unspool Archiver. You translate unstructured human messages into a structured Knowledge Graph of nodes and edges.
 
 Current Time: {current_time_iso}
 User Timezone: {timezone}
 
-CRITICAL RULES:
-1. Everything is a Node. If a user has a task, the task is a Node.
-2. If a user describes a Task or Action item, create an 'action' node AND an edge of type 'IS_STATUS' pointing to a node with content 'OPEN'.
-3. If a user describes an event with a date, create an edge of type 'HAS_DEADLINE' and put the exact ISO8601 timestamp in the metadata under the key 'date'.
-4. If a user tracks a metric (e.g., "smoked 3 cigs"), create a 'concept' node for the metric, an 'action' node for the event, and a 'TRACKS_METRIC' edge.
-5. De-duplicate concepts where possible.
-6. If the message is purely conversational ("hey", "thanks", "lol"), return empty nodes and edges arrays.
+RULES — follow every one precisely:
+
+1. Every distinct entity is a Node: tasks, people, concepts, emotions, metrics.
+2. Every Action/Task MUST have an IS_STATUS edge pointing to a node with content "OPEN".
+3. Every date/deadline MUST produce a HAS_DEADLINE edge with an ISO8601 "date" in metadata. Resolve relative dates ("Friday" → the next Friday from Current Time, "tomorrow" → day after Current Time).
+4. Metrics (e.g., "ran 5km", "spent $200") produce a TRACKS_METRIC edge with "value" and "unit" in metadata.
+5. Related entities get a RELATES_TO edge.
+6. If the message is purely conversational ("hey", "thanks", "lol", "👍"), return empty nodes and edges arrays.
+7. Nodes: source_content and target_content in edges MUST exactly match a node's content string.
+8. Always include "OPEN" as a system_status node when you create any IS_STATUS edge.
+
+EXAMPLE 1 — "I need to finish my thesis by next Friday and call Mom tomorrow"
+(assuming Current Time is 2026-03-23)
+
+nodes:
+  - content: "finish my thesis", node_type: "action"
+  - content: "call Mom", node_type: "action"
+  - content: "OPEN", node_type: "system_status"
+
+edges:
+  - source_content: "finish my thesis", target_content: "OPEN", edge_type: "IS_STATUS"
+  - source_content: "finish my thesis", target_content: "finish my thesis", edge_type: "HAS_DEADLINE", metadata: {{"date": "2026-03-27T17:00:00Z"}}
+  - source_content: "call Mom", target_content: "OPEN", edge_type: "IS_STATUS"
+  - source_content: "call Mom", target_content: "call Mom", edge_type: "HAS_DEADLINE", metadata: {{"date": "2026-03-24T12:00:00Z"}}
+
+EXAMPLE 2 — "I need to buy groceries and my dentist appointment is Thursday at 2pm"
+
+nodes:
+  - content: "buy groceries", node_type: "action"
+  - content: "dentist appointment", node_type: "action"
+  - content: "OPEN", node_type: "system_status"
+
+edges:
+  - source_content: "buy groceries", target_content: "OPEN", edge_type: "IS_STATUS"
+  - source_content: "dentist appointment", target_content: "OPEN", edge_type: "IS_STATUS"
+  - source_content: "dentist appointment", target_content: "dentist appointment", edge_type: "HAS_DEADLINE", metadata: {{"date": "2026-03-26T14:00:00Z"}}
+
+EXAMPLE 3 — "ran 5km this morning, feeling pretty good"
+
+nodes:
+  - content: "ran 5km", node_type: "action"
+  - content: "running", node_type: "metric"
+  - content: "feeling good", node_type: "emotion"
+
+edges:
+  - source_content: "ran 5km", target_content: "running", edge_type: "TRACKS_METRIC", metadata: {{"value": 5.0, "unit": "km"}}
+  - source_content: "ran 5km", target_content: "feeling good", edge_type: "EXPERIENCED_DURING"
 """
 
     response = await client.beta.chat.completions.parse(
-        model=settings.LLM_MODEL_FAST,
+        model=settings.LLM_MODEL,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": raw_message},

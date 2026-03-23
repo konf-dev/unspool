@@ -2,10 +2,14 @@
 
 The LLM and workflow are constructed lazily on first use to avoid import-time
 side effects (which break tests and fail when env vars are missing).
+
+Langfuse tracing is done via CallbackHandler passed in the config dict — this
+automatically traces every LLM call, tool execution, and agent iteration with
+full input/output/token counts.
 """
 
 import time
-from typing import Literal
+from typing import Any, Literal
 
 from langchain_core.messages import SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
@@ -57,7 +61,7 @@ async def call_model(state: HotPathState):
     response = await _get_llm_with_tools().ainvoke(full_messages)
     latency_ms = round((time.perf_counter() - start) * 1000)
 
-    # Record LLM usage telemetry
+    # Record LLM usage to our DB (Langfuse records it too via CallbackHandler)
     usage = getattr(response, "usage_metadata", None) or {}
     try:
         from src.core.settings import get_settings
@@ -153,3 +157,29 @@ workflow.add_conditional_edges(
 workflow.add_edge("tools", "agent")
 
 app = workflow.compile()
+
+
+def get_langfuse_config(
+    trace_id: str | None = None,
+    user_id: str | None = None,
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    """Build a LangGraph config dict with Langfuse CallbackHandler if available.
+
+    Usage in chat.py::
+
+        config = get_langfuse_config(trace_id, user_id, session_id)
+        async for event in app.astream(state, stream_mode="updates", config=config):
+            ...
+    """
+    from src.telemetry.langfuse_integration import get_langchain_handler
+    handler = get_langchain_handler(
+        trace_id=trace_id,
+        user_id=user_id,
+        session_id=session_id,
+        tags=["chat", "hot_path"],
+        metadata={"trace_id": trace_id} if trace_id else {},
+    )
+    if handler:
+        return {"callbacks": [handler]}
+    return {}
