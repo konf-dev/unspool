@@ -1,0 +1,6 @@
+rate_limits:
+  free:
+    daily_messages: 1000
+    message: "You've reached your daily message limit."
+  paid:
+    daily_messages: -1  # unlimited
