@@ -13,14 +13,13 @@ from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from pydantic import BaseModel, Field
 
 from src.agents.hot_path.context import assemble_context
-from src.agents.hot_path.graph import app as hot_path_app
+from src.agents.hot_path.graph import app as hot_path_app, get_langfuse_config
 from src.agents.hot_path.state import HotPathState
 from src.api.gate import check_gate
 from src.auth.supabase_auth import get_current_user
 from src.core.database import AsyncSessionLocal
 from src.db.queries import append_message_event, update_profile
 from src.telemetry.error_reporting import report_error
-from src.telemetry.langfuse_integration import observe, update_current_trace
 from src.telemetry.logger import get_logger
 
 _log = get_logger("api.chat")
@@ -36,7 +35,6 @@ class ChatRequest(BaseModel):
     timezone: str | None = Field(default=None, max_length=50)
 
 
-@observe("chat.stream_response")
 async def _stream_response(
     user_id: str,
     message: str,
@@ -47,15 +45,6 @@ async def _stream_response(
     session_id: str,
     tz: str,
 ) -> AsyncIterator[str]:
-    update_current_trace(
-        name=f"chat:{trace_id[:8]}",
-        user_id=user_id,
-        session_id=trace_id,
-        tags=["chat"],
-        input={"message": message[:500]},
-        metadata={"trace_id": trace_id},
-    )
-
     current_time = datetime.now().isoformat()
 
     # Build conversation history from recent messages
@@ -78,8 +67,13 @@ async def _stream_response(
         "profile": profile,
     }
 
+    # Langfuse CallbackHandler auto-traces every LLM call, tool, and agent step
+    langfuse_config = get_langfuse_config(trace_id, user_id, session_id)
+
     async with asyncio.timeout(_PIPELINE_TIMEOUT_SECONDS):
-        async for event in hot_path_app.astream(initial_state, stream_mode="updates"):
+        async for event in hot_path_app.astream(
+            initial_state, stream_mode="updates", config=langfuse_config,
+        ):
             if "agent" in event:
                 for msg in event["agent"]["messages"]:
                     if isinstance(msg, AIMessage):
@@ -213,6 +207,10 @@ async def chat(
                         }, delay=5)
                     except Exception:
                         _log.error("chat.cold_path_dispatch_failed", trace_id=trace_id, exc_info=True)
+
+                # Flush Langfuse so the trace is sent before connection closes
+                from src.telemetry.langfuse_integration import flush_langfuse
+                flush_langfuse()
 
     return StreamingResponse(
         wrapped_stream(),
