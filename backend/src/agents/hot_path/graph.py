@@ -130,14 +130,13 @@ async def call_tools(state: HotPathState):
 
 def route_logic(state: HotPathState) -> Literal["tools", "END"]:
     """Determines whether to execute tools or end the loop."""
-    last_message = state["messages"][-1]
-
-    if hasattr(last_message, "tool_calls") and len(last_message.tool_calls) > 0:
-        return "tools"
-
-    if state["iteration"] > 5:
+    if state["iteration"] >= 5:
         logger.warning("hot_path.iteration_limit_reached")
         return "END"
+
+    last_message = state["messages"][-1]
+    if hasattr(last_message, "tool_calls") and len(last_message.tool_calls) > 0:
+        return "tools"
 
     return "END"
 
