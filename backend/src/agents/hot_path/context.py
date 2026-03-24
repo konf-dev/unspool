@@ -59,6 +59,9 @@ async def assemble_context(
                     return
 
                 # Expand neighborhoods for top 3 results
+                # NOTE: These are sequential (~5-20ms each). Could parallelize with
+                # asyncio.gather for ~30ms savings if context assembly becomes a bottleneck.
+                # Currently dominated by the embedding API call (~200ms).
                 all_node_ids = set()
                 all_edges = []
                 for node in nodes[:3]:
