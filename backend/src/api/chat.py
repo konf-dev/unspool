@@ -85,35 +85,56 @@ async def _stream_response(
         handler = get_langchain_handler_from_context()
         langfuse_config = {"callbacks": [handler]} if handler else {}
 
-        async with asyncio.timeout(_PIPELINE_TIMEOUT_SECONDS):
-            async for event in hot_path_app.astream(
-                initial_state, stream_mode="updates", config=langfuse_config,
-            ):
-                if "agent" in event:
-                    for msg in event["agent"]["messages"]:
-                        if isinstance(msg, AIMessage):
-                            content = msg.content
-                            # Gemini with thinking returns content as a list of
-                            # blocks, e.g. [{"type": "text", "text": "..."}].
-                            # Extract the text parts.
-                            if isinstance(content, list):
-                                content = "".join(
-                                    block.get("text", "") if isinstance(block, dict) else str(block)
-                                    for block in content
-                                )
-                            if isinstance(content, str) and "<thought>" in content and "</thought>" in content:
-                                content = content.split("</thought>")[-1].strip()
+        in_thought = False  # Track whether we're inside a <thought> block
 
-                            if content:
+        async with asyncio.timeout(_PIPELINE_TIMEOUT_SECONDS):
+            async for event in hot_path_app.astream_events(
+                initial_state, version="v2", config=langfuse_config,
+            ):
+                kind = event.get("event", "")
+
+                # Token-by-token streaming from the LLM
+                if kind == "on_chat_model_stream":
+                    chunk = event.get("data", {}).get("chunk")
+                    if chunk and hasattr(chunk, "content"):
+                        content = chunk.content
+                        # Gemini thinking blocks come as list items
+                        if isinstance(content, list):
+                            for block in content:
+                                if isinstance(block, dict):
+                                    text = block.get("text", "")
+                                else:
+                                    text = str(block)
+                                if text:
+                                    # Filter <thought> blocks from streamed tokens
+                                    if "<thought>" in text:
+                                        in_thought = True
+                                        text = text.split("<thought>")[0]
+                                    if "</thought>" in text:
+                                        in_thought = False
+                                        text = text.split("</thought>")[-1]
+                                    if text and not in_thought:
+                                        yield f"data: {json.dumps({'type': 'token', 'content': text})}\n\n"
+                        elif isinstance(content, str) and content:
+                            # Filter <thought> blocks
+                            if "<thought>" in content:
+                                in_thought = True
+                                content = content.split("<thought>")[0]
+                            if "</thought>" in content:
+                                in_thought = False
+                                content = content.split("</thought>")[-1]
+                            if content and not in_thought:
                                 yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
 
-                            if msg.tool_calls:
-                                yield f"data: {json.dumps({'type': 'tool_start', 'calls': [tc['name'] for tc in msg.tool_calls]})}\n\n"
+                        # Tool calls from the LLM
+                        if hasattr(chunk, "tool_calls") and chunk.tool_calls:
+                            yield f"data: {json.dumps({'type': 'tool_start', 'calls': [tc['name'] for tc in chunk.tool_calls]})}\n\n"
 
-                elif "tools" in event:
-                    for msg in event["tools"]["messages"]:
-                        if isinstance(msg, ToolMessage):
-                            yield f"data: {json.dumps({'type': 'tool_end', 'name': msg.name})}\n\n"
+                # Tool execution completed
+                elif kind == "on_tool_end":
+                    tool_name = event.get("name", "")
+                    if tool_name:
+                        yield f"data: {json.dumps({'type': 'tool_end', 'name': tool_name})}\n\n"
 
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
 

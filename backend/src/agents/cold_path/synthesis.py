@@ -115,30 +115,32 @@ async def _merge_duplicates(session: AsyncSession, user_id: uuid.UUID) -> int:
 
             # Check if same type and very similar (using position as proxy for similarity)
             if candidate.node_type == node.node_type and candidate.content != node.content:
-                # Merge: remap all edges from candidate to node
-                # Update edges where candidate is source
+                # Merge: remap all edges from candidate to node (scoped to user)
                 await session.execute(
                     update(GraphEdge).where(
-                        GraphEdge.source_node_id == candidate.id
+                        GraphEdge.user_id == user_id,
+                        GraphEdge.source_node_id == candidate.id,
                     ).values(source_node_id=node.id)
                 )
-                # Update edges where candidate is target
                 await session.execute(
                     update(GraphEdge).where(
-                        GraphEdge.target_node_id == candidate.id
+                        GraphEdge.user_id == user_id,
+                        GraphEdge.target_node_id == candidate.id,
                     ).values(target_node_id=node.id)
                 )
 
                 # Delete duplicate edges that may result from remapping
-                # (same source, target, edge_type)
+                # (same source, target, edge_type — scoped to user)
                 await session.execute(text("""
                     DELETE FROM graph_edges a
                     USING graph_edges b
                     WHERE a.id > b.id
+                      AND a.user_id = :uid
+                      AND b.user_id = :uid
                       AND a.source_node_id = b.source_node_id
                       AND a.target_node_id = b.target_node_id
                       AND a.edge_type = b.edge_type
-                """))
+                """), {"uid": str(user_id)})
 
                 # Delete the merged node
                 await session.delete(candidate)
