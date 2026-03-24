@@ -11,12 +11,12 @@ serialization:
   max_context_tokens: 4000
 
 evolution:
-  embedding_model: text-embedding-3-small
+  embedding_model: gemini-embedding-001
   similarity_threshold: 0.8
   dedup_threshold: 0.9
   edge_decay_factor: 0.99
   edge_decay_min: 0.01
 
 ingest:
-  model: gpt-4.1-mini
+  model: gemini-2.5-flash
   max_nodes: 10

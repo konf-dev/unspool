@@ -29,11 +29,15 @@ Copy these from your `.env` to Railway's environment variable settings. **All ar
 | `DATABASE_URL` | Must include `+asyncpg` driver prefix |
 | `SUPABASE_URL` | Your Supabase project URL |
 | `SUPABASE_SERVICE_KEY` | Service role key (not anon key) |
-| `LLM_API_KEY` | OpenAI API key |
-| `LLM_MODEL` | e.g. `gpt-4o-mini` or `gpt-4.1` |
-| `LLM_MODEL_FAST` | e.g. `gpt-4o-mini` |
-| `EMBEDDING_API_KEY` | Can be same as LLM_API_KEY |
-| `EMBEDDING_MODEL` | `text-embedding-3-small` |
+| `GOOGLE_API_KEY` | Google AI Studio key (from [aistudio.google.com/apikey](https://aistudio.google.com/apikey)) |
+| `CHAT_PROVIDER` | `gemini` |
+| `CHAT_MODEL` | `gemini-2.5-flash` |
+| `EXTRACTION_PROVIDER` | `gemini` |
+| `EXTRACTION_MODEL` | `gemini-2.5-flash` |
+| `BACKGROUND_PROVIDER` | `gemini` |
+| `BACKGROUND_MODEL` | `gemini-2.5-flash` |
+| `EMBEDDING_PROVIDER` | `gemini` |
+| `EMBEDDING_MODEL` | `gemini-embedding-001` |
 | `QSTASH_TOKEN` | From Upstash Console → QStash |
 | `QSTASH_URL` | e.g. `https://qstash-eu-central-1.upstash.io` (if EU region) |
 | `QSTASH_CURRENT_SIGNING_KEY` | For webhook verification |
@@ -90,6 +94,7 @@ Migrations live in `backend/supabase/migrations/`. Apply in order:
 | `00004_proactive_and_scheduled.sql` | `proactive_messages`, `scheduled_actions` + RLS |
 | `00005_operational.sql` | `error_log`, `llm_usage` (no RLS — admin only) |
 | `00006_graph_views.sql` | `vw_messages`, `vw_actionable`, `vw_timeline`, `vw_metrics` |
+| `00007_gemini_embeddings.sql` | Wipe embeddings, change `vector(1536)` → `vector(768)`, recreate HNSW index |
 
 To apply:
 ```bash

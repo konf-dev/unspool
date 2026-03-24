@@ -26,17 +26,27 @@ class Settings(BaseSettings):
     QSTASH_CURRENT_SIGNING_KEY: str = ""
     QSTASH_NEXT_SIGNING_KEY: str = ""
 
-    # --- LLM ---
-    LLM_API_KEY: str = ""
-    LLM_MODEL: str = "gpt-4.1"
-    LLM_MODEL_FAST: str = "gpt-4.1-mini"
+    # --- Provider API Keys (one per provider, shared across pipelines) ---
+    GOOGLE_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""
+    ANTHROPIC_API_KEY: str = ""
+
+    # --- Chat (hot path) ---
+    CHAT_PROVIDER: str = "gemini"
+    CHAT_MODEL: str = "gemini-2.5-flash"
+
+    # --- Extraction (cold path) ---
+    EXTRACTION_PROVIDER: str = "gemini"
+    EXTRACTION_MODEL: str = "gemini-2.5-flash"
+
+    # --- Proactive + background jobs ---
+    BACKGROUND_PROVIDER: str = "gemini"
+    BACKGROUND_MODEL: str = "gemini-2.5-flash"
 
     # --- Embeddings ---
-    EMBEDDING_API_KEY: str = ""
-    EMBEDDING_MODEL: str = "text-embedding-3-small"
-
-    # --- Legacy OpenAI key (used by existing code) ---
-    OPENAI_API_KEY: str = ""
+    EMBEDDING_PROVIDER: str = "gemini"
+    EMBEDDING_MODEL: str = "gemini-embedding-001"
+    EMBEDDING_DIMENSIONS: int = 768
 
     # --- URLs ---
     ENVIRONMENT: str = "development"
@@ -68,6 +78,22 @@ class Settings(BaseSettings):
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
+    def api_key_for(self, provider: str) -> str:
+        """Return the API key for a given provider name, or raise."""
+        key_map = {
+            "gemini": self.GOOGLE_API_KEY,
+            "google": self.GOOGLE_API_KEY,
+            "openai": self.OPENAI_API_KEY,
+            "anthropic": self.ANTHROPIC_API_KEY,
+        }
+        key = key_map.get(provider.lower(), "")
+        if not key:
+            raise RuntimeError(
+                f"No API key for provider '{provider}'. "
+                f"Set {provider.upper()}_API_KEY in .env"
+            )
+        return key
+
 
 @lru_cache
 def get_settings() -> Settings:
@@ -86,9 +112,4 @@ def get_settings() -> Settings:
             raise RuntimeError(
                 f"Missing required config in {s.ENVIRONMENT}: {', '.join(missing)}"
             )
-    # Backfill: if LLM_API_KEY not set, fall back to OPENAI_API_KEY
-    if not s.LLM_API_KEY and s.OPENAI_API_KEY:
-        object.__setattr__(s, "LLM_API_KEY", s.OPENAI_API_KEY)
-    if not s.EMBEDDING_API_KEY and (s.LLM_API_KEY or s.OPENAI_API_KEY):
-        object.__setattr__(s, "EMBEDDING_API_KEY", s.LLM_API_KEY or s.OPENAI_API_KEY)
     return s

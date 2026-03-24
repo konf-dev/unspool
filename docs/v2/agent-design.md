@@ -4,8 +4,10 @@
 
 **File:** `src/agents/hot_path/graph.py`
 **Framework:** LangGraph StateGraph
-**Model:** GPT-4.1 (configurable via `LLM_MODEL` env var)
+**Model:** Gemini 2.5 Flash (configurable via `CHAT_MODEL` env var)
+**Provider:** Configurable via `CHAT_PROVIDER` env var
 **Temperature:** 0.7
+**Thinking Budget:** 4096 tokens
 **Max Iterations:** 5
 
 ### State
@@ -39,7 +41,7 @@ START → agent → conditional → (tools → agent loop) → END
 
 Searches the user's knowledge graph. Returns nodes with their edges.
 
-- Generates embedding via `text-embedding-3-small`
+- Generates embedding via `gemini-embedding-001` (768d, L2-normalized, task_type=RETRIEVAL_QUERY)
 - pgvector cosine distance search, limit 8
 - Optional edge_type_filter: only returns nodes that have outgoing edges of that type
 - Optional node_type filter: `action`, `concept`, `person`, etc.
@@ -112,15 +114,18 @@ Variables injected:
 ## Cold Path — Background Archiver
 
 **File:** `src/agents/cold_path/extractor.py`
-**Model:** GPT-4.1-mini (configurable via `LLM_MODEL_FAST`)
+**Model:** Gemini 2.5 Flash (configurable via `EXTRACTION_MODEL`)
+**Provider:** Configurable via `EXTRACTION_PROVIDER`
+**Temperature:** 0
+**Thinking Budget:** 8192 tokens (high — graph quality is the foundation)
 **Dispatch:** QStash (not asyncio.create_task)
 
 ### Extraction Pipeline
 
 1. **Idempotency check** — SHA256 hash of `user_id:message` looked up in `event_stream` for `ColdPathProcessed` events
-2. **LLM extraction** — GPT-4.1-mini with Structured Outputs (Pydantic schema: `ExtractionResult`)
-3. **Semantic dedup** — For each extracted node, search for existing nodes with same type. If top-1 match exists, reuse it instead of creating a new one.
-4. **Node creation** — `get_or_create_node()` with embedding generation
+2. **LLM extraction** — Gemini with structured outputs (`response_json_schema` from Pydantic's `ExtractionResult.model_json_schema()`). Uses `system_instruction` to separate instructions from user content.
+3. **Semantic dedup** — For each extracted node, search for existing nodes with same type using `SEMANTIC_SIMILARITY` task_type. If top-1 match has cosine distance < 0.1 (similarity > 0.9), reuse it.
+4. **Batch node embedding** — All new nodes embedded in a single `embed_content()` call with `RETRIEVAL_DOCUMENT` task_type, then created via `get_or_create_node()`
 5. **Edge creation** — `upsert_edge()` for all extracted relationships
 6. **Mark processed** — Append `ColdPathProcessed` event with idempotency key
 

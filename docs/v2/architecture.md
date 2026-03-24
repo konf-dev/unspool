@@ -51,7 +51,7 @@ All writes flow through `append_event()`. The hot path's `mutate_graph` tool app
                     ┌───────▼──────────────────────────────┐
                     │          HOT PATH (foreground)        │
                     │  LangGraph: agent ↔ tools loop       │
-                    │  - GPT-4.1, temperature 0.7          │
+                    │  - Gemini 2.5 Flash, temperature 0.7  │
                     │  - Tools: query_graph, mutate_graph   │
                     │  - Max 5 iterations                   │
                     │  - SSE streaming to client            │
@@ -69,7 +69,8 @@ All writes flow through `append_event()`. The hot path's `mutate_graph` tool app
                                 ┌─────────────────┐
                                 │  COLD PATH      │
                                 │  (background)   │
-                                │  - GPT-4.1-mini │
+                                │  - Gemini 2.5   │
+                                │    Flash        │
                                 │  - Structured   │
                                 │    Outputs      │
                                 │  - Idempotent   │
@@ -94,8 +95,8 @@ The hot path handles the conversational experience. It:
 The cold path extracts structured knowledge from user messages:
 1. Dispatched via QStash (not `asyncio.create_task`) — retries on failure
 2. Uses idempotency keys (SHA256 of user_id + message) to prevent duplicates
-3. GPT-4.1-mini with Structured Outputs extracts nodes and edges
-4. Semantic dedup: before creating a node, searches for >0.9 cosine similarity match
+3. Gemini with structured outputs (JSON schema) extracts nodes and edges
+4. Semantic dedup: before creating a node, searches for >0.9 cosine similarity match (using SEMANTIC_SIMILARITY task type)
 5. All writes go through `append_event()` → graph projection
 
 ### Nightly Synthesis
@@ -120,10 +121,10 @@ backend/
       hot_path/     LangGraph workflow, tools, context assembly, system prompt
       cold_path/    extractor (idempotent), schemas, synthesis (nightly)
     api/            8 routers: chat, messages, subscribe, account, feed, webhooks, admin, gate
-    integrations/   qstash, stripe, push
+    integrations/   gemini, qstash, stripe, push
     jobs/           router + 5 job implementations
     proactive/      evaluator registry, engine, scheduled actions
     telemetry/      structlog, trace middleware, error reporting, langfuse, PII scrubbing
-  supabase/migrations/  6 SQL migrations
+  supabase/migrations/  7 SQL migrations
   tests/            7 test modules + conftest
 ```

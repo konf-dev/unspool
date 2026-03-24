@@ -42,7 +42,7 @@ Entity/concept nodes in the knowledge graph. Downstream projection from events.
 | user_id | UUID NOT NULL | |
 | content | TEXT NOT NULL | e.g. "Buy milk", "Thesis", "Mom" |
 | node_type | TEXT NOT NULL | `concept`, `action`, `metric`, `person`, `emotion`, `system_status`, `archived_action` |
-| embedding | vector(1536) | OpenAI text-embedding-3-small |
+| embedding | vector(768) | Gemini gemini-embedding-001 (L2-normalized) |
 | created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | Auto-updated via trigger |
 

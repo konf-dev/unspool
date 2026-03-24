@@ -9,7 +9,7 @@ from src.core.prompt_renderer import render_prompt
 from src.core.settings import get_settings
 from src.core.database import AsyncSessionLocal
 from src.db.queries import get_profile, update_profile, append_message_event, save_llm_usage
-from src.integrations.openai import get_openai_client
+from src.integrations.gemini import get_gemini_client
 from src.proactive.evaluators import get_evaluator
 from src.telemetry.error_reporting import report_error
 from src.telemetry.langfuse_integration import observe, update_current_observation
@@ -79,31 +79,35 @@ async def check_proactive(user_id: str) -> dict[str, Any] | None:
         try:
             rendered = render_prompt(prompt_file, template_vars)
 
+            from google.genai import types
+
             settings = get_settings()
-            client = get_openai_client()
+            client = get_gemini_client()
 
             start = time.perf_counter()
-            response = await client.chat.completions.create(
-                model=settings.LLM_MODEL_FAST,
-                messages=[
-                    {"role": "system", "content": rendered},
-                    {"role": "user", "content": "Generate the proactive message."},
-                ],
+            response = await client.aio.models.generate_content(
+                model=settings.BACKGROUND_MODEL,
+                contents="Generate the proactive message.",
+                config=types.GenerateContentConfig(
+                    system_instruction=rendered,
+                    temperature=0.8,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                ),
             )
             latency_ms = round((time.perf_counter() - start) * 1000)
-            content = response.choices[0].message.content.strip()
+            content = response.text.strip()
 
             update_current_observation(
                 input=[{"role": "system", "content": rendered[:200]}],
                 output=content,
             )
 
-            usage = response.usage
+            usage_meta = getattr(response, "usage_metadata", None)
             await save_llm_usage(
                 pipeline="proactive",
-                model=settings.LLM_MODEL_FAST,
-                input_tokens=usage.prompt_tokens if usage else 0,
-                output_tokens=usage.completion_tokens if usage else 0,
+                model=settings.BACKGROUND_MODEL,
+                input_tokens=getattr(usage_meta, "prompt_token_count", 0) if usage_meta else 0,
+                output_tokens=getattr(usage_meta, "candidates_token_count", 0) if usage_meta else 0,
                 latency_ms=latency_ms,
                 user_id=user_id,
             )

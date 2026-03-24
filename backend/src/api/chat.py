@@ -93,7 +93,15 @@ async def _stream_response(
                     for msg in event["agent"]["messages"]:
                         if isinstance(msg, AIMessage):
                             content = msg.content
-                            if "<thought>" in content and "</thought>" in content:
+                            # Gemini with thinking returns content as a list of
+                            # blocks, e.g. [{"type": "text", "text": "..."}].
+                            # Extract the text parts.
+                            if isinstance(content, list):
+                                content = "".join(
+                                    block.get("text", "") if isinstance(block, dict) else str(block)
+                                    for block in content
+                                )
+                            if isinstance(content, str) and "<thought>" in content and "</thought>" in content:
                                 content = content.split("</thought>")[-1].strip()
 
                             if content:

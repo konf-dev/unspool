@@ -28,25 +28,23 @@ Every chat request creates ONE trace with nested spans:
 ```
 trace: "chat" (user_id=865776be, session_id=abc, tags=["chat"])
 ├─ span: "agent.assemble_context" (900ms)
-│  └─ generation: OpenAI embedding (semantic search)
-├─ chain: "LangGraph"
-│  ├─ agent: "agent"
-│  │  ├─ span: "hot_path.call_model" (1200ms)
-│  │  │  └─ generation: gpt-4.1 (tokens: 683 in / 57 out)
-│  │  ├─ span: "hot_path.call_tools"
-│  │  │  └─ generation: OpenAI embedding (query_graph)
-│  │  └─ span: "hot_path.call_model" (1500ms)
-│  │     └─ generation: gpt-4.1 (tokens: 500 in / 40 out)
-│  └─ chain: "route_logic"
-└─ Total: ~4.5s | user_id, session_id, tags visible
+│  └─ span: "embedding" (semantic search, task_type=RETRIEVAL_QUERY)
+├─ chain: "LangGraph" (via CallbackHandler)
+│  ├─ agent: iteration 0
+│  │  └─ generation: gemini-2.5-flash (thinking + tool call)
+│  ├─ tool: query_graph
+│  │  └─ span: "embedding" (task_type=RETRIEVAL_QUERY)
+│  └─ agent: iteration 1
+│     └─ generation: gemini-2.5-flash (final response)
+└─ Total: ~3-5s | user_id, session_id, tags visible
 
 Cold path (separate trace, linked via metadata):
 trace: "job.process_message" (user_id=865776be, tags=["cold_path","job"])
 ├─ span: "cold_path.process"
 │  ├─ span: "cold_path.extraction"
-│  │  └─ generation: gpt-4.1 (structured output)
-│  ├─ span: "embedding" (dedup search)
-│  └─ span: "embedding" (dedup search)
+│  │  └─ generation: gemini-2.5-flash (structured output, thinking_budget=8192)
+│  ├─ span: "embedding" (dedup, task_type=SEMANTIC_SIMILARITY)
+│  └─ span: "embedding.batch" (new nodes, task_type=RETRIEVAL_DOCUMENT)
 └─ metadata: {parent_chat_trace_id: "..."}
 ```
 
@@ -56,9 +54,9 @@ The tracing uses langfuse v4's `@observe` decorator with OpenTelemetry context p
 
 1. `@observe(name="chat")` on the streaming function creates the root trace
 2. `propagate_trace_attributes()` sets user_id, session_id, tags on the trace
-3. Nested `@observe` calls create child spans automatically via OTEL context
-4. `langfuse.openai.AsyncOpenAI` auto-instruments every OpenAI call (completions + embeddings)
-5. LangChain `CallbackHandler` inherits the OTEL context to trace agent iterations
+3. LangChain `CallbackHandler` inherits the OTEL context — traces all LangGraph agent iterations + LLM calls
+4. `@observe` on cold path, embedding, and proactive functions creates child spans for direct Gemini SDK calls
+5. LangGraph node functions (`call_model`, `call_tools`) are **not** decorated with `@observe` — the CallbackHandler handles that. Adding `@observe` to LangGraph nodes causes OTEL context detach errors.
 
 All instrumentation no-ops when Langfuse is not configured (zero overhead).
 

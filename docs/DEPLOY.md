@@ -83,14 +83,20 @@ Scheduled actions (reminders, nudges) are delivered precisely via QStash `dispat
 
 ## 3. LLM Setup
 
-### Anthropic (recommended for chat)
-1. Get API key from [console.anthropic.com](https://console.anthropic.com)
-2. Set `LLM_API_KEY`, `LLM_PROVIDER=anthropic`
-3. Models: `LLM_MODEL=claude-sonnet-4-20250514`, `LLM_MODEL_FAST=claude-haiku-4-5-20251001`
+### Google Gemini (default for all pipelines)
+1. Get API key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+2. Set `GOOGLE_API_KEY=AIza...`
+3. Per-pipeline config (all default to Gemini):
+   - Chat: `CHAT_PROVIDER=gemini`, `CHAT_MODEL=gemini-2.5-flash`
+   - Extraction: `EXTRACTION_PROVIDER=gemini`, `EXTRACTION_MODEL=gemini-2.5-flash`
+   - Background: `BACKGROUND_PROVIDER=gemini`, `BACKGROUND_MODEL=gemini-2.5-flash`
+   - Embeddings: `EMBEDDING_PROVIDER=gemini`, `EMBEDDING_MODEL=gemini-embedding-001`
 
-### OpenAI (required for embeddings)
-1. Get API key from [platform.openai.com](https://platform.openai.com)
-2. Set `EMBEDDING_API_KEY`, `EMBEDDING_PROVIDER=openai`, `EMBEDDING_MODEL=text-embedding-3-small`
+### Switching a pipeline to another provider
+To use OpenAI for extraction and Gemini for everything else:
+1. Set `OPENAI_API_KEY=sk-...`
+2. Set `EXTRACTION_PROVIDER=openai`, `EXTRACTION_MODEL=gpt-4.1`
+3. All other pipelines continue using `GOOGLE_API_KEY` via their `*_PROVIDER=gemini` setting
 
 ---
 
