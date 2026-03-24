@@ -15,7 +15,7 @@ from src.telemetry.logger import get_logger
 _log = get_logger("agent.context")
 
 
-@observe("agent.assemble_context")
+@observe(name="agent.assemble_context")
 async def assemble_context(
     user_id: str,
     message: str,

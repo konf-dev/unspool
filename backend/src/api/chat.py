@@ -13,13 +13,19 @@ from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from pydantic import BaseModel, Field
 
 from src.agents.hot_path.context import assemble_context
-from src.agents.hot_path.graph import app as hot_path_app, get_langfuse_config
+from src.agents.hot_path.graph import app as hot_path_app
 from src.agents.hot_path.state import HotPathState
 from src.api.gate import check_gate
 from src.auth.supabase_auth import get_current_user
 from src.core.database import AsyncSessionLocal
 from src.db.queries import append_message_event, update_profile
 from src.telemetry.error_reporting import report_error
+from src.telemetry.langfuse_integration import (
+    observe,
+    propagate_trace_attributes,
+    get_langchain_handler_from_context,
+    flush_langfuse,
+)
 from src.telemetry.logger import get_logger
 
 _log = get_logger("api.chat")
@@ -35,6 +41,7 @@ class ChatRequest(BaseModel):
     timezone: str | None = Field(default=None, max_length=50)
 
 
+@observe(name="chat")
 async def _stream_response(
     user_id: str,
     message: str,
@@ -45,54 +52,62 @@ async def _stream_response(
     session_id: str,
     tz: str,
 ) -> AsyncIterator[str]:
-    current_time = datetime.now().isoformat()
+    # Set trace-level attributes (user_id, session_id, tags) on this trace
+    # Note: propagate_attributes returns a sync context manager (_AgnosticContextManager)
+    with propagate_trace_attributes(
+        user_id=user_id,
+        session_id=session_id,
+        tags=["chat"],
+    ):
+        current_time = datetime.now(timezone.utc).isoformat()
 
-    # Build conversation history from recent messages
-    history_messages = []
-    for msg in recent_messages[-10:]:
-        if msg.get("role") == "user":
-            history_messages.append(HumanMessage(content=msg.get("content", "")))
-        elif msg.get("role") == "assistant":
-            history_messages.append(AIMessage(content=msg.get("content", "")))
+        # Build conversation history from recent messages
+        history_messages = []
+        for msg in recent_messages[-10:]:
+            if msg.get("role") == "user":
+                history_messages.append(HumanMessage(content=msg.get("content", "")))
+            elif msg.get("role") == "assistant":
+                history_messages.append(AIMessage(content=msg.get("content", "")))
 
-    initial_state: HotPathState = {
-        "user_id": user_id,
-        "session_id": session_id,
-        "messages": history_messages + [HumanMessage(content=message)],
-        "iteration": 0,
-        "current_time_iso": current_time,
-        "timezone": tz or "UTC",
-        "context_string": context_block,
-        "trace_id": trace_id,
-        "profile": profile,
-    }
+        initial_state: HotPathState = {
+            "user_id": user_id,
+            "session_id": session_id,
+            "messages": history_messages + [HumanMessage(content=message)],
+            "iteration": 0,
+            "current_time_iso": current_time,
+            "timezone": tz or "UTC",
+            "context_string": context_block,
+            "trace_id": trace_id,
+            "profile": profile,
+        }
 
-    # Langfuse CallbackHandler auto-traces every LLM call, tool, and agent step
-    langfuse_config = get_langfuse_config(trace_id, user_id, session_id)
+        # LangChain CallbackHandler inherits current @observe trace context
+        handler = get_langchain_handler_from_context()
+        langfuse_config = {"callbacks": [handler]} if handler else {}
 
-    async with asyncio.timeout(_PIPELINE_TIMEOUT_SECONDS):
-        async for event in hot_path_app.astream(
-            initial_state, stream_mode="updates", config=langfuse_config,
-        ):
-            if "agent" in event:
-                for msg in event["agent"]["messages"]:
-                    if isinstance(msg, AIMessage):
-                        content = msg.content
-                        if "<thought>" in content and "</thought>" in content:
-                            content = content.split("</thought>")[-1].strip()
+        async with asyncio.timeout(_PIPELINE_TIMEOUT_SECONDS):
+            async for event in hot_path_app.astream(
+                initial_state, stream_mode="updates", config=langfuse_config,
+            ):
+                if "agent" in event:
+                    for msg in event["agent"]["messages"]:
+                        if isinstance(msg, AIMessage):
+                            content = msg.content
+                            if "<thought>" in content and "</thought>" in content:
+                                content = content.split("</thought>")[-1].strip()
 
-                        if content:
-                            yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
+                            if content:
+                                yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
 
-                        if msg.tool_calls:
-                            yield f"data: {json.dumps({'type': 'tool_start', 'calls': [tc['name'] for tc in msg.tool_calls]})}\n\n"
+                            if msg.tool_calls:
+                                yield f"data: {json.dumps({'type': 'tool_start', 'calls': [tc['name'] for tc in msg.tool_calls]})}\n\n"
 
-            elif "tools" in event:
-                for msg in event["tools"]["messages"]:
-                    if isinstance(msg, ToolMessage):
-                        yield f"data: {json.dumps({'type': 'tool_end', 'name': msg.name})}\n\n"
+                elif "tools" in event:
+                    for msg in event["tools"]["messages"]:
+                        if isinstance(msg, ToolMessage):
+                            yield f"data: {json.dumps({'type': 'tool_end', 'name': msg.name})}\n\n"
 
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
 
 @router.post("/chat")
@@ -209,7 +224,6 @@ async def chat(
                         _log.error("chat.cold_path_dispatch_failed", trace_id=trace_id, exc_info=True)
 
                 # Flush Langfuse so the trace is sent before connection closes
-                from src.telemetry.langfuse_integration import flush_langfuse
                 flush_langfuse()
 
     return StreamingResponse(

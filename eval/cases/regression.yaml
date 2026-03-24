@@ -278,3 +278,68 @@
     - type: llm-rubric
       value: "Acknowledges multiple tasks with deadlines."
   tags: ["regression"]
+
+# ── V2-specific regressions ──
+
+# V2 tool loop — agent should not loop endlessly on tools
+- description: "reg_v2_tool_loop"
+  vars:
+    message: "what do I have going on this week?"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: not-contains
+      value: "sorry"
+    - type: latency
+      threshold: 30000
+    - type: llm-rubric
+      value: "The response answers the question within a reasonable length. It should NOT repeat itself or show signs of looping."
+  tags: ["regression", "v2"]
+
+# V2 query_graph should surface relevant context
+- description: "reg_v2_graph_query_works"
+  vars:
+    message: "what should I focus on right now?"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: javascript
+      value: "output.length > 10"
+  tags: ["regression", "v2"]
+
+# V2 mutate_graph — marking done should work
+- description: "reg_v2_mutate_done"
+  vars:
+    message: "done with the groceries"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: not-contains
+      value: "sorry"
+    - type: llm-rubric
+      value: "Acknowledges completion. Does NOT error or say it can't do that."
+  tags: ["regression", "v2"]
+
+# V2 empty graph — should handle gracefully when user has no items
+- description: "reg_v2_empty_graph"
+  vars:
+    message: "what do I need to do?"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: javascript
+      value: "output.length > 0"
+    - type: llm-rubric
+      value: "If the user has no items, the response should gracefully say so or invite them to share tasks. It should NOT crash or return an error."
+  tags: ["regression", "v2"]
+
+# V2 concurrent tool usage — agent uses tools appropriately
+- description: "reg_v2_tool_appropriate"
+  vars:
+    message: "I'm stressed about work"
+  assert:
+    - type: not-contains
+      value: "went wrong"
+    - type: llm-rubric
+      value: "The response provides emotional support. It should NOT call query_graph or mutate_graph for a purely emotional message."
+  tags: ["regression", "v2"]

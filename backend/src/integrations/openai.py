@@ -8,6 +8,7 @@ When Langfuse is NOT configured, falls back to the plain ``openai.AsyncOpenAI``.
 """
 
 from src.core.settings import get_settings
+from src.telemetry.langfuse_integration import observe
 from src.telemetry.logger import get_logger
 
 _log = get_logger("integrations.openai")
@@ -49,6 +50,7 @@ def get_openai_client():
     return _client
 
 
+@observe(name="embedding")
 async def get_embedding(text: str) -> list[float]:
     """Generate an embedding vector for *text* using the configured model."""
     settings = get_settings()
