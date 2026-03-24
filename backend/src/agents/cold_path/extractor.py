@@ -17,6 +17,7 @@ from src.core.models import EventStream, GraphNode
 from src.core.settings import get_settings
 from src.integrations.openai import get_openai_client, get_embedding
 from src.telemetry.error_reporting import report_error
+from src.telemetry.langfuse_integration import observe
 from src.telemetry.logger import get_logger
 
 logger = get_logger("cold_path.extractor")
@@ -36,6 +37,7 @@ async def ensure_status_nodes(session, user_id: uuid.UUID):
     return open_node, done_node
 
 
+@observe(name="cold_path.extraction")
 async def run_extraction(
     raw_message: str, current_time_iso: str, timezone: str,
 ) -> ExtractionResult:
@@ -145,6 +147,7 @@ def _idempotency_key(user_id: str, message: str) -> str:
     return hashlib.sha256(f"{user_id}:{message}".encode()).hexdigest()[:16]
 
 
+@observe(name="cold_path.process")
 async def process_brain_dump(
     user_id: uuid.UUID,
     raw_message: str,

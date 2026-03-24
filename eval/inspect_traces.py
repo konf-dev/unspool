@@ -14,7 +14,7 @@ def api(path: str) -> dict:
     sk = os.environ["LANGFUSE_SECRET_KEY"]
     creds = b64encode(f"{pk}:{sk}".encode()).decode()
     req = Request(f"{host}/api/public{path}", headers={"Authorization": f"Basic {creds}"})
-    with urlopen(req) as resp:
+    with urlopen(req, timeout=30) as resp:
         return json.loads(resp.read())
 
 
@@ -89,18 +89,37 @@ def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "chat"
 
     if mode == "chat":
-        traces = get_traces("chat.stream_response", limit=50)
+        traces = get_traces("chat", limit=50)
         print(f"Chat traces: {len(traces)}")
         for t in traces:
             inspect_trace(t)
 
     elif mode == "jobs":
         # Get all job traces
-        for job_name in ["job.process_conversation", "job.process_graph"]:
+        for job_name in [
+            "job.process_message",
+            "job.nightly_batch",
+            "job.hourly_maintenance",
+            "job.synthesis",
+        ]:
             traces = get_traces(job_name, limit=20)
             print(f"\n{job_name}: {len(traces)} traces")
             for t in traces[:5]:
                 inspect_trace(t)
+
+    elif mode == "cold_path":
+        # Cold path extraction traces
+        for name in ["cold_path.process", "cold_path.extraction"]:
+            traces = get_traces(name, limit=20)
+            print(f"\n{name}: {len(traces)} traces")
+            for t in traces[:5]:
+                inspect_trace(t)
+
+    elif mode == "proactive":
+        traces = get_traces("proactive.check", limit=20)
+        print(f"Proactive traces: {len(traces)}")
+        for t in traces[:10]:
+            inspect_trace(t)
 
     elif mode == "summary":
         # Summary of all trace types
@@ -123,7 +142,7 @@ def main():
         inspect_trace(trace)
 
     else:
-        print(f"Usage: {sys.argv[0]} [chat|jobs|summary|trace:<id>]")
+        print(f"Usage: {sys.argv[0]} [chat|jobs|cold_path|proactive|summary|trace:<id>]")
 
 
 if __name__ == "__main__":

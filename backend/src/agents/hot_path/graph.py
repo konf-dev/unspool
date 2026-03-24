@@ -24,6 +24,7 @@ from src.agents.hot_path.tools import (
     _exec_mutate_graph,
 )
 from src.db.queries import save_llm_usage
+from src.telemetry.langfuse_integration import observe
 from src.telemetry.logger import get_logger
 
 logger = get_logger("hot_path.graph")
@@ -46,6 +47,7 @@ def _get_llm_with_tools() -> ChatOpenAI:
     return _llm_with_tools
 
 
+@observe(name="hot_path.call_model")
 async def call_model(state: HotPathState):
     """The main LLM execution node."""
     logger.info("hot_path.iteration", iteration=state["iteration"])
@@ -80,6 +82,7 @@ async def call_model(state: HotPathState):
     return {"messages": [response], "iteration": state["iteration"] + 1}
 
 
+@observe(name="hot_path.call_tools")
 async def call_tools(state: HotPathState):
     """Executes tools with user_id injected from state — LLM never sees user_id."""
     last_message = state["messages"][-1]
@@ -158,27 +161,3 @@ workflow.add_edge("tools", "agent")
 app = workflow.compile()
 
 
-def get_langfuse_config(
-    trace_id: str | None = None,
-    user_id: str | None = None,
-    session_id: str | None = None,
-) -> dict[str, Any]:
-    """Build a LangGraph config dict with Langfuse CallbackHandler if available.
-
-    Usage in chat.py::
-
-        config = get_langfuse_config(trace_id, user_id, session_id)
-        async for event in app.astream(state, stream_mode="updates", config=config):
-            ...
-    """
-    from src.telemetry.langfuse_integration import get_langchain_handler
-    handler = get_langchain_handler(
-        trace_id=trace_id,
-        user_id=user_id,
-        session_id=session_id,
-        tags=["chat", "hot_path"],
-        metadata={"trace_id": trace_id} if trace_id else {},
-    )
-    if handler:
-        return {"callbacks": [handler]}
-    return {}

@@ -18,7 +18,7 @@ from src.telemetry.logger import get_logger
 _log = get_logger("proactive.engine")
 
 
-@observe("proactive.check")
+@observe(name="proactive.check")
 async def check_proactive(user_id: str) -> dict[str, Any] | None:
     """Evaluate proactive triggers and generate a message if triggered.
 
