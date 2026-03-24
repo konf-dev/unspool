@@ -28,6 +28,8 @@ providers:
         }
 
 defaultTest:
+  options:
+    provider: "google:gemini-2.5-flash"
   assert:
     - type: latency
       threshold: 15000

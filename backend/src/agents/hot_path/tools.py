@@ -20,7 +20,7 @@ from src.core.graph import (
     get_or_create_node,
 )
 from src.core.models import GraphNode, GraphEdge
-from src.integrations.openai import get_embedding
+from src.integrations.gemini import get_embedding
 from src.telemetry.logger import get_logger
 
 from langchain_core.tools import tool
@@ -76,7 +76,7 @@ async def _exec_query_graph(
 ) -> list[dict[str, Any]]:
     try:
         user_uuid = uuid.UUID(user_id)
-        embedding = await get_embedding(semantic_query)
+        embedding = await get_embedding(semantic_query, task_type="RETRIEVAL_QUERY")
 
         async with AsyncSessionLocal() as session:
             nodes = await search_nodes_semantic(

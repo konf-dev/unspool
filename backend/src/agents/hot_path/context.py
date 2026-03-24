@@ -7,7 +7,7 @@ from typing import Any
 from src.core.database import AsyncSessionLocal
 from src.core.graph import search_nodes_semantic, get_node_neighborhood
 from src.db.queries import get_messages_from_events, get_profile
-from src.integrations.openai import get_embedding
+from src.integrations.gemini import get_embedding
 from src.telemetry.error_reporting import report_error
 from src.telemetry.langfuse_integration import observe
 from src.telemetry.logger import get_logger
@@ -51,7 +51,7 @@ async def assemble_context(
     async def _load_graph() -> None:
         nonlocal graph_context
         try:
-            embedding = await get_embedding(message)
+            embedding = await get_embedding(message, task_type="RETRIEVAL_QUERY")
             async with AsyncSessionLocal() as session:
                 user_uuid = uuid.UUID(user_id)
                 nodes = await search_nodes_semantic(session, user_uuid, embedding, limit=10)

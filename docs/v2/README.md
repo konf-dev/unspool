@@ -34,8 +34,8 @@ curl http://localhost:8000/health
 - **Runtime:** Python 3.12+ (tested on 3.14), FastAPI, Uvicorn
 - **Database:** PostgreSQL + Supabase (pgvector, RLS)
 - **ORM:** SQLAlchemy 2.0 async (>=2.0.40)
-- **LLM:** OpenAI (model configurable via `LLM_MODEL` / `LLM_MODEL_FAST` env vars)
-- **Embeddings:** text-embedding-3-small (1536 dimensions)
+- **LLM:** Google Gemini (per-pipeline config: `CHAT_MODEL`, `EXTRACTION_MODEL`, `BACKGROUND_MODEL`)
+- **Embeddings:** gemini-embedding-001 (768 dimensions, L2-normalized)
 - **Agent Framework:** LangGraph >=0.4
 - **Background Jobs:** QStash (Upstash) — EU region supported via `QSTASH_URL`
 - **Cache/Rate Limiting:** Upstash Redis

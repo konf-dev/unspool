@@ -123,4 +123,4 @@ All user-facing tables enforce `auth.uid() = user_id` at the Postgres level. The
 - `<thought>` blocks stripped from agent output before streaming to client
 - Error messages to users are generic ("something went wrong") — details go to structlog
 - Trace IDs in every response header for debugging without exposing internals
-- OpenAI client is a process-level singleton (no per-request API key leakage risk)
+- Gemini client is a process-level singleton (no per-request API key leakage risk)

@@ -64,7 +64,7 @@ data: {"type": "done"}
 2. Sync timezone to profile (if provided)
 3. Persist user message as `MessageReceived` event
 4. Assemble context in parallel: profile, last 20 messages, graph semantic search, 72h deadlines
-5. Stream LangGraph hot path (GPT model with query_graph + mutate_graph tools, max 5 iterations)
+5. Stream LangGraph hot path (Gemini model with query_graph + mutate_graph tools, max 5 iterations)
 6. Strip `<thought>` blocks from output
 7. Persist assistant response as `AgentReplied` event
 8. Dispatch cold path extraction via QStash (5s delay)
@@ -290,7 +290,7 @@ All endpoints require `X-Admin-Key` header matching `ADMIN_API_KEY` env var. Ret
 {
   "trace_id": "uuid",
   "events": [{"id": "uuid", "user_id": "uuid", "event_type": "MessageReceived", "payload": {...}, "created_at": "..."}],
-  "llm_usage": [{"id": "uuid", "pipeline": "hot_path", "model": "gpt-4o-mini", "input_tokens": 1514, "output_tokens": 41, "latency_ms": 1481, "created_at": "..."}]
+  "llm_usage": [{"id": "uuid", "pipeline": "hot_path", "model": "gemini-2.5-flash", "input_tokens": 1514, "output_tokens": 41, "latency_ms": 1481, "created_at": "..."}]
 }
 ```
 

@@ -64,7 +64,7 @@ Tasks, reminders, ideas — anything the AI extracts from user messages.
 | created_at | TIMESTAMPTZ | |
 | last_surfaced_at | TIMESTAMPTZ | When this item was last shown to the user |
 | nudge_after | TIMESTAMPTZ | Don't surface before this time |
-| embedding | vector(1536) | OpenAI `text-embedding-3-small` |
+| embedding | vector(768) | Gemini `gemini-embedding-001` (L2-normalized) |
 | search_text | tsvector | Auto-generated from `raw_text` + `interpreted_action` |
 
 **Indexes:**

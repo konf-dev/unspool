@@ -4,6 +4,36 @@
 
 **File:** `src/core/settings.py` — Pydantic BaseSettings with `.env` file support.
 
+### Provider API Keys
+
+One key per LLM provider. Only set the keys for providers you actually use.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `GOOGLE_API_KEY` | yes (if using Gemini) | | Google AI Studio key — get from [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| `OPENAI_API_KEY` | | | OpenAI key — only needed if any pipeline uses OpenAI |
+| `ANTHROPIC_API_KEY` | | | Anthropic key — only needed if any pipeline uses Anthropic |
+
+### Per-Pipeline LLM Configuration
+
+Each pipeline declares its provider and model explicitly. To switch a single pipeline to a different provider, change its `*_PROVIDER` and `*_MODEL`, and ensure the corresponding `*_API_KEY` is set.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CHAT_PROVIDER` | `gemini` | Provider for hot path chat |
+| `CHAT_MODEL` | `gemini-2.5-flash` | Model for hot path chat |
+| `EXTRACTION_PROVIDER` | `gemini` | Provider for cold path graph extraction |
+| `EXTRACTION_MODEL` | `gemini-2.5-flash` | Model for cold path extraction |
+| `BACKGROUND_PROVIDER` | `gemini` | Provider for proactive messages + pattern detection |
+| `BACKGROUND_MODEL` | `gemini-2.5-flash` | Model for background jobs |
+| `EMBEDDING_PROVIDER` | `gemini` | Provider for vector embeddings |
+| `EMBEDDING_MODEL` | `gemini-embedding-001` | Embedding model |
+| `EMBEDDING_DIMENSIONS` | `768` | Output dimensionality (768, 1536, or 3072 recommended) |
+
+**How key resolution works:** `settings.api_key_for("gemini")` looks up `GOOGLE_API_KEY`. The mapping is: `gemini`/`google` → `GOOGLE_API_KEY`, `openai` → `OPENAI_API_KEY`, `anthropic` → `ANTHROPIC_API_KEY`. No fallbacks — if the key is missing, it raises immediately with a clear error.
+
+### Infrastructure
+
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `DATABASE_URL` | prod | `postgresql+asyncpg://...localhost` | Async PostgreSQL connection string |
@@ -11,37 +41,39 @@
 | `SUPABASE_SERVICE_KEY` | prod | | Supabase service role key |
 | `SUPABASE_PUBLISHABLE_KEY` | | | Supabase anon key |
 | `SUPABASE_JWT_SIGNING_SECRET` | | | For JWT verification |
-| `LLM_API_KEY` | | | OpenAI API key (primary) |
-| `OPENAI_API_KEY` | | | Fallback if LLM_API_KEY not set |
-| `LLM_MODEL` | | `gpt-4.1` | Hot path model |
-| `LLM_MODEL_FAST` | | `gpt-4.1-mini` | Cold path / analysis model |
-| `EMBEDDING_API_KEY` | | | Falls back to LLM_API_KEY |
-| `EMBEDDING_MODEL` | | `text-embedding-3-small` | |
 | `QSTASH_TOKEN` | | | QStash publish/manage token |
 | `QSTASH_URL` | | | Custom base URL (e.g. `https://qstash-eu-central-1.upstash.io` for EU) |
 | `QSTASH_CURRENT_SIGNING_KEY` | | | For webhook verification |
 | `QSTASH_NEXT_SIGNING_KEY` | | | Key rotation support |
 | `UPSTASH_REDIS_REST_URL` | | | Redis for cache + rate limits |
 | `UPSTASH_REDIS_REST_TOKEN` | | | |
-| `STRIPE_SECRET_KEY` | | | Stripe billing |
-| `STRIPE_WEBHOOK_SECRET` | | | Stripe webhook verification |
-| `VAPID_PRIVATE_KEY` | | | Web Push VAPID key |
-| `VAPID_PUBLIC_KEY` | | | |
-| `ADMIN_API_KEY` | | | Admin endpoint access |
-| `EVAL_API_KEY` | | | Eval framework access |
-| `LANGFUSE_HOST` | | | Langfuse observability |
-| `LANGFUSE_PUBLIC_KEY` | | | |
-| `LANGFUSE_SECRET_KEY` | | | |
+
+### App & Auth
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
 | `ENVIRONMENT` | | `development` | `development` or `production` |
 | `FRONTEND_URL` | | `http://localhost:5173` | CORS origin |
 | `API_URL` | | `http://localhost:8000` | For QStash URL construction |
+| `ADMIN_API_KEY` | | | Admin endpoint access |
+| `EVAL_API_KEY` | | | Eval framework access |
 | `EMAIL_WEBHOOK_SECRET` | | | HMAC secret for email inbound webhook |
 | `CORS_EXTRA_ORIGINS` | | | Comma-separated additional origins |
 | `ECHO_SQL` | | `false` | Log all SQL queries |
 
-**Production validation:** In non-development environments, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, and `DATABASE_URL` are required — startup fails if missing.
+### Optional Services
 
-**API key fallback:** If `LLM_API_KEY` is empty, it falls back to `OPENAI_API_KEY`. Same for `EMBEDDING_API_KEY`.
+| Variable | Description |
+|----------|-------------|
+| `STRIPE_SECRET_KEY` | Stripe billing |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook verification |
+| `VAPID_PRIVATE_KEY` | Web Push VAPID key |
+| `VAPID_PUBLIC_KEY` | |
+| `LANGFUSE_HOST` | e.g. `https://cloud.langfuse.com` |
+| `LANGFUSE_PUBLIC_KEY` | |
+| `LANGFUSE_SECRET_KEY` | |
+
+**Production validation:** In non-development environments, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, and `DATABASE_URL` are required — startup fails if missing.
 
 ## YAML Configuration Files
 
@@ -76,11 +108,12 @@ retrieval:
   graph_walk_hops: 1
   max_subgraph_nodes: 100
 evolution:
+  embedding_model: gemini-embedding-001
   dedup_threshold: 0.9
   edge_decay_factor: 0.99
   edge_decay_min: 0.01
 ingest:
-  model: gpt-4.1-mini
+  model: gemini-2.5-flash
   max_nodes: 10
 ```
 
@@ -99,7 +132,7 @@ ingest:
 ```yaml
 analyses:
   completion_stats:    # db_only — SQL aggregation
-  behavioral_patterns: # llm_analysis — prompt + GPT
+  behavioral_patterns: # llm_analysis — prompt + Gemini
   preference_inference: # llm_analysis
   memory_consolidation: # llm_analysis, run_on: process_conversation
 ```

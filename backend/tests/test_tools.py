@@ -15,10 +15,10 @@ class TestQueryGraph:
         mock_node.content = "Buy groceries"
         mock_node.node_type = "action"
 
-        with patch("src.agents.hot_path.tools._get_embedding", new_callable=AsyncMock) as mock_embed, \
+        with patch("src.agents.hot_path.tools.get_embedding", new_callable=AsyncMock) as mock_embed, \
              patch("src.agents.hot_path.tools.AsyncSessionLocal") as mock_session_cls:
 
-            mock_embed.return_value = [0.1] * 1536
+            mock_embed.return_value = [0.1] * 768
 
             mock_session = AsyncMock()
             mock_session.__aenter__ = AsyncMock(return_value=mock_session)

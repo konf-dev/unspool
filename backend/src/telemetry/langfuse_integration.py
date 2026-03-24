@@ -1,7 +1,7 @@
 """Langfuse integration — real @observe decorator + OpenTelemetry context propagation.
 
 Uses langfuse v4's @observe decorator for creating trace hierarchies via OTEL.
-The langfuse.openai wrapper auto-nests under any active @observe scope.
+The @observe decorator is provider-agnostic and works with any LLM backend.
 The LangChain CallbackHandler auto-nests when created within an @observe scope.
 
 No-ops gracefully when Langfuse is not configured.
@@ -38,6 +38,14 @@ def _init_langfuse() -> None:
         # Verify imports work
         from langfuse import observe as _obs, get_client as _gc, propagate_attributes as _pa  # noqa: F401
         from langfuse.langchain import CallbackHandler as _ch  # noqa: F401
+
+        # Suppress known OTEL context detach warnings caused by LangGraph's
+        # TaskGroup-based async execution. Langfuse's CallbackHandler creates
+        # OTEL spans that can't be cleanly detached across task boundaries.
+        # This is a confirmed upstream bug (langfuse/langfuse#8780) — traces
+        # still reach Langfuse correctly, the error is cosmetic log noise.
+        import logging
+        logging.getLogger("opentelemetry.context").setLevel(logging.CRITICAL)
 
         _langfuse_available = True
         _log.info("langfuse.initialized", host=settings.LANGFUSE_HOST)

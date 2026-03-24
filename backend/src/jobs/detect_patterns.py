@@ -7,7 +7,7 @@ from src.core.config_loader import load_config
 from src.core.prompt_renderer import render_prompt
 from src.core.settings import get_settings
 from src.db.queries import get_active_users, get_profile, update_profile, save_llm_usage
-from src.integrations.openai import get_openai_client
+from src.integrations.gemini import get_gemini_client
 from src.telemetry.error_reporting import report_error
 from src.telemetry.logger import get_logger
 
@@ -102,27 +102,32 @@ async def _run_llm_analysis(
     variables = {"lookback_days": analysis.get("lookback_days", 30)}
 
     try:
+        from google.genai import types
+
         rendered = render_prompt(prompt_name, variables)
         settings = get_settings()
-        client = get_openai_client()
+        client = get_gemini_client()
 
         start = time.perf_counter()
-        response = await client.chat.completions.create(
-            model=settings.LLM_MODEL_FAST,
-            messages=[
-                {"role": "system", "content": rendered},
-                {"role": "user", "content": "Analyze and return results as JSON."},
-            ],
+        response = await client.aio.models.generate_content(
+            model=settings.BACKGROUND_MODEL,
+            contents="Analyze and return results as JSON.",
+            config=types.GenerateContentConfig(
+                system_instruction=rendered,
+                temperature=0,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+                response_mime_type="application/json",
+            ),
         )
         latency_ms = round((time.perf_counter() - start) * 1000)
-        content = response.choices[0].message.content
+        content = response.text
 
-        usage = response.usage
+        usage_meta = getattr(response, "usage_metadata", None)
         await save_llm_usage(
             pipeline="detect_patterns",
-            model=settings.LLM_MODEL_FAST,
-            input_tokens=usage.prompt_tokens if usage else 0,
-            output_tokens=usage.completion_tokens if usage else 0,
+            model=settings.BACKGROUND_MODEL,
+            input_tokens=getattr(usage_meta, "prompt_token_count", 0) if usage_meta else 0,
+            output_tokens=getattr(usage_meta, "candidates_token_count", 0) if usage_meta else 0,
             latency_ms=latency_ms,
             user_id=user_id,
         )

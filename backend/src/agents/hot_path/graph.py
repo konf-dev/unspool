@@ -12,7 +12,7 @@ import time
 from typing import Any, Literal
 
 from langchain_core.messages import SystemMessage, ToolMessage
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import StateGraph, START, END
 
 from src.agents.hot_path.state import HotPathState
@@ -24,30 +24,29 @@ from src.agents.hot_path.tools import (
     _exec_mutate_graph,
 )
 from src.db.queries import save_llm_usage
-from src.telemetry.langfuse_integration import observe
 from src.telemetry.logger import get_logger
 
 logger = get_logger("hot_path.graph")
 
-_llm_with_tools: ChatOpenAI | None = None
+_llm_with_tools: ChatGoogleGenerativeAI | None = None
 
 
-def _get_llm_with_tools() -> ChatOpenAI:
+def _get_llm_with_tools() -> ChatGoogleGenerativeAI:
     """Lazy-init the LLM + tool binding so nothing runs at import time."""
     global _llm_with_tools
     if _llm_with_tools is None:
         from src.core.settings import get_settings
         settings = get_settings()
-        llm = ChatOpenAI(
-            api_key=settings.LLM_API_KEY or settings.OPENAI_API_KEY,
-            model=settings.LLM_MODEL,
+        llm = ChatGoogleGenerativeAI(
+            google_api_key=settings.api_key_for(settings.CHAT_PROVIDER),
+            model=settings.CHAT_MODEL,
             temperature=0.7,
+            thinking_budget=4096,
         )
         _llm_with_tools = llm.bind_tools([query_graph, mutate_graph])
     return _llm_with_tools
 
 
-@observe(name="hot_path.call_model")
 async def call_model(state: HotPathState):
     """The main LLM execution node."""
     logger.info("hot_path.iteration", iteration=state["iteration"])
@@ -69,7 +68,7 @@ async def call_model(state: HotPathState):
         from src.core.settings import get_settings
         await save_llm_usage(
             pipeline="hot_path",
-            model=get_settings().LLM_MODEL,
+            model=get_settings().CHAT_MODEL,
             input_tokens=usage.get("input_tokens", 0),
             output_tokens=usage.get("output_tokens", 0),
             latency_ms=latency_ms,
@@ -82,7 +81,6 @@ async def call_model(state: HotPathState):
     return {"messages": [response], "iteration": state["iteration"] + 1}
 
 
-@observe(name="hot_path.call_tools")
 async def call_tools(state: HotPathState):
     """Executes tools with user_id injected from state — LLM never sees user_id."""
     last_message = state["messages"][-1]

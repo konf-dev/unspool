@@ -1,6 +1,7 @@
 """Cold path extractor — with idempotency, semantic dedup, and event-first pattern."""
 
 import hashlib
+import json
 import uuid
 
 from sqlalchemy import select
@@ -15,7 +16,11 @@ from src.core.graph import (
 )
 from src.core.models import EventStream, GraphNode
 from src.core.settings import get_settings
-from src.integrations.openai import get_openai_client, get_embedding
+from src.integrations.gemini import (
+    get_gemini_client,
+    get_embedding,
+    get_embeddings_batch,
+)
 from src.telemetry.error_reporting import report_error
 from src.telemetry.langfuse_integration import observe
 from src.telemetry.logger import get_logger
@@ -30,30 +35,7 @@ STATUS_DONE = "DONE"
 # means similarity >= 0.9.
 _DEDUP_MAX_DISTANCE = 0.1
 
-
-async def ensure_status_nodes(session, user_id: uuid.UUID):
-    open_node = await get_or_create_node(session, user_id, STATUS_OPEN, "system_status")
-    done_node = await get_or_create_node(session, user_id, STATUS_DONE, "system_status")
-    return open_node, done_node
-
-
-@observe(name="cold_path.extraction")
-async def run_extraction(
-    raw_message: str, current_time_iso: str, timezone: str,
-) -> ExtractionResult:
-    """Uses GPT with Structured Outputs to parse a brain dump into a Graph.
-
-    Uses the strong model (LLM_MODEL, not LLM_MODEL_FAST) because graph
-    quality is the foundation of the entire product — cheap extractions
-    that miss edges or relationships degrade everything downstream.
-    """
-    settings = get_settings()
-    client = get_openai_client()
-
-    system_prompt = f"""You are the Unspool Archiver. You translate unstructured human messages into a structured Knowledge Graph of nodes and edges.
-
-Current Time: {current_time_iso}
-User Timezone: {timezone}
+_EXTRACTION_SYSTEM_INSTRUCTION = """You are the Unspool Archiver. You translate unstructured human messages into a structured Knowledge Graph of nodes and edges.
 
 RULES — follow every one precisely:
 
@@ -76,9 +58,9 @@ nodes:
 
 edges:
   - source_content: "finish my thesis", target_content: "OPEN", edge_type: "IS_STATUS"
-  - source_content: "finish my thesis", target_content: "finish my thesis", edge_type: "HAS_DEADLINE", metadata: {{"date": "2026-03-27T17:00:00Z"}}
+  - source_content: "finish my thesis", target_content: "finish my thesis", edge_type: "HAS_DEADLINE", metadata: {"date": "2026-03-27T17:00:00Z"}
   - source_content: "call Mom", target_content: "OPEN", edge_type: "IS_STATUS"
-  - source_content: "call Mom", target_content: "call Mom", edge_type: "HAS_DEADLINE", metadata: {{"date": "2026-03-24T12:00:00Z"}}
+  - source_content: "call Mom", target_content: "call Mom", edge_type: "HAS_DEADLINE", metadata: {"date": "2026-03-24T12:00:00Z"}
 
 EXAMPLE 2 — "I need to buy groceries and my dentist appointment is Thursday at 2pm"
 
@@ -90,7 +72,7 @@ nodes:
 edges:
   - source_content: "buy groceries", target_content: "OPEN", edge_type: "IS_STATUS"
   - source_content: "dentist appointment", target_content: "OPEN", edge_type: "IS_STATUS"
-  - source_content: "dentist appointment", target_content: "dentist appointment", edge_type: "HAS_DEADLINE", metadata: {{"date": "2026-03-26T14:00:00Z"}}
+  - source_content: "dentist appointment", target_content: "dentist appointment", edge_type: "HAS_DEADLINE", metadata: {"date": "2026-03-26T14:00:00Z"}
 
 EXAMPLE 3 — "ran 5km this morning, feeling pretty good"
 
@@ -100,20 +82,55 @@ nodes:
   - content: "feeling good", node_type: "emotion"
 
 edges:
-  - source_content: "ran 5km", target_content: "running", edge_type: "TRACKS_METRIC", metadata: {{"value": 5.0, "unit": "km"}}
+  - source_content: "ran 5km", target_content: "running", edge_type: "TRACKS_METRIC", metadata: {"value": 5.0, "unit": "km"}
   - source_content: "ran 5km", target_content: "feeling good", edge_type: "EXPERIENCED_DURING"
 """
 
-    response = await client.beta.chat.completions.parse(
-        model=settings.LLM_MODEL,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": raw_message},
-        ],
-        response_format=ExtractionResult,
+
+async def ensure_status_nodes(session, user_id: uuid.UUID):
+    open_node = await get_or_create_node(session, user_id, STATUS_OPEN, "system_status")
+    done_node = await get_or_create_node(session, user_id, STATUS_DONE, "system_status")
+    return open_node, done_node
+
+
+@observe(name="cold_path.extraction")
+async def run_extraction(
+    raw_message: str, current_time_iso: str, timezone: str,
+) -> ExtractionResult:
+    """Uses Gemini with structured outputs to parse a brain dump into a Graph.
+
+    Uses EXTRACTION_MODEL (not BACKGROUND_MODEL) because graph quality is the
+    foundation of the entire product — cheap extractions that miss edges or
+    relationships degrade everything downstream.
+
+    Gemini SDK usage follows https://ai.google.dev/gemini-api/docs/structured-output:
+    - system_instruction: separates instructions from user content
+    - response_mime_type: "application/json" for structured output
+    - response_json_schema: Pydantic model's JSON schema
+    - thinking_config: high budget for accurate extraction
+    - temperature: 0 for deterministic output
+    """
+    from google.genai import types
+
+    settings = get_settings()
+    client = get_gemini_client()
+
+    user_content = f"Current Time: {current_time_iso}\nUser Timezone: {timezone}\n\n{raw_message}"
+
+    response = await client.aio.models.generate_content(
+        model=settings.EXTRACTION_MODEL,
+        contents=user_content,
+        config=types.GenerateContentConfig(
+            system_instruction=_EXTRACTION_SYSTEM_INSTRUCTION,
+            response_mime_type="application/json",
+            response_json_schema=ExtractionResult.model_json_schema(),
+            temperature=0,
+            thinking_config=types.ThinkingConfig(thinking_budget=8192),
+        ),
     )
 
-    return response.choices[0].message.parsed
+    parsed = json.loads(response.text)
+    return ExtractionResult(**parsed)
 
 
 async def _find_semantic_match(
@@ -124,9 +141,12 @@ async def _find_semantic_match(
     Uses pgvector's cosine_distance ordering with an explicit max_distance
     filter so that dissimilar nodes are never returned, regardless of how
     small the graph is.
+
+    Uses SEMANTIC_SIMILARITY task_type for dedup comparisons as recommended
+    by https://ai.google.dev/gemini-api/docs/embeddings.
     """
     try:
-        embedding = await get_embedding(content)
+        embedding = await get_embedding(content, task_type="SEMANTIC_SIMILARITY")
         matches = await search_nodes_semantic(
             session,
             user_id,
@@ -203,6 +223,10 @@ async def process_brain_dump(
         # Create nodes with semantic dedup
         node_map: dict[str, uuid.UUID] = {}
 
+        # Separate nodes that need dedup check vs new nodes
+        nodes_to_embed: list[str] = []
+        nodes_to_embed_types: list[str] = []
+
         for enode in extraction.nodes:
             existing_node = await _find_semantic_match(
                 session, user_id, enode.content, enode.node_type,
@@ -215,14 +239,28 @@ async def process_brain_dump(
                     matched=existing_node.content,
                 )
             else:
-                try:
-                    embedding = await get_embedding(enode.content)
-                except Exception:
-                    embedding = None
-                db_node = await get_or_create_node(
-                    session, user_id, enode.content, enode.node_type, embedding,
+                nodes_to_embed.append(enode.content)
+                nodes_to_embed_types.append(enode.node_type)
+
+        # Batch-embed all new nodes in a single API call
+        # Uses RETRIEVAL_DOCUMENT task_type for storage as per Gemini docs
+        embeddings: list[list[float] | None] = []
+        if nodes_to_embed:
+            try:
+                embeddings = await get_embeddings_batch(
+                    nodes_to_embed, task_type="RETRIEVAL_DOCUMENT",
                 )
-                node_map[enode.content] = db_node.id
+            except Exception:
+                logger.warning("cold_path.batch_embed_failed", exc_info=True)
+                embeddings = [None] * len(nodes_to_embed)
+
+        for content, node_type, embedding in zip(
+            nodes_to_embed, nodes_to_embed_types, embeddings,
+        ):
+            db_node = await get_or_create_node(
+                session, user_id, content, node_type, embedding,
+            )
+            node_map[content] = db_node.id
 
         # Ensure status nodes in map
         open_node, done_node = await ensure_status_nodes(session, user_id)
