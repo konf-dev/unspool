@@ -95,6 +95,19 @@ async def get_user_profile(user_id: str) -> dict[str, Any]:
     return profile
 
 
+@router.patch("/user/{user_id}/profile")
+async def patch_user_profile(user_id: str, body: dict[str, Any]) -> dict[str, str]:
+    from fastapi import HTTPException as _HTTPException
+    from src.db.queries import update_profile
+    allowed = {"last_interaction_at", "last_proactive_at", "timezone", "display_name",
+               "tone_preference", "length_preference", "pushiness_preference"}
+    fields = {k: v for k, v in body.items() if k in allowed}
+    if not fields:
+        raise _HTTPException(status_code=422, detail="No valid fields provided")
+    await update_profile(user_id, **fields)
+    return {"status": "updated"}
+
+
 @router.get("/jobs/recent")
 async def get_recent_jobs(
     limit: int = Query(default=20, le=100),
