@@ -307,3 +307,31 @@ Test modules:
 - `test_cold_path.py` — Idempotency keys, extraction schema parsing
 - `test_chat.py` — Request validation, config loading, prompt rendering
 - `test_proactive.py` — Condition evaluator registry, config validation
+
+## E2E Tests (Production)
+
+### Smoke Test — `eval/smoke_test.py`
+
+36 automated tests covering infrastructure, auth, chat pipeline, admin endpoints, subscriptions, feeds, and GDPR deletion.
+
+```bash
+BASE_URL=https://api.unspool.life EVAL_API_KEY=... ADMIN_API_KEY=... python eval/smoke_test.py
+```
+
+### User Journey Tests — `eval/user_journey_test.py`
+
+12 user journeys (53 assertions) testing the full product loop against the deployed API. Covers brain dump lifecycle, deadline resolution, emotional intelligence, cross-session memory, metric tracking, graph mutations, semantic dedup, proactive messages, personality rules, edge cases, ICS feeds, and cold path idempotency.
+
+```bash
+BASE_URL=https://api.unspool.life EVAL_API_KEY=... ADMIN_API_KEY=... python eval/user_journey_test.py
+```
+
+Runtime: ~6 min. Requires the backend venv (`backend/.venv/bin/python`) for httpx.
+
+### Latest Results (2026-03-24)
+
+| Suite | Result |
+|-------|--------|
+| Unit tests | 33/33 passed |
+| Smoke test | 36/36 passed |
+| User journey | 53/53 passed |

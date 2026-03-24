@@ -10,6 +10,8 @@ The V2 eval framework has three complementary tools:
 | **Langfuse Eval** | Production trace scoring | LLM judge on 6 dimensions, scores posted to Langfuse traces | ~5 min |
 | **Smoke Test** | Deploy health | 36 automated endpoint tests via httpx | ~1 min |
 
+| **User Journey** | Product features end-to-end | 12 journeys (53 assertions), async httpx, admin API graph inspection | ~6 min |
+
 Plus **Red Team** (50 adversarial attack scenarios via promptfoo).
 
 ---
@@ -161,6 +163,55 @@ ADMIN_API_KEY=...    # Must match Railway's ADMIN_API_KEY
 
 ---
 
+## User Journey Tests (E2E product validation)
+
+### Architecture
+
+```
+python eval/user_journey_test.py
+  → 12 journey functions run sequentially
+  → Each: send chat messages, wait for cold path, inspect graph via admin API
+  → Heuristic assertions (regex/string matching, no LLM judge)
+  → GDPR cleanup in try/finally per journey
+```
+
+### 12 Journeys (53 assertions)
+
+| # | Journey | Assertions | What it tests |
+|---|---------|------------|---------------|
+| 1 | Brain Dump → Recall → Complete | 10 | Full lifecycle: extraction, recall via query_graph, mutation, status tracking |
+| 2 | Deadline Resolution | 4 | 5 date formats → HAS_DEADLINE edges with ISO dates |
+| 3 | Emotional Intelligence | 5 | Overwhelmed (brief, no list), recovery (one suggestion), celebration (no "now do X") |
+| 4 | Memory Across Sessions | 3 | Graph persistence + semantic retrieval across session boundaries |
+| 5 | Metric Tracking | 4 | TRACKS_METRIC edges with value/unit, metrics surface in recall |
+| 6 | Graph Mutation | 5 | Create/complete/archive verified at each step via admin API |
+| 7 | Semantic Dedup | 3 | Similar message → node reused, different message → new node |
+| 8 | Proactive Messages | 3 | Trigger after 8 days absent, 6h cooldown enforced |
+| 9 | Personality & Tone | 5 | Short input → brief output, no ADHD mention, no "now do X" |
+| 10 | Edge Cases | 4 | Minimal inputs, long messages, mixed language, 3 concurrent chats |
+| 11 | ICS Calendar Feed | 5 | Deadline tasks → feed_token → valid iCalendar with VEVENT |
+| 12 | Cold Path Idempotency | 2 | Same message twice → no duplicate nodes |
+
+### Running
+
+```bash
+# Against production
+BASE_URL=https://api.unspool.life EVAL_API_KEY=... ADMIN_API_KEY=... python eval/user_journey_test.py
+
+# Against local (cold path won't work without QStash)
+BASE_URL=http://localhost:8000 EVAL_API_KEY=... ADMIN_API_KEY=... python eval/user_journey_test.py
+```
+
+Exit code 0 = all pass, 1 = any failures. Runtime ~6 min (dominated by cold path waits).
+
+### Latest Results (2026-03-24)
+
+```
+Results: 53/53 passed, 0 failed
+```
+
+---
+
 ## Red Team
 
 50 adversarial scenarios via promptfoo's red team framework.
@@ -223,5 +274,6 @@ This user bypasses rate limiting. The smoke test's GDPR deletion section cleans 
 | `eval/langfuse_eval.py` | LLM-as-judge scoring script |
 | `eval/seed_datasets.py` | Upload test cases to Langfuse datasets |
 | `eval/smoke_test.py` | Automated API smoke test (36 tests) |
+| `eval/user_journey_test.py` | User journey E2E tests (12 journeys, 53 assertions) |
 | `eval/run_eval.sh` | Two-phase eval runner |
 | `eval/inspect_traces.py` | Langfuse trace inspection CLI |

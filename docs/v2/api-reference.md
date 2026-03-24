@@ -309,6 +309,18 @@ Max limit 500.
 ### `GET /admin/user/{user_id}/profile`
 Full user profile dict or `{"error": "Profile not found"}`.
 
+### `PATCH /admin/user/{user_id}/profile`
+Update user profile fields. Upserts profile if it doesn't exist. Supports datetime string parsing for `last_interaction_at` and `last_proactive_at`.
+
+```json
+// Request
+{"last_interaction_at": "2026-03-16T22:00:00+00:00", "feed_token": "abc123"}
+// Response
+{"status": "updated", "user_id": "uuid", "fields": ["last_interaction_at", "feed_token"]}
+```
+
+Allowed fields: `display_name`, `timezone`, `tone_preference`, `length_preference`, `pushiness_preference`, `uses_emoji`, `primary_language`, `last_interaction_at`, `last_proactive_at`, `feed_token`.
+
 ### `GET /admin/jobs/recent?limit=20`
 Recent LLM usage records (pipeline, model, tokens, latency). Max limit 100.
 
