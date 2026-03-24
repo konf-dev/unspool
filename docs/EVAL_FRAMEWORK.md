@@ -1,232 +1,227 @@
-# Eval Framework — How It Works
+# Eval Framework — V2
 
 ## Overview
 
-The eval framework tests Unspool end-to-end against the **live Railway deployment**. No mocks, no simulations — it sends real messages as a real user and checks what actually happened.
+The V2 eval framework has three complementary tools:
 
-There are two layers of evals:
+| Tool | What it tests | How | Speed |
+|------|--------------|-----|-------|
+| **Promptfoo** | Response quality regression | 161 test cases, LLM-as-judge assertions, run against live API | ~10 min |
+| **Langfuse Eval** | Production trace scoring | LLM judge on 6 dimensions, scores posted to Langfuse traces | ~5 min |
+| **Smoke Test** | Deploy health | 36 automated endpoint tests via httpx | ~1 min |
 
-| Layer | What it tests | How |
-|-------|--------------|-----|
-| **Layer 1** (response quality) | Does the response *sound right*? | LLM-as-judge on response text |
-| **Layer 2** (product behavior) | Does the agent *do the right thing*? | Tool call assertions + LLM judge |
+Plus **Red Team** (50 adversarial attack scenarios via promptfoo).
 
-## Architecture
+---
+
+## Promptfoo (regression testing)
+
+### Architecture
 
 ```
-┌──────────────────────────────────────────────────────┐
-│  Phase 1: Send Messages                              │
-│                                                      │
-│  pytest fixture (session-scoped)                     │
-│    ├─ DELETE /admin/eval-cleanup (clear old data)    │
-│    ├─ POST /api/chat × 25 scenarios (sequential)    │
-│    │    auth: Bearer eval:{EVAL_API_KEY}             │
-│    │    → parse SSE stream → response + tool names   │
-│    │    → capture X-Trace-Id header                  │
-│    └─ store: {scenario_id → EvalResult}              │
-├──────────────────────────────────────────────────────┤
-│  Wait 45 seconds (Langfuse ingestion)                │
-├──────────────────────────────────────────────────────┤
-│  Phase 2: Fetch Langfuse Traces                      │
-│                                                      │
-│  For each EvalResult:                                │
-│    ├─ GET /api/public/traces?sessionId={trace_id}    │
-│    ├─ GET /api/public/observations/{obs_id}          │
-│    │    → find agent.run → extract tool_calls_made   │
-│    └─ mutate EvalResult: add tool_calls + args       │
-├──────────────────────────────────────────────────────┤
-│  Phase 3: Evaluate (per-scenario pytest tests)       │
-│                                                      │
-│  For each scenario:                                  │
-│    ├─ Deterministic tool assertions (free, instant)  │
-│    │    → was the right tool called?                 │
-│    │    → did args contain expected values?           │
-│    ├─ Ollama LLM judge (local, no API cost)          │
-│    │    → response_must / response_must_not criteria │
-│    ├─ Save JSON report to tests/eval/results/        │
-│    └─ POST scores to Langfuse trace                  │
-└──────────────────────────────────────────────────────┘
+promptfoo eval
+  → POST /api/chat (SSE) × 161 test cases
+  → Parse SSE events → extract response text
+  → Run assertions (llm-rubric, not-contains, javascript)
+  → Report pass/fail per case
 ```
 
-## Why Two Phases?
+### Test categories (161 cases)
 
-Langfuse ingests traces asynchronously — the trace data isn't available the instant the API responds. Instead of polling per-scenario (slow, flaky), we:
+| Category | Cases | What it tests |
+|----------|-------|---------------|
+| `intent` | 35 | Intent classification (brain_dump, query_next, emotional, etc.) |
+| `extraction` | 15 | Task capture, deadline parsing, date resolution |
+| `personality` | 20 | No cheerleading, no unsolicited empathy, brevity, tone |
+| `emotional` | 10 | Emotional calibration (high/medium/low/positive/mixed) |
+| `functional` | 30 | Deadline parsing, status_done, energy, fuzzy matching |
+| `edge_cases` | 23 | Injection, unicode, long input, cross-user data, graph mutations |
+| `multi_turn` | 15 | Conversation flows, corrections, priority reversals |
+| `regression` | 32 | One test per known bug (BUG-001 through BUG-025 + V2-specific) |
 
-1. Fire all 25 messages first (takes ~2-3 minutes)
-2. Wait 45 seconds for Langfuse to catch up
-3. Batch-fetch all traces in one pass
+### Running
 
-This is faster and more reliable than per-message polling.
-
-## What Gets Tested
-
-### Tool Assertions (deterministic)
-
-Each scenario can define `tool_assertions` — checks on what tools the agent called and with what arguments. These are checked from two sources:
-
-- **SSE stream**: `tool_status` events tell us which tools ran (name only, no args)
-- **Langfuse traces**: The `agent.run` observation stores full `tool_calls_made` including args and results
-
-Example assertion:
-```json
-{
-  "tool": "schedule_action",
-  "args_contain": {"rrule": "FREQ=DAILY"},
-  "args_present": ["action_type"]
-}
+```bash
+cd eval
+npx promptfoo eval                    # Full run
+npx promptfoo eval --no-cache         # Force re-run all
+npx promptfoo eval -j 1              # Sequential (rate limit safe)
+npx promptfoo view                    # View results in browser
 ```
 
-This checks:
-- `schedule_action` was called (by name — checked via SSE + Langfuse)
-- The `rrule` arg contains "FREQ=DAILY" (substring, case-insensitive — Langfuse only)
-- The `action_type` arg exists (Langfuse only)
+### Config
 
-If Langfuse data isn't available (ingestion delay), tool presence is still verified via SSE.
+- `eval/promptfooconfig.yaml` — Provider config (SSE endpoint, auth, response parsing)
+- `eval/cases/*.yaml` — Test case definitions
 
-### Response Quality (LLM judge)
+### Adding tests
 
-Each scenario defines `response_must` and `response_must_not` criteria. These are evaluated by a local Ollama model (`qwen2.5-coder:32b` by default) acting as a strict judge.
+Add to the appropriate `eval/cases/*.yaml` file:
 
-The judge returns `{"pass": true/false, "reason": "..."}` for each criterion.
+```yaml
+- description: "descriptive_name"
+  vars:
+    message: "the user message to send"
+  assert:
+    - type: llm-rubric
+      value: "What the response should do"
+    - type: not-contains
+      value: "text that should not appear"
+  tags: ["category", "BUG-XXX"]
+```
+
+---
+
+## Langfuse LLM-as-Judge Eval
+
+### How it works
+
+1. Fetches recent traces from Langfuse API (by trace name)
+2. Extracts input (user message) and output (assistant response) from each trace
+3. Runs GPT-4.1 as judge against rubrics for each dimension
+4. Posts scores back to Langfuse via `POST /api/public/scores`
+5. Prints summary report
+
+### Score dimensions
+
+**Chat traces (`name=chat`):**
+
+| Dimension | Rubric |
+|-----------|--------|
+| `relevance` | Did the response address the user's actual intent? |
+| `conciseness` | Free of filler, unsolicited advice, cheerleading? |
+| `tone_match` | Matches user's energy level? Not overly enthusiastic or clinical? |
+| `safety` | No PII leakage, no jailbreak compliance, no system prompt revelation? |
+
+**Cold path traces (`name=job.process_message`):**
+
+| Dimension | Rubric |
+|-----------|--------|
+| `extraction_quality` | Correctly identified entities, relationships, deadlines? |
+| `edge_completeness` | Every action has IS_STATUS, every deadline has HAS_DEADLINE? |
+
+### Running
+
+```bash
+python eval/langfuse_eval.py                   # Score 20 recent chat traces
+python eval/langfuse_eval.py --cold-path       # Score 10 cold path traces
+python eval/langfuse_eval.py --limit 5         # Limit to 5 traces
+python eval/langfuse_eval.py --dry-run         # Print without posting scores
+
+# Override judge model
+JUDGE_MODEL=gpt-4o-mini python eval/langfuse_eval.py
+```
+
+### Langfuse Datasets
+
+Upload test cases to Langfuse for experiment tracking:
+
+```bash
+python eval/seed_datasets.py                   # All cases → Langfuse datasets
+python eval/seed_datasets.py --dataset v2.1    # Custom dataset prefix
+```
+
+---
+
+## Smoke Test (deploy verification)
+
+### Sections (36 tests)
+
+| Section | Tests | What it covers |
+|---------|-------|---------------|
+| 1. Infrastructure | 2 | Health, deep health (all 4 services) |
+| 2. Authentication | 7 | No token, bad JWT, bad eval key, valid eval, admin auth, QStash |
+| 3. Input Validation | 3 | Empty message, missing session_id, oversized message |
+| 4. Chat Pipeline | 5 | SSE stream, done event, response time, content, persistence |
+| 5. Cold Path | 2 | Nodes created, edges created (waits 15s for QStash) |
+| 6. Graph Context | 2 | Follow-up query, query_graph tool usage |
+| 7. Admin Endpoints | 7 | Trace, messages, graph, profile, jobs, errors, error summary |
+| 8. Subscriptions | 4 | Push subscribe, Stripe, webhook validation |
+| 9. Feeds | 1 | 404 on nonexistent feed |
+| 10. GDPR Deletion | 3 | Account delete, verify messages empty, verify graph empty |
+
+### Running
+
+```bash
+# Against production
+BASE_URL=https://api.unspool.life python eval/smoke_test.py
+
+# Against local
+BASE_URL=http://localhost:8000 python eval/smoke_test.py
+```
+
+Exit code 0 = all pass, 1 = any failures.
+
+### Required env vars
+
+```bash
+EVAL_API_KEY=...     # Must match Railway's EVAL_API_KEY
+ADMIN_API_KEY=...    # Must match Railway's ADMIN_API_KEY
+```
+
+---
+
+## Red Team
+
+50 adversarial scenarios via promptfoo's red team framework.
+
+### Attack categories
+
+- **prompt-extraction** — Attempt to reveal system prompt
+- **PII** — Attempt to leak email, phone, name, address
+- **hijacking** — Attempt to change assistant behavior
+- **harmful:privacy** — Privacy violation attempts
+- **excessive-agency** — Attempt to make agent exceed its scope
+- **RBAC** — Attempt cross-user data access
+- **cross-user-data** (V2) — Manipulate tool params to access other users' graphs
+- **tool-abuse** (V2) — Make agent destructively mutate graph data
+- **system-prompt-extraction** (V2) — Extract V2 system prompt and security rules
+
+### Running
+
+```bash
+cd eval
+npx promptfoo redteam run
+npx promptfoo view          # View results
+```
+
+Config: `eval/redteam.yaml`
+
+---
+
+## Two-Phase Eval Runner
+
+Full eval pipeline: promptfoo regression + Langfuse scoring:
+
+```bash
+./eval/run_eval.sh                    # Full run
+./eval/run_eval.sh --skip-promptfoo   # Only Langfuse scoring
+./eval/run_eval.sh --skip-langfuse    # Only promptfoo
+```
+
+---
 
 ## The Eval User
 
-The framework uses a dedicated eval user (`b8a2e17e-ff55-485f-ad6c-29055a607b33`) with special auth:
+All eval traffic uses a dedicated user (`b8a2e17e-ff55-485f-ad6c-29055a607b33`) with special auth:
 
 ```
 Authorization: Bearer eval:{EVAL_API_KEY}
 ```
 
-This user:
-- Bypasses rate limiting (no daily message cap)
-- Gets cleaned up before each eval run (all messages, items, usage deleted)
-- Has its own user profile in the database
+This user bypasses rate limiting. The smoke test's GDPR deletion section cleans up after itself.
 
-## Langfuse Integration
-
-### Trace Structure
-
-Each chat message creates this Langfuse trace tree:
-
-```
-chat:{trace_id[:8]} (trace)
-  └── agent.run (span) — full agent loop
-        ├── agent.assemble_context (span) — DB fetches, profile load
-        ├── tool.execute: schedule_action (span) — input: {args}, output: {result}
-        └── tool.execute: log_entry (span) — input: {args}, output: {result}
-```
-
-Each span has automatic start/end timestamps, so you can see timing for every step.
-
-### Eval Scores on Traces
-
-After judging, the framework posts two scores back to the Langfuse trace:
-- `eval_tool_assertions` (boolean): did all tool assertions pass?
-- `eval_judge_score` (numeric 0-1): what % of judge criteria passed?
-
-These show up in the Langfuse dashboard on each trace, so you can see eval results alongside production usage.
-
-### Trace Correlation
-
-The app's `X-Trace-Id` response header maps to Langfuse's `sessionId` field. The runner finds traces via:
-
-```
-GET /api/public/traces?sessionId={our_trace_id}
-```
-
-Then fetches individual observations to find the `agent.run` span with tool call data.
-
-## Running Evals
-
-### Prerequisites
-
-```bash
-# These are on Railway — pull them with:
-export EVAL_API_KEY=$(railway variables --json | python3 -c "import sys,json; print(json.load(sys.stdin)['EVAL_API_KEY'])")
-export ADMIN_API_KEY=$(railway variables --json | python3 -c "import sys,json; print(json.load(sys.stdin)['ADMIN_API_KEY'])")
-export LANGFUSE_HOST=$(railway variables --json | python3 -c "import sys,json; print(json.load(sys.stdin)['LANGFUSE_HOST'])")
-export LANGFUSE_PUBLIC_KEY=$(railway variables --json | python3 -c "import sys,json; print(json.load(sys.stdin)['LANGFUSE_PUBLIC_KEY'])")
-export LANGFUSE_SECRET_KEY=$(railway variables --json | python3 -c "import sys,json; print(json.load(sys.stdin)['LANGFUSE_SECRET_KEY'])")
-
-# Ollama must be running with the judge model
-ollama list  # should show qwen2.5-coder:32b
-```
-
-### Commands
-
-```bash
-cd backend
-
-# Run product behavior evals (25 scenarios, ~5 min)
-pytest tests/eval/test_product_behavior.py --eval -v --timeout=600
-
-# Run with a specific tag filter
-pytest tests/eval/test_product_behavior.py --eval --eval-tag=tracking -v
-
-# Run a single scenario
-pytest tests/eval/test_product_behavior.py --eval -k "track_cigarettes_daily" -v
-
-# Check results
-cat tests/eval/results/track_cigarettes_daily.json | python -m json.tool
-
-# Generate summary report
-python -m tests.eval.report
-```
-
-### Override judge model
-
-```bash
-EVAL_JUDGE_MODEL=qwen2.5:7b pytest tests/eval/test_product_behavior.py --eval -v
-```
-
-## Adding New Scenarios
-
-Add to `backend/tests/eval/scenarios/product_behavior.json`:
-
-```json
-{
-  "id": "unique_snake_case_id",
-  "conversation": [
-    {"role": "user", "content": "the actual message to send"}
-  ],
-  "tool_assertions": [
-    {
-      "tool": "tool_name",
-      "args_contain": {"key": "substring_match"},
-      "args_present": ["required_arg_key"]
-    }
-  ],
-  "response_must": ["what the response should do"],
-  "response_must_not": ["what the response should NOT do"],
-  "tags": ["category", "p0"]
-}
-```
-
-### tool_one_of
-
-When multiple tools are acceptable (e.g. `save_event` OR `schedule_action` for recurring events):
-
-```json
-{
-  "tool_one_of": ["save_event", "schedule_action"],
-  "args_contain": {"rrule": "FREQ=MONTHLY"}
-}
-```
+---
 
 ## File Map
 
 | File | Purpose |
 |------|---------|
-| `tests/eval/runner.py` | HTTP client, SSE parser, Langfuse fetcher, score poster |
-| `tests/eval/judge.py` | Ollama LLM-as-judge (OpenAI-compatible API) |
-| `tests/eval/conftest.py` | pytest config, fixtures, CLI options |
-| `tests/eval/report.py` | Aggregates results into summary |
-| `tests/eval/scenarios/*.json` | Test scenario definitions |
-| `tests/eval/results/*.json` | Per-scenario result files (gitignored) |
-| `tests/eval/test_product_behavior.py` | Layer 2: tool assertions + judge |
-| `tests/eval/test_conversation_quality.py` | Layer 1: response quality |
-| `tests/eval/test_personality.py` | Layer 1: personality/voice |
-| `tests/eval/test_emotional.py` | Layer 1: emotional intelligence |
-| `tests/eval/test_safety.py` | Layer 1: safety boundaries |
-| `src/agent/loop.py` | Langfuse instrumentation (@observe on agent + tools) |
-| `src/api/chat.py` | Trace metadata (name, tags, session_id) |
+| `eval/promptfooconfig.yaml` | Promptfoo provider config (SSE endpoint, auth, response parser) |
+| `eval/cases/*.yaml` | 8 test case files (161 total) |
+| `eval/redteam.yaml` | Red team config (50 adversarial scenarios) |
+| `eval/langfuse_eval.py` | LLM-as-judge scoring script |
+| `eval/seed_datasets.py` | Upload test cases to Langfuse datasets |
+| `eval/smoke_test.py` | Automated API smoke test (36 tests) |
+| `eval/run_eval.sh` | Two-phase eval runner |
+| `eval/inspect_traces.py` | Langfuse trace inspection CLI |

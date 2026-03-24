@@ -8,8 +8,8 @@ How to see what's happening in production.
 
 | Tool | What it shows | Access |
 |------|--------------|--------|
-| **Langfuse** | Trace waterfall per request — prompts sent, LLM responses, tool I/O, latency, tokens, cost | [cloud.langfuse.com](https://cloud.langfuse.com) |
-| **Admin API** | Same data via CLI — traces, user conversations, items, errors | `curl -H "X-Admin-Key: $KEY" https://api.unspool.life/admin/...` |
+| **Langfuse** | Trace waterfall per request — nested spans for LLM calls, tool executions, embeddings, latency, tokens, cost | [cloud.langfuse.com](https://cloud.langfuse.com) |
+| **Admin API** | Same data via CLI — traces, user conversations, graph, errors | `curl -H "X-Admin-Key: $KEY" https://api.unspool.life/admin/...` |
 | **Railway logs** | Raw structured JSON logs, filter by trace_id/user_id | `railway logs` or Railway dashboard |
 
 Supporting tools (no setup needed):
@@ -23,28 +23,44 @@ Supporting tools (no setup needed):
 
 ### What you see per request
 
+Every chat request creates ONE trace with nested spans:
+
 ```
-Trace: da50f775 | user: 865776be | "hey, what are my reminders"
-├─ classify_intent (450ms)
-│  ├─ Prompt: "Classify the user's message..."
-│  ├─ Response: {"intent": "query_search", "confidence": 0.9}
-│  └─ Tokens: 240 in / 15 out
-├─ assemble_context (900ms)
-│  └─ Fields loaded: profile, recent_messages
-├─ pipeline: query_search
-│  ├─ analyze [generation] (1200ms)
-│  │  ├─ Prompt: "Determine what data to fetch..."
-│  │  ├─ Response: {"search_type": "status", ...}
-│  │  └─ Tokens: 683 in / 57 out
-│  ├─ smart_fetch [span] (450ms)
-│  │  ├─ Input: {sources: ["items"], status: "open"}
-│  │  └─ Output: 3 items found
-│  └─ respond [generation] (1500ms)
-│     ├─ Prompt: "Answer using fetched data..."
-│     ├─ Response: "You've got a reminder to call Dad and..."
-│     └─ Tokens: 500 in / 40 out
-└─ Total: 4.5s | 1423 in / 112 out
+trace: "chat" (user_id=865776be, session_id=abc, tags=["chat"])
+├─ span: "agent.assemble_context" (900ms)
+│  └─ generation: OpenAI embedding (semantic search)
+├─ chain: "LangGraph"
+│  ├─ agent: "agent"
+│  │  ├─ span: "hot_path.call_model" (1200ms)
+│  │  │  └─ generation: gpt-4.1 (tokens: 683 in / 57 out)
+│  │  ├─ span: "hot_path.call_tools"
+│  │  │  └─ generation: OpenAI embedding (query_graph)
+│  │  └─ span: "hot_path.call_model" (1500ms)
+│  │     └─ generation: gpt-4.1 (tokens: 500 in / 40 out)
+│  └─ chain: "route_logic"
+└─ Total: ~4.5s | user_id, session_id, tags visible
+
+Cold path (separate trace, linked via metadata):
+trace: "job.process_message" (user_id=865776be, tags=["cold_path","job"])
+├─ span: "cold_path.process"
+│  ├─ span: "cold_path.extraction"
+│  │  └─ generation: gpt-4.1 (structured output)
+│  ├─ span: "embedding" (dedup search)
+│  └─ span: "embedding" (dedup search)
+└─ metadata: {parent_chat_trace_id: "..."}
 ```
+
+### How tracing works
+
+The tracing uses langfuse v4's `@observe` decorator with OpenTelemetry context propagation:
+
+1. `@observe(name="chat")` on the streaming function creates the root trace
+2. `propagate_trace_attributes()` sets user_id, session_id, tags on the trace
+3. Nested `@observe` calls create child spans automatically via OTEL context
+4. `langfuse.openai.AsyncOpenAI` auto-instruments every OpenAI call (completions + embeddings)
+5. LangChain `CallbackHandler` inherits the OTEL context to trace agent iterations
+
+All instrumentation no-ops when Langfuse is not configured (zero overhead).
 
 ### Setup
 
@@ -63,19 +79,18 @@ Cloud free tier gives 50k observations/month — plenty for MVP.
 
 | Function | Decorator | File |
 |----------|-----------|------|
-| `_stream_response` | `@observe("chat.stream_response")` | `src/api/chat.py` |
-| `classify_intent` | `@observe("classify_intent")` | `src/orchestrator/intent.py` |
-| `assemble_context` | `@observe("assemble_context")` | `src/orchestrator/context.py` |
-| `execute_pipeline` | `@observe("execute_pipeline")` | `src/orchestrator/engine.py` |
-| `_execute_llm_step` | `@observe_generation("llm_step")` | `src/orchestrator/engine.py` |
-| `_execute_tool_step` | `@observe("tool_step")` | `src/orchestrator/engine.py` |
-| `smart_fetch` | `@observe("smart_fetch")` | `src/tools/query_tools.py` |
-| `run_process_conversation` | `@observe("job.process_conversation")` | `src/jobs/process_conversation.py` |
-| `run_check_deadlines` | `@observe("job.check_deadlines")` | `src/jobs/check_deadlines.py` |
-| `run_decay_urgency` | `@observe("job.decay_urgency")` | `src/jobs/decay_urgency.py` |
-| `run_detect_patterns` | `@observe("job.detect_patterns")` | `src/jobs/detect_patterns.py` |
-| `run_sync_calendar` | `@observe("job.sync_calendar")` | `src/jobs/sync_calendar.py` |
-| `run_reset_notifications` | `@observe("job.reset_notifications")` | `src/jobs/reset_notifications.py` |
+| `_stream_response` | `@observe(name="chat")` | `src/api/chat.py` |
+| `assemble_context` | `@observe(name="agent.assemble_context")` | `src/agents/hot_path/context.py` |
+| `call_model` | `@observe(name="hot_path.call_model")` | `src/agents/hot_path/graph.py` |
+| `call_tools` | `@observe(name="hot_path.call_tools")` | `src/agents/hot_path/graph.py` |
+| `run_extraction` | `@observe(name="cold_path.extraction")` | `src/agents/cold_path/extractor.py` |
+| `process_brain_dump` | `@observe(name="cold_path.process")` | `src/agents/cold_path/extractor.py` |
+| `get_embedding` | `@observe(name="embedding")` | `src/integrations/openai.py` |
+| `check_proactive` | `@observe(name="proactive.check")` | `src/proactive/engine.py` |
+| `process_message` | `@observe(name="job.process_message")` | `src/jobs/router.py` |
+| `nightly_batch` | `@observe(name="job.nightly_batch")` | `src/jobs/router.py` |
+| `hourly_maintenance` | `@observe(name="job.hourly_maintenance")` | `src/jobs/router.py` |
+| `synthesis` | `@observe(name="job.synthesis")` | `src/jobs/router.py` |
 
 ### CLI access to Langfuse
 
@@ -87,43 +102,48 @@ curl -u "$LANGFUSE_PUBLIC_KEY:$LANGFUSE_SECRET_KEY" \
 # Traces for a specific user
 curl -u "$LANGFUSE_PUBLIC_KEY:$LANGFUSE_SECRET_KEY" \
   "$LANGFUSE_HOST/api/public/traces?userId=865776be" | jq
+
+# Inspect traces via helper script
+python eval/inspect_traces.py chat      # Chat traces
+python eval/inspect_traces.py jobs      # Job traces
+python eval/inspect_traces.py cold_path # Cold path traces
+python eval/inspect_traces.py summary   # All trace types summary
 ```
-
-### No-op when unconfigured
-
-If `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`, or `LANGFUSE_SECRET_KEY` are empty, all `@observe` decorators become no-ops. No performance overhead, no errors. The wrapper lives in `src/telemetry/langfuse_integration.py`.
 
 ---
 
 ## Admin API
 
-Protected by `ADMIN_API_KEY` env var. Set it in Railway:
-
-```bash
-# Generate a key
-openssl rand -hex 32
-```
+Protected by `ADMIN_API_KEY` env var, sent via `X-Admin-Key` header.
 
 ### Endpoints
 
 ```bash
+KEY=$ADMIN_API_KEY
+
 # Full trace for a request (messages + LLM usage breakdown)
 curl -H "X-Admin-Key: $KEY" https://api.unspool.life/admin/trace/{trace_id} | jq
 
-# User's recent conversation
-curl -H "X-Admin-Key: $KEY" https://api.unspool.life/admin/user/{user_id}/messages?limit=50 | jq
+# User's recent messages
+curl -H "X-Admin-Key: $KEY" https://api.unspool.life/admin/user/{user_id}/messages | jq
 
-# User's open items
-curl -H "X-Admin-Key: $KEY" https://api.unspool.life/admin/user/{user_id}/items?status=open | jq
+# User's knowledge graph (nodes + edges)
+curl -H "X-Admin-Key: $KEY" https://api.unspool.life/admin/user/{user_id}/graph | jq
 
-# User's full profile (including patterns)
+# User's profile
 curl -H "X-Admin-Key: $KEY" https://api.unspool.life/admin/user/{user_id}/profile | jq
 
-# Recent LLM usage (what the system has been doing)
-curl -H "X-Admin-Key: $KEY" https://api.unspool.life/admin/jobs/recent?limit=20 | jq
+# Recent LLM usage
+curl -H "X-Admin-Key: $KEY" https://api.unspool.life/admin/jobs/recent | jq
 
-# Recent errors (pipeline crashes, timeouts)
-curl -H "X-Admin-Key: $KEY" https://api.unspool.life/admin/errors?limit=20 | jq
+# Recent errors
+curl -H "X-Admin-Key: $KEY" https://api.unspool.life/admin/errors | jq
+
+# Error summary
+curl -H "X-Admin-Key: $KEY" https://api.unspool.life/admin/errors/summary | jq
+
+# Deep health check (all services)
+curl -H "X-Admin-Key: $KEY" https://api.unspool.life/admin/health/deep | jq
 ```
 
 ### Getting the trace_id
@@ -132,14 +152,68 @@ Every chat response includes the trace_id in the `X-Trace-Id` response header. I
 
 ---
 
+## Eval Framework
+
+### Promptfoo (regression testing)
+
+161 test cases across 8 categories. Tests run against the live API via SSE.
+
+```bash
+cd eval
+npx promptfoo eval            # Run all tests
+npx promptfoo view            # View results in browser
+```
+
+Config: `eval/promptfooconfig.yaml`. Test cases: `eval/cases/*.yaml`.
+
+### Langfuse LLM-as-Judge (production scoring)
+
+Fetches recent traces and scores them on 6 dimensions:
+
+| Dimension | Applies to | What it checks |
+|-----------|-----------|----------------|
+| relevance | Chat | Did the response address the user's actual intent? |
+| conciseness | Chat | Free of filler, unsolicited advice, cheerleading? |
+| tone_match | Chat | Matches user's energy level? |
+| safety | Chat | No PII leakage, jailbreak compliance, system prompt? |
+| extraction_quality | Cold path | Correctly identified entities and relationships? |
+| edge_completeness | Cold path | Every action has IS_STATUS, every deadline has HAS_DEADLINE? |
+
+```bash
+python eval/langfuse_eval.py              # Score recent chat traces
+python eval/langfuse_eval.py --cold-path  # Score cold path traces
+python eval/langfuse_eval.py --dry-run    # Print without posting
+```
+
+### Smoke Test (deploy verification)
+
+Automated 36-test suite covering all API endpoints:
+
+```bash
+BASE_URL=https://api.unspool.life python eval/smoke_test.py
+```
+
+Tests: infrastructure, auth (7), validation (3), chat pipeline (5), cold path (2), graph context (2), admin (7), webhooks (4), feeds (1), GDPR deletion (3).
+
+### Red Team
+
+```bash
+cd eval
+npx promptfoo redteam run     # 50 attack scenarios
+```
+
+Plugins: prompt-extraction, PII, hijacking, excessive-agency, RBAC, cross-user-data, tool-abuse, system-prompt-extraction.
+
+---
+
 ## Debugging workflows
 
 ### "User says something went wrong"
 
 1. Get their user_id from Supabase Auth dashboard
-2. Pull recent conversation:
+2. Pull recent messages:
    ```bash
-   curl -H "X-Admin-Key: $KEY" .../admin/user/{user_id}/messages?limit=10 | jq
+   curl -H "X-Admin-Key: $KEY" .../admin/user/{user_id}/messages | jq
    ```
 3. Find the message with `metadata.error=true`, grab its `trace_id`
 4. Inspect the trace:
@@ -152,51 +226,28 @@ Every chat response includes the trace_id in the `X-Trace-Id` response header. I
 
 1. Find the trace in Langfuse
 2. Look at the generation spans — you'll see the exact prompt sent and the exact response received
-3. Check if the prompt template rendered correctly (look for empty variables, missing context)
+3. Check if context assembly returned relevant graph nodes
 
 ### "Background job seems broken"
 
 1. Check QStash console for delivery failures
 2. Check Railway logs: `railway logs --filter "job.start"`
-3. Look at Langfuse for job traces (all job runners are instrumented)
+3. Look at Langfuse for job traces (`python eval/inspect_traces.py jobs`)
+
+### "Cold path didn't extract correctly"
+
+1. Find the `job.process_message` trace in Langfuse
+2. Look at `cold_path.extraction` span — see the LLM's structured output
+3. Check the `embedding` spans to see dedup matches
+4. Use admin API to inspect the user's graph:
+   ```bash
+   curl -H "X-Admin-Key: $KEY" .../admin/user/{user_id}/graph | jq
+   ```
 
 ### "Costs seem high"
 
 1. Query LLM usage via admin API:
    ```bash
-   curl -H "X-Admin-Key: $KEY" .../admin/jobs/recent?limit=100 | jq '[.[] | {pipeline, model, input_tokens, output_tokens}] | group_by(.pipeline) | map({pipeline: .[0].pipeline, total_in: (map(.input_tokens) | add), total_out: (map(.output_tokens) | add)})'
+   curl -H "X-Admin-Key: $KEY" .../admin/jobs/recent | jq
    ```
 2. Or use Langfuse dashboard → Analytics → Cost by model/trace
-
----
-
-## Testing
-
-### Test suite
-
-```bash
-cd backend
-pytest -v --timeout=30     # Full suite (218 tests)
-```
-
-Test categories:
-
-| File | What it tests |
-|------|--------------|
-| `test_system_prompt.py` | All 26 prompts render with empty + realistic data |
-| `test_json_extraction.py` | `_extract_json()` with all LLM output patterns |
-| `test_pipeline_execution.py` | brain_dump + query_search flows with MockLLMProvider |
-| `test_chat_endpoint.py` | `/api/chat` SSE streaming, auth, error/timeout handling |
-| `test_smart_fetch.py` | Query tool with various query_spec shapes |
-| `test_intent.py` | Intent classification edge cases |
-| Other test files | Config loading, Redis, auth, tools, scoring, patterns |
-
-### CI
-
-GitHub Actions runs on every push/PR to `main`:
-
-1. `ruff check .` — linting (unused imports, undefined names, etc.)
-2. `ruff format --check .` — formatting consistency
-3. `pytest -x --timeout=30` — full test suite
-
-Fix formatting issues locally with `ruff format .`.

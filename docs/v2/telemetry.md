@@ -31,22 +31,79 @@ ASGI middleware on every HTTP request:
 `report_error(source, error, trace_id?, user_id?, **extra)` writes to 3 sinks:
 
 1. **structlog** — Full traceback (always, goes to Railway logs)
-2. **Langfuse** — Marks current observation as ERROR (if configured)
+2. **Langfuse** — Marks current observation as ERROR via `update_current_span(level="ERROR")` (if configured)
 3. **DB error_log** — Fire-and-forget async persist (won't crash caller if DB fails)
 
 The DB persist resolves `trace_id` from structlog contextvars if not provided.
 
 ## Langfuse Integration (`src/telemetry/langfuse_integration.py`)
 
-Thin wrapper that no-ops when Langfuse is not configured.
+Uses langfuse v4's real `@observe` decorator with OpenTelemetry context propagation. The `langfuse.openai` wrapper auto-instruments all OpenAI calls. When called inside an `@observe` scope, all LLM calls nest under the parent trace automatically.
 
-- `@observe(name)` — Decorator, wraps `langfuse.decorators.observe`
-- `@observe_generation(name)` — Same with `as_type="generation"`
-- `update_current_observation(**kwargs)` — Update current span
-- `update_current_trace(**kwargs)` — Update current trace
-- `get_langfuse_context()` — Access raw langfuse_context
+### Exports
 
-All functions silently no-op if `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`, or `LANGFUSE_SECRET_KEY` are not set.
+| Function | Purpose |
+|----------|---------|
+| `observe` | Decorator — wraps `langfuse.observe` (creates OTEL spans). No-ops if unconfigured. |
+| `propagate_trace_attributes(user_id, session_id, tags, metadata)` | Context manager to set trace-level attributes on all child spans. |
+| `update_current_observation(**kwargs)` | Update the current active span (level, output, metadata, etc.) |
+| `get_langchain_handler_from_context()` | Create a LangChain `CallbackHandler` that inherits current `@observe` trace context. |
+| `flush_langfuse()` | Flush pending events. Called at end of SSE stream. |
+| `is_langfuse_available()` | Check if Langfuse is configured and importable. |
+
+### How it works
+
+1. `@observe(name="chat")` on the root function creates an OTEL span → becomes the Langfuse trace
+2. `propagate_trace_attributes(user_id=..., session_id=..., tags=...)` sets trace metadata
+3. Nested `@observe` calls (e.g., `hot_path.call_model`) create child spans automatically
+4. `langfuse.openai.AsyncOpenAI` wrapper auto-creates generation spans under the active observe scope
+5. `CallbackHandler()` created inside an observe scope inherits the OTEL context — all LangGraph spans nest
+
+### Instrumented functions
+
+| Function | Decorator | File |
+|----------|-----------|------|
+| `_stream_response` | `@observe(name="chat")` | `src/api/chat.py` |
+| `assemble_context` | `@observe(name="agent.assemble_context")` | `src/agents/hot_path/context.py` |
+| `call_model` | `@observe(name="hot_path.call_model")` | `src/agents/hot_path/graph.py` |
+| `call_tools` | `@observe(name="hot_path.call_tools")` | `src/agents/hot_path/graph.py` |
+| `run_extraction` | `@observe(name="cold_path.extraction")` | `src/agents/cold_path/extractor.py` |
+| `process_brain_dump` | `@observe(name="cold_path.process")` | `src/agents/cold_path/extractor.py` |
+| `get_embedding` | `@observe(name="embedding")` | `src/integrations/openai.py` |
+| `check_proactive` | `@observe(name="proactive.check")` | `src/proactive/engine.py` |
+| `process_message` | `@observe(name="job.process_message")` | `src/jobs/router.py` |
+| `nightly_batch` | `@observe(name="job.nightly_batch")` | `src/jobs/router.py` |
+| `hourly_maintenance` | `@observe(name="job.hourly_maintenance")` | `src/jobs/router.py` |
+| `synthesis` | `@observe(name="job.synthesis")` | `src/jobs/router.py` |
+
+### Trace structure
+
+```
+Chat request:
+  trace: "chat" (user_id, session_id, tags=["chat"])
+  ├─ span: "agent.assemble_context"
+  │  └─ generation: OpenAI embedding (semantic search)
+  ├─ chain: "LangGraph"
+  │  ├─ agent: "agent"
+  │  │  ├─ span: "hot_path.call_model"
+  │  │  │  └─ generation: OpenAI gpt-4.1
+  │  │  └─ span: "hot_path.call_tools"
+  │  │     └─ generation: OpenAI embedding (query_graph search)
+  │  └─ chain: "route_logic"
+  └─ generation: OpenAI gpt-4.1 (final response)
+
+Cold path job:
+  trace: "job.process_message" (user_id, tags=["cold_path","job"], meta={parent_chat_trace_id})
+  ├─ span: "cold_path.process"
+  │  ├─ span: "cold_path.extraction"
+  │  │  └─ generation: OpenAI gpt-4.1 (structured output)
+  │  ├─ span: "embedding" (dedup search 1)
+  │  └─ span: "embedding" (dedup search 2)
+```
+
+### No-op when unconfigured
+
+If `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`, or `LANGFUSE_SECRET_KEY` are empty, all `@observe` decorators become no-ops. No performance overhead, no errors. The OpenAI client falls back to plain `openai.AsyncOpenAI` (no instrumentation).
 
 ## PII Scrubbing (`src/telemetry/pii.py`)
 
@@ -62,10 +119,12 @@ Used before sending prompt text to Langfuse to prevent PII from reaching externa
 
 ```
 Request → TraceMiddleware (trace_id) → structlog contextvars
-    → Handler logs with trace_id auto-attached
-    → Langfuse trace created with user_id, session_id
-    → Tool calls logged as spans
+    → @observe creates Langfuse trace with user_id, session_id, tags
+    → Nested @observe calls create child spans
+    → langfuse.openai wrapper auto-traces OpenAI calls
+    → LangChain CallbackHandler traces agent iterations
     → Errors reported to all 3 sinks
+    → flush_langfuse() at stream end
     → Response header: x-trace-id
 ```
 
