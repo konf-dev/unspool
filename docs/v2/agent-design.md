@@ -41,11 +41,13 @@ START → agent → conditional → (tools → agent loop) → END
 
 Searches the user's knowledge graph. Returns nodes with their edges.
 
+- `semantic_query` is **required** — validated in `call_tools` before dispatch. Missing/empty query returns an explicit error to the LLM (not silent empty results).
 - Generates embedding via `gemini-embedding-001` (768d, L2-normalized, task_type=RETRIEVAL_QUERY)
 - pgvector cosine distance search, limit 8
 - Optional edge_type_filter: only returns nodes that have outgoing edges of that type
 - Optional node_type filter: `action`, `concept`, `person`, etc.
 - Returns up to 3 immediate edges per node for context
+- On error: returns `"Error: ..."` string (consistent with mutate_graph)
 
 **Response shape:**
 ```json
@@ -84,6 +86,22 @@ This eliminates:
 - LLM hallucinating wrong user_ids
 - LLM forgetting to pass user_id
 - Security issues with user_id manipulation
+
+### Tool Validation
+
+`call_tools()` validates required arguments **before** dispatching to `_exec` functions:
+
+- `query_graph`: `semantic_query` must be non-empty. Returns explicit error otherwise.
+- `mutate_graph`: `action` and `node_id` must be non-empty. Returns explicit error listing missing params.
+
+All tool errors are returned as `"Error: ..."` strings via `_sanitize_error()`, which translates Python exceptions (UUID parse errors, DB errors, connection timeouts) into LLM-readable messages. The LLM can distinguish errors from empty results and fall back to conversation context.
+
+### Conversation Context Fallback
+
+The system prompt instructs the LLM to use **both** graph memory and conversation history:
+- If `query_graph` returns empty, respond from conversation context (the user may have just mentioned the info)
+- If a tool returns an error, respond from conversation context
+- If graph memory contradicts the conversation, clarify with the user before updating
 
 ### Context Assembly
 
