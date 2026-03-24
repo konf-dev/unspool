@@ -25,7 +25,7 @@ except ImportError:
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000")
 EVAL_API_KEY = os.environ.get("EVAL_API_KEY", "")
 ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY", "")
-EVAL_USER_ID = "eval-smoke-test"
+EVAL_USER_ID = "b8a2e17e-ff55-485f-ad6c-29055a607b33"
 
 # ── Result tracking ──
 
@@ -72,7 +72,7 @@ def eval_auth() -> dict[str, str]:
 
 
 def admin_auth() -> dict[str, str]:
-    return auth_header(f"admin:{ADMIN_API_KEY}")
+    return {"X-Admin-Key": ADMIN_API_KEY}
 
 
 def timed(start: float) -> int:
@@ -95,10 +95,11 @@ async def test_infrastructure(client: httpx.AsyncClient):
     detail = ""
     if ok:
         data = r.json()
-        services = [data.get(s, {}).get("ok", False) for s in ["db", "redis", "qstash", "langfuse"]]
-        ok = all(services)
+        svc = data.get("services", {})
+        statuses = [svc.get(s, {}).get("status") == "ok" for s in ["db", "redis", "qstash", "langfuse"]]
+        ok = all(statuses)
         if not ok:
-            detail = f"services: {data}"
+            detail = f"services: {svc}"
     record("1.2", "Deep health - all services ok", ok, timed(t), detail)
 
 
