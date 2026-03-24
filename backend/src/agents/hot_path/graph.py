@@ -93,22 +93,42 @@ async def call_tools(state: HotPathState):
         try:
             if tool_call["name"] == "query_graph":
                 args = tool_call["args"]
-                result = await _exec_query_graph(
-                    user_id=user_id,
-                    semantic_query=args.get("semantic_query", ""),
-                    edge_type_filter=args.get("edge_type_filter"),
-                    node_type=args.get("node_type"),
-                )
+                semantic_query = args.get("semantic_query")
+                if not semantic_query or not str(semantic_query).strip():
+                    result = (
+                        "Error: semantic_query is required. "
+                        "Describe what to search for, e.g. 'open tasks', 'Mom', 'deadlines'."
+                    )
+                else:
+                    result = await _exec_query_graph(
+                        user_id=user_id,
+                        semantic_query=str(semantic_query).strip(),
+                        edge_type_filter=args.get("edge_type_filter"),
+                        node_type=args.get("node_type"),
+                    )
             elif tool_call["name"] == "mutate_graph":
                 args = tool_call["args"]
-                result = await _exec_mutate_graph(
-                    user_id=user_id,
-                    action=args.get("action", ""),
-                    node_id=args.get("node_id", ""),
-                    value=args.get("value"),
-                    target_node_id=args.get("target_node_id"),
-                    edge_type=args.get("edge_type"),
-                )
+                action = args.get("action")
+                node_id = args.get("node_id")
+                missing = []
+                if not action or not str(action).strip():
+                    missing.append("action")
+                if not node_id or not str(node_id).strip():
+                    missing.append("node_id")
+                if missing:
+                    result = (
+                        f"Error: required parameter(s) missing: {', '.join(missing)}. "
+                        "Use query_graph first to find node IDs."
+                    )
+                else:
+                    result = await _exec_mutate_graph(
+                        user_id=user_id,
+                        action=str(action).strip(),
+                        node_id=str(node_id).strip(),
+                        value=args.get("value"),
+                        target_node_id=args.get("target_node_id"),
+                        edge_type=args.get("edge_type"),
+                    )
             else:
                 result = f"Unknown tool: {tool_call['name']}"
 

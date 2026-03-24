@@ -28,6 +28,18 @@ from langchain_core.tools import tool
 logger = get_logger("hot_path.tools")
 
 
+def _sanitize_error(e: Exception) -> str:
+    """Turn a Python exception into an LLM-readable error string."""
+    msg = str(e)
+    if isinstance(e, ValueError) and "UUID" in msg:
+        return "Error: invalid node ID format. Use a valid UUID from query_graph results."
+    if isinstance(e, ValueError):
+        return f"Error: invalid argument — {msg}"
+    if "connection" in msg.lower() or "timeout" in msg.lower():
+        return "Error: database temporarily unavailable. Try again."
+    return f"Error: {msg}"
+
+
 @tool
 async def query_graph(
     semantic_query: str,
@@ -73,7 +85,8 @@ async def _exec_query_graph(
     semantic_query: str,
     edge_type_filter: str | None = None,
     node_type: str | None = None,
-) -> list[dict[str, Any]]:
+) -> list[dict[str, Any]] | str:
+    """Returns list of node dicts on success, or an error string on failure."""
     try:
         user_uuid = uuid.UUID(user_id)
         embedding = await get_embedding(semantic_query, task_type="RETRIEVAL_QUERY")
@@ -123,7 +136,7 @@ async def _exec_query_graph(
             return results
     except Exception as e:
         logger.error("query_graph.failed", error=str(e), exc_info=True)
-        return [{"error": str(e)}]
+        return _sanitize_error(e)
 
 
 async def _exec_mutate_graph(
@@ -186,4 +199,4 @@ async def _exec_mutate_graph(
 
     except Exception as e:
         logger.error("mutate_graph.failed", error=str(e), exc_info=True)
-        return f"Error: {str(e)}"
+        return _sanitize_error(e)
