@@ -64,8 +64,8 @@ data: {"type": "done"}
 2. Sync timezone to profile (if provided)
 3. Persist user message as `MessageReceived` event
 4. Assemble context in parallel: profile, last 20 messages, graph semantic search, 72h deadlines
-5. Stream LangGraph hot path (Gemini model with query_graph + mutate_graph tools, max 5 iterations)
-6. Strip `<thought>` blocks from output
+5. Stream LangGraph hot path token-by-token via `astream_events` (Gemini model with query_graph + mutate_graph tools, max 5 iterations)
+6. Filter `<thought>` blocks from streamed tokens
 7. Persist assistant response as `AgentReplied` event
 8. Dispatch cold path extraction via QStash (5s delay)
 9. On timeout (60s) or error: send graceful error message, still persist
