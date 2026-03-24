@@ -66,6 +66,8 @@ async def get_embedding(
             - "SEMANTIC_SIMILARITY" when comparing content (dedup matching)
             See: https://ai.google.dev/gemini-api/docs/embeddings
     """
+    if not text or not text.strip():
+        raise ValueError("Cannot embed empty text")
     settings = get_settings()
     client = get_gemini_client()
     result = await client.aio.models.embed_content(
@@ -91,14 +93,24 @@ async def get_embeddings_batch(
     """
     if not texts:
         return []
+    # Filter out empty strings — Gemini rejects empty Parts
+    valid_indices = [i for i, t in enumerate(texts) if t and t.strip()]
+    valid_texts = [texts[i] for i in valid_indices]
+    if not valid_texts:
+        return [[] for _ in texts]
     settings = get_settings()
     client = get_gemini_client()
     result = await client.aio.models.embed_content(
         model=settings.EMBEDDING_MODEL,
-        contents=texts,
+        contents=valid_texts,
         config=types.EmbedContentConfig(
             task_type=task_type,
             output_dimensionality=settings.EMBEDDING_DIMENSIONS,
         ),
     )
-    return [_l2_normalize(list(e.values)) for e in result.embeddings]
+    valid_embeddings = [_l2_normalize(list(e.values)) for e in result.embeddings]
+    # Reconstruct full list with empty lists for filtered-out texts
+    out: list[list[float]] = [[] for _ in texts]
+    for idx, emb in zip(valid_indices, valid_embeddings):
+        out[idx] = emb
+    return out

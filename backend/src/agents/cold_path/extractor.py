@@ -228,6 +228,8 @@ async def process_brain_dump(
         nodes_to_embed_types: list[str] = []
 
         for enode in extraction.nodes:
+            if not enode.content or not enode.content.strip():
+                continue
             existing_node = await _find_semantic_match(
                 session, user_id, enode.content, enode.node_type,
             )

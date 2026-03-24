@@ -97,13 +97,27 @@ async def get_user_profile(user_id: str) -> dict[str, Any]:
 
 @router.patch("/user/{user_id}/profile")
 async def patch_user_profile(user_id: str, body: dict[str, Any]) -> dict[str, str]:
+    import uuid as _uuid
+    from datetime import datetime as _dt
     from fastapi import HTTPException as _HTTPException
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from src.core.models import UserProfile
     from src.db.queries import update_profile
     allowed = {"last_interaction_at", "last_proactive_at", "timezone", "display_name",
-               "tone_preference", "length_preference", "pushiness_preference"}
+               "tone_preference", "length_preference", "pushiness_preference", "feed_token"}
+    datetime_fields = {"last_interaction_at", "last_proactive_at"}
     fields = {k: v for k, v in body.items() if k in allowed}
     if not fields:
         raise _HTTPException(status_code=422, detail="No valid fields provided")
+    # Parse datetime strings into datetime objects
+    for key in datetime_fields:
+        if key in fields and isinstance(fields[key], str):
+            fields[key] = _dt.fromisoformat(fields[key])
+    # Ensure profile exists (upsert) before updating
+    async with AsyncSessionLocal() as session:
+        stmt = pg_insert(UserProfile).values(id=_uuid.UUID(user_id)).on_conflict_do_nothing()
+        await session.execute(stmt)
+        await session.commit()
     await update_profile(user_id, **fields)
     return {"status": "updated"}
 
