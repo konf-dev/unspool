@@ -24,6 +24,7 @@ LANGFUSE_HOST = os.environ.get("LANGFUSE_HOST", "")
 LANGFUSE_PUBLIC_KEY = os.environ.get("LANGFUSE_PUBLIC_KEY", "")
 LANGFUSE_SECRET_KEY = os.environ.get("LANGFUSE_SECRET_KEY", "")
 OPENAI_API_KEY = os.environ.get("LLM_API_KEY", os.environ.get("OPENAI_API_KEY", ""))
+OPENAI_BASE_URL = os.environ.get("LLM_BASE_URL", os.environ.get("OPENAI_BASE_URL", ""))
 JUDGE_MODEL = os.environ.get("JUDGE_MODEL", "gpt-4.1")
 
 # ── Langfuse API helpers ──
@@ -87,7 +88,10 @@ def judge(rubric: str, user_input: str, output: str) -> tuple[float, str]:
     except ImportError:
         sys.exit("openai package required: pip install openai")
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    client_kwargs: dict[str, Any] = {"api_key": OPENAI_API_KEY}
+    if OPENAI_BASE_URL:
+        client_kwargs["base_url"] = OPENAI_BASE_URL
+    client = OpenAI(**client_kwargs)
 
     system = """You are an expert evaluator for an ADHD task management chatbot called Unspool.
 Score the assistant's response on the given rubric. Return JSON with:
