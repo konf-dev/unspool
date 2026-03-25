@@ -217,4 +217,11 @@ export async function fetchMessages(
     .reverse()
 }
 
+export async function deleteAccount(token: string): Promise<Response> {
+  return fetch(`${getApiUrl()}/api/account`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
 export { getApiUrl }

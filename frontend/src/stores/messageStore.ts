@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Message, ActionButton } from '@/types'
-import { sendMessage as apiSendMessage, fetchMessages as apiFetchMessages } from '@/lib/api'
+import { sendMessage as apiSendMessage, fetchMessages as apiFetchMessages, deleteAccount } from '@/lib/api'
 import { useAuthStore } from '@/stores/authStore'
 import { usePlateStore } from '@/stores/plateStore'
 import { parseInlineActions } from '@/lib/parseActions'
@@ -57,7 +57,7 @@ interface MessageStore {
   sendMessage: (content: string, token: string) => void
   stopStreaming: () => void
   fetchHistory: (token: string, before?: string) => Promise<void>
-  handleAction: (action: ActionButton, token: string) => void
+  handleAction: (action: ActionButton, token: string) => void | Promise<void>
   flushQueue: (token: string) => void
 }
 
@@ -303,7 +303,22 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
     }
   },
 
-  handleAction: (action: ActionButton, token: string) => {
+  handleAction: async (action: ActionButton, token: string) => {
+    if (action.value === 'delete_account') {
+      try {
+        const response = await deleteAccount(token)
+        if (response.ok) {
+          await useAuthStore.getState().signOut()
+        }
+      } catch {
+        // Deletion failed — let user try again
+      }
+      return
+    }
+    if (action.value === 'cancel') {
+      // No-op — just dismiss the action buttons
+      return
+    }
     get().sendMessage(action.value, token)
   },
 

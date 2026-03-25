@@ -6,7 +6,7 @@ user_id is NOT a tool parameter — it's injected from LangGraph state in call_t
 import uuid
 from typing import Any
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 
 from src.core.database import AsyncSessionLocal
 from src.core.graph import (
@@ -42,16 +42,18 @@ def _sanitize_error(e: Exception) -> str:
 
 @tool
 async def query_graph(
-    semantic_query: str,
+    semantic_query: str | None = None,
     edge_type_filter: str | None = None,
     node_type: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Searches the user's memory graph for nodes matching the query.
+    """Searches the user's memory graph.
 
     Args:
-        semantic_query: The concept or task to search for (e.g., 'Mom', 'Thesis deadlines').
-        edge_type_filter: Optional. Only returns nodes with this edge type (e.g. 'HAS_DEADLINE', 'IS_STATUS').
-        node_type: Optional. Filter by node type (e.g. 'action', 'concept', 'person').
+        semantic_query: Optional search term. If omitted, returns all matching nodes.
+        edge_type_filter: Filter by edge type (e.g. 'HAS_DEADLINE', 'IS_STATUS').
+        node_type: Filter by node type (e.g. 'action', 'concept', 'person').
+
+    At least one of semantic_query, edge_type_filter, or node_type must be provided.
     """
     # user_id will be injected by call_tools — this is a placeholder
     raise RuntimeError("query_graph must be called via call_tools with user_id injection")
@@ -82,23 +84,36 @@ async def mutate_graph(
 
 async def _exec_query_graph(
     user_id: str,
-    semantic_query: str,
+    semantic_query: str | None = None,
     edge_type_filter: str | None = None,
     node_type: str | None = None,
 ) -> list[dict[str, Any]] | str:
     """Returns list of node dicts on success, or an error string on failure."""
     try:
+        if not semantic_query and not edge_type_filter and not node_type:
+            return "Error: provide at least one of semantic_query, edge_type_filter, or node_type."
+
         user_uuid = uuid.UUID(user_id)
-        embedding = await get_embedding(semantic_query, task_type="RETRIEVAL_QUERY")
 
         async with AsyncSessionLocal() as session:
-            nodes = await search_nodes_semantic(
-                session, user_uuid, embedding, limit=8, node_type=node_type,
-            )
+            if semantic_query:
+                # Semantic search path
+                embedding = await get_embedding(semantic_query, task_type="RETRIEVAL_QUERY")
+                nodes = await search_nodes_semantic(
+                    session, user_uuid, embedding, limit=8, node_type=node_type,
+                )
+            else:
+                # Structural query — no embedding API call needed
+                nodes = await search_nodes_by_edge_structure(
+                    session, user_uuid,
+                    edge_type=edge_type_filter,
+                    node_type=node_type,
+                )
 
             results = []
             for node in nodes:
-                if edge_type_filter:
+                if semantic_query and edge_type_filter:
+                    # Post-filter semantic results by edge type
                     stmt = select(GraphEdge).where(
                         and_(
                             GraphEdge.user_id == user_uuid,
@@ -126,20 +141,42 @@ async def _exec_query_graph(
                     )).scalars().all()
                     target_map = {t.id: t.content for t in target_nodes}
 
-                edge_info = []
+                # Build humanized edge descriptions
+                edge_details = []
                 for e in node_edges:
-                    edge_info.append({
-                        "type": e.edge_type,
-                        "target": target_map.get(e.target_node_id, "?"),
-                        "metadata": e.metadata_,
-                    })
+                    target_content = target_map.get(e.target_node_id, "")
+                    if e.edge_type == "IS_STATUS" and target_content:
+                        edge_details.append(f"status: {target_content.lower()}")
+                    elif e.edge_type == "HAS_DEADLINE":
+                        date = (e.metadata_ or {}).get("date", "")
+                        edge_details.append(f"due: {date[:10]}" if date else "has deadline")
+                    elif e.edge_type == "TRACKS_METRIC":
+                        val = (e.metadata_ or {}).get("value", "")
+                        unit = (e.metadata_ or {}).get("unit", "")
+                        edge_details.append(f"{val} {unit}".strip() if val else "tracked")
+                    elif e.edge_type == "DEPENDS_ON" and target_content:
+                        edge_details.append(f"depends on: {target_content}")
+                    elif e.edge_type == "PART_OF" and target_content:
+                        edge_details.append(f"part of: {target_content}")
+                    elif target_content:
+                        edge_details.append(f"related: {target_content}")
 
                 results.append({
                     "id": str(node.id),
-                    "content": node.content,
-                    "type": node.node_type,
-                    "edges": edge_info,
+                    "item": node.content,
+                    "kind": node.node_type,
+                    "details": ", ".join(edge_details) if edge_details else None,
                 })
+
+            if not results:
+                # Helpful empty-result message
+                total_stmt = select(func.count(GraphNode.id)).where(
+                    GraphNode.user_id == user_uuid
+                )
+                total = (await session.execute(total_stmt)).scalar() or 0
+                if total == 0:
+                    return "Nothing tracked yet."
+                return f"Nothing matching that search. You have {total} items tracked."
 
             return results
     except Exception as e:
