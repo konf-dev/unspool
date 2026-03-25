@@ -307,16 +307,19 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
     if (action.value === 'delete_account') {
       try {
         const response = await deleteAccount(token)
-        if (response.ok) {
-          await useAuthStore.getState().signOut()
+        if (!response.ok) {
+          const body = await response.text()
+          console.error('Account deletion failed:', response.status, body)
+          return
         }
-      } catch {
-        // Deletion failed — let user try again
+        // Data deleted — now sign out (token is still valid until signOut)
+        useAuthStore.getState().signOut()
+      } catch (err) {
+        console.error('Account deletion error:', err)
       }
       return
     }
     if (action.value === 'cancel') {
-      // No-op — just dismiss the action buttons
       return
     }
     get().sendMessage(action.value, token)
