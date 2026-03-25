@@ -51,8 +51,13 @@ export function InputBar({ onSend, onStop, isStreaming, disabled }: InputBarProp
     textareaRef.current?.focus()
   }, [value, isStreaming, disabled, onSend, clearTranscript])
 
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    setIsMobile(window.matchMedia('(pointer: coarse)').matches)
+  }, [])
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isMobile) {
       e.preventDefault()
       handleSend()
     }

@@ -232,6 +232,18 @@ async def chat(
                     metadata["partial"] = True
 
                 try:
+                    from src.db.queries import get_plate_items
+                    plate_items = await get_plate_items(user_id)
+                    metadata["plate"] = {
+                        "items": [
+                            {"id": p["node_id"], "content": p["content"], "deadline": p.get("deadline")}
+                            for p in plate_items
+                        ]
+                    }
+                except Exception:
+                    pass  # Plate failure should never break chat
+
+                try:
                     async with AsyncSessionLocal() as session:
                         await append_message_event(
                             session, user_id, "assistant", full_response, metadata,

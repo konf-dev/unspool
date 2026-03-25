@@ -111,7 +111,7 @@ export default async function handler(req: Request): Promise<Response> {
 
   // Use Gemini Flash via OpenAI-compatible endpoint (cheapest option)
   const baseUrl = process.env.DEMO_LLM_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai'
-  const model = process.env.DEMO_LLM_MODEL || 'gemini-2.0-flash-lite'
+  const model = process.env.DEMO_LLM_MODEL || 'gemini-2.5-flash'
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',

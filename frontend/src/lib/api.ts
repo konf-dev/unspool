@@ -33,30 +33,32 @@ function mapToSSEEvent(parsed: Record<string, unknown>): ParsedSSEEvent {
 }
 
 export function parseSSEEvents(data: string): ParsedSSEEvent[] {
-  const events: ParsedSSEEvent[] = []
-
   try {
     const parsed = JSON.parse(data) as Record<string, unknown>
-    events.push(mapToSSEEvent(parsed))
-    return events
+    return [mapToSSEEvent(parsed)]
   } catch {
-    const parts = data.split('}\n\n{')
-    if (parts.length > 1) {
-      for (let i = 0; i < parts.length; i++) {
-        let p = parts[i] as string
-        if (i > 0) p = '{' + p
-        if (i < parts.length - 1) p = p + '}'
-        try {
-          events.push(mapToSSEEvent(JSON.parse(p) as Record<string, unknown>))
-        } catch {
-          // ignore malformed
+    // data may contain multiple concatenated JSON objects — parse each one
+    const events: ParsedSSEEvent[] = []
+    let depth = 0
+    let start = -1
+    for (let i = 0; i < data.length; i++) {
+      if (data[i] === '{') {
+        if (depth === 0) start = i
+        depth++
+      } else if (data[i] === '}') {
+        depth--
+        if (depth === 0 && start >= 0) {
+          try {
+            events.push(mapToSSEEvent(JSON.parse(data.slice(start, i + 1)) as Record<string, unknown>))
+          } catch {
+            // skip malformed fragment
+          }
+          start = -1
         }
       }
-      return events
     }
+    return events.length > 0 ? events : [{ type: 'unknown' }]
   }
-
-  return [{ type: 'unknown' }]
 }
 
 export function sendMessage(
@@ -193,6 +195,18 @@ export async function fetchMessages(
       metadata: msg.metadata ?? undefined,
     }))
     .reverse()
+}
+
+export async function fetchLatestPlate(
+  token: string,
+): Promise<{ items: Array<{ id: string; content: string; deadline?: string }> } | null> {
+  // Fetch just the latest message to extract plate metadata
+  const messages = await fetchMessages(token, 1)
+  const latest = messages[messages.length - 1]
+  if (latest?.metadata?.plate) {
+    return latest.metadata.plate as { items: Array<{ id: string; content: string; deadline?: string }> }
+  }
+  return null
 }
 
 export { getApiUrl }
