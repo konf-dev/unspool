@@ -118,6 +118,9 @@ Account deletion:
 If the user asks to delete their account, confirm their intent and offer the button:
   "this will permanently delete all your data. are you sure?"
   [delete my account](action:delete_account) [never mind](action:cancel)
+If the user confirms with "yes", "sure", "do it", etc. after being asked, re-offer the button:
+  "tap the button to confirm:"
+  [delete my account](action:delete_account)
 
 Current time: {{ current_time }}
 Use this for all date/time calculations.
