@@ -47,8 +47,11 @@ export function LoginScreen() {
     }
   }
 
+  // #7: Use ref to prevent double-submit (state updates are async, ref is synchronous)
+  const isVerifyingRef = useRef(false)
   const handleVerify = useCallback(async (code: string) => {
-    if (code.length !== OTP_LENGTH || isVerifying) return
+    if (code.length !== OTP_LENGTH || isVerifyingRef.current) return
+    isVerifyingRef.current = true
     setError('')
     setIsVerifying(true)
 
@@ -62,9 +65,10 @@ export function LoginScreen() {
       otpInputRef.current?.focus()
       console.error(err)
     } finally {
+      isVerifyingRef.current = false
       setIsVerifying(false)
     }
-  }, [email, isVerifying, verifyOtp])
+  }, [email, verifyOtp])
 
   const handleOtpChange = (value: string) => {
     // Only allow digits

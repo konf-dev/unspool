@@ -46,7 +46,7 @@ export function useVoice(): UseVoiceReturn {
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const intentionalStopRef = useRef(false)
 
-  const isSupported = getSpeechRecognition() !== null
+  const [isSupported] = useState(() => getSpeechRecognition() !== null)
 
   const clearSilenceTimer = useCallback(() => {
     if (silenceTimerRef.current !== null) {

@@ -31,6 +31,15 @@ export function PlateOverlay() {
   const isEmpty = items.length === 0 && !summary
 
   return (
+    <>
+    {/* #9: Backdrop to close plate on tap */}
+    {isOpen && (
+      <div
+        className="fixed inset-0 z-[49]"
+        onClick={() => setOpen(false)}
+        aria-hidden="true"
+      />
+    )}
     <motion.div
       className="fixed left-0 right-0 z-50 flex flex-col items-center touch-none"
       drag="y"
@@ -70,5 +79,6 @@ export function PlateOverlay() {
         <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-primary/5 rounded-full blur-[80px] pointer-events-none" />
       </motion.div>
     </motion.div>
+    </>
   )
 }

@@ -1,30 +1,44 @@
 import { create } from 'zustand'
 import type { Message, ActionButton } from '@/types'
 import { sendMessage as apiSendMessage, fetchMessages as apiFetchMessages, fetchLatestPlate } from '@/lib/api'
+import { useAuthStore } from '@/stores/authStore'
 import { usePlateStore } from '@/stores/plateStore'
 import { parseInlineActions } from '@/lib/parseActions'
 
 const SESSION_KEY = 'unspool-session-id'
 const QUEUE_KEY = 'unspool-queue'
 
+function safeGetItem(key: string): string | null {
+  try { return localStorage.getItem(key) } catch { return null }
+}
+
+function safeSetItem(key: string, value: string): void {
+  try { localStorage.setItem(key, value) } catch { /* quota exceeded in Safari private */ }
+}
+
 function getSessionId(): string {
-  let id = localStorage.getItem(SESSION_KEY)
+  let id = safeGetItem(SESSION_KEY)
   if (!id) {
     id = crypto.randomUUID()
-    localStorage.setItem(SESSION_KEY, id)
+    safeSetItem(SESSION_KEY, id)
   }
   return id
 }
 
 function loadQueue(): Array<{ id: string; content: string }> {
   try {
-    return JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '[]') as Array<{
+    return JSON.parse(safeGetItem(QUEUE_KEY) ?? '[]') as Array<{
       id: string
       content: string
     }>
   } catch {
     return []
   }
+}
+
+/** Read the freshest auth token — avoids stale closures. */
+function getFreshToken(): string | null {
+  return useAuthStore.getState().token
 }
 
 interface MessageStore {
@@ -38,6 +52,7 @@ interface MessageStore {
   hasMore: boolean
   _abortController: AbortController | null
   _isFetching: boolean
+  _streamAborted: boolean
 
   sendMessage: (content: string, token: string) => void
   stopStreaming: () => void
@@ -57,6 +72,7 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
   hasMore: true,
   _abortController: null,
   _isFetching: false,
+  _streamAborted: false,
 
   sendMessage: (content: string, token: string) => {
     if (get().isStreaming) return // Prevent concurrent sends
@@ -77,11 +93,12 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
       streamingContent: '',
       pendingActions: null,
       toolStatus: null,
+      _streamAborted: false,
     }))
 
     if (!navigator.onLine) {
       const queue = [...get().queue, { id, content }]
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(queue))
+      safeSetItem(QUEUE_KEY, JSON.stringify(queue))
       set((state) => ({
         queue,
         isThinking: false,
@@ -102,10 +119,15 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
       token,
       (tokenStr: string) => {
         accumulated += tokenStr
+        // #6: Check abort flag before scheduling RAF
+        if (get()._streamAborted) return
         if (rafId === null) {
           rafId = requestAnimationFrame(() => {
-            set({ streamingContent: accumulated, isThinking: false })
             rafId = null
+            // #6: Double-check abort flag inside RAF callback
+            if (!get()._streamAborted) {
+              set({ streamingContent: accumulated, isThinking: false })
+            }
           })
         }
       },
@@ -143,8 +165,11 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
 
         // Refresh plate data from the persisted message metadata.
         // Delay slightly — the backend's finally block may not have committed yet.
-        void new Promise((r) => setTimeout(r, 1500)).then(() =>
-          fetchLatestPlate(token).then((plate) => {
+        // #1: Use fresh token to avoid stale closure
+        void new Promise((r) => setTimeout(r, 1500)).then(() => {
+          const freshToken = getFreshToken()
+          if (!freshToken) return
+          return fetchLatestPlate(freshToken).then((plate) => {
             if (plate?.items) {
               usePlateStore.getState().setPlate(
                 plate.items.map((p) => ({
@@ -157,7 +182,17 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
               )
             }
           }).catch(() => {})
-        )
+        })
+
+        // #3: After stream completes, flush next queued message if any
+        const queue = get().queue
+        if (queue.length > 0) {
+          const freshToken = getFreshToken()
+          if (freshToken) {
+            // Small delay to avoid back-to-back sends
+            setTimeout(() => get().flushQueue(freshToken), 500)
+          }
+        }
       },
       (err: unknown) => {
         if (rafId !== null) cancelAnimationFrame(rafId)
@@ -191,6 +226,9 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
   },
 
   stopStreaming: () => {
+    // #6: Set abort flag so pending RAF callbacks are no-ops
+    set({ _streamAborted: true })
+
     const controller = get()._abortController
     if (controller) controller.abort()
 
@@ -229,10 +267,21 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
         set({ hasMore: false })
         return
       }
-      set((state) => ({
-        messages: before ? [...messages, ...state.messages] : messages,
-        hasMore: messages.length >= 50,
-      }))
+      set((state) => {
+        if (before) {
+          // #11: Deduplicate by id when prepending paginated results
+          const existingIds = new Set(state.messages.map((m) => m.id))
+          const newMessages = messages.filter((m) => !existingIds.has(m.id))
+          return {
+            messages: [...newMessages, ...state.messages],
+            hasMore: messages.length >= 50,
+          }
+        }
+        return {
+          messages,
+          hasMore: messages.length >= 50,
+        }
+      })
     } finally {
       set({ _isFetching: false })
     }
@@ -250,7 +299,7 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
     if (!next) return
 
     const remaining = queue.slice(1)
-    localStorage.setItem(QUEUE_KEY, JSON.stringify(remaining))
+    safeSetItem(QUEUE_KEY, JSON.stringify(remaining))
     set({ queue: remaining })
 
     get().sendMessage(next.content, token)

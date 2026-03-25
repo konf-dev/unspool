@@ -14,7 +14,9 @@ interface InputBarProps {
 }
 
 export function InputBar({ onSend, onStop, isStreaming, disabled }: InputBarProps) {
-  const [value, setValue] = useState(() => localStorage.getItem(DRAFT_KEY) ?? '')
+  const [value, setValue] = useState(() => {
+    try { return localStorage.getItem(DRAFT_KEY) ?? '' } catch { return '' }
+  })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { isRecording, isSupported, transcript, startRecording, stopRecording, clearTranscript } =
@@ -32,7 +34,7 @@ export function InputBar({ onSend, onStop, isStreaming, disabled }: InputBarProp
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current)
     if (!value) return // Don't save empty string over a cleared draft
     draftTimerRef.current = setTimeout(() => {
-      localStorage.setItem(DRAFT_KEY, value)
+      try { localStorage.setItem(DRAFT_KEY, value) } catch { /* ignore */ }
     }, 500)
     return () => {
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current)
@@ -47,13 +49,17 @@ export function InputBar({ onSend, onStop, isStreaming, disabled }: InputBarProp
     onSend(trimmed)
     setValue('')
     clearTranscript()
-    localStorage.removeItem(DRAFT_KEY)
+    try { localStorage.removeItem(DRAFT_KEY) } catch { /* ignore */ }
     textareaRef.current?.focus()
   }, [value, isStreaming, disabled, onSend, clearTranscript])
 
-  const [isMobile, setIsMobile] = useState(false)
+  // #16: React to input mode changes (e.g. tablet with keyboard dock)
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(pointer: coarse)').matches)
   useEffect(() => {
-    setIsMobile(window.matchMedia('(pointer: coarse)').matches)
+    const mq = window.matchMedia('(pointer: coarse)')
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
   }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

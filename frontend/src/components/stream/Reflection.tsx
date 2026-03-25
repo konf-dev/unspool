@@ -27,6 +27,7 @@ export const Reflection = memo(function Reflection({ message, onAction }: Reflec
         <Markdown
           options={{
             forceBlock: true,
+            disableParsingRawHTML: true,
             overrides: {
               p: { props: { className: 'mb-2 last:mb-0' } },
               ul: { props: { className: 'flex flex-col gap-2 mb-2' } },

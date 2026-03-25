@@ -22,9 +22,9 @@ function detectIOS(): boolean {
 export function usePWAInstall(messageCount: number): UsePWAInstallReturn {
   const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null)
   const [canPrompt, setCanPrompt] = useState(false)
-  const [isDismissed, setIsDismissed] = useState(
-    () => localStorage.getItem(DISMISS_KEY) === 'true',
-  )
+  const [isDismissed, setIsDismissed] = useState(() => {
+    try { return localStorage.getItem(DISMISS_KEY) === 'true' } catch { return false }
+  })
   const isIOS = useRef(detectIOS()).current
   const prevMessageCountRef = useRef(messageCount)
 
@@ -38,16 +38,20 @@ export function usePWAInstall(messageCount: number): UsePWAInstallReturn {
     return () => window.removeEventListener('beforeinstallprompt', handler)
   }, [])
 
+  // #10: Track interaction count in state instead of reading localStorage every render
+  const [interactionCount, setInteractionCount] = useState(() => {
+    try { return parseInt(localStorage.getItem(INTERACTION_KEY) ?? '0', 10) } catch { return 0 }
+  })
   useEffect(() => {
     if (messageCount > prevMessageCountRef.current) {
       const newInteractions = messageCount - prevMessageCountRef.current
       prevMessageCountRef.current = messageCount
-      const current = parseInt(localStorage.getItem(INTERACTION_KEY) ?? '0', 10)
-      localStorage.setItem(INTERACTION_KEY, String(current + newInteractions))
+      const updated = interactionCount + newInteractions
+      setInteractionCount(updated)
+      try { localStorage.setItem(INTERACTION_KEY, String(updated)) } catch { /* ignore */ }
     }
-  }, [messageCount])
+  }, [messageCount, interactionCount])
 
-  const interactionCount = parseInt(localStorage.getItem(INTERACTION_KEY) ?? '0', 10)
   const showPrompt = (canPrompt || isIOS) && interactionCount >= 3 && !isDismissed
 
   const triggerInstall = useCallback(async () => {
@@ -59,7 +63,7 @@ export function usePWAInstall(messageCount: number): UsePWAInstallReturn {
   }, [])
 
   const dismiss = useCallback(() => {
-    localStorage.setItem(DISMISS_KEY, 'true')
+    try { localStorage.setItem(DISMISS_KEY, 'true') } catch { /* ignore */ }
     setIsDismissed(true)
   }, [])
 

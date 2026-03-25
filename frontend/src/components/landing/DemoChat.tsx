@@ -115,9 +115,9 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
   return (
     <div className="w-full">
       <div className="bg-surface-container-high rounded-xl p-6 shadow-[0_20px_40px_rgba(0,0,0,0.4)] text-left flex flex-col gap-6 ring-1 ring-outline-variant/10">
-        <div className="space-y-6 min-h-[280px] max-h-64 overflow-y-auto no-scrollbar">
+        <div className="space-y-6 min-h-[200px] max-h-[280px] overflow-y-auto no-scrollbar">
           {messages.map((msg, i) => (
-            <div key={i} className="animate-fade-in">
+            <div key={`${msg.role}-${i}`} className="animate-fade-in">
               <DemoMessage role={msg.role} content={msg.content} />
             </div>
           ))}
