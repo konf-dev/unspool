@@ -104,9 +104,10 @@ async def _merge_duplicates(session: AsyncSession, user_id: uuid.UUID) -> int:
         if node.id in merged_ids:
             continue
 
-        # Find similar nodes
+        # Find similar nodes (max_distance=0.15 ≈ cosine similarity >= 0.85)
         similar = await search_nodes_semantic(
             session, user_id, node.embedding, limit=5, node_type=node.node_type,
+            max_distance=0.15,
         )
 
         for candidate in similar:

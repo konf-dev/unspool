@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react'
+import { useCallback } from 'react'
 import { useChat } from '@/hooks/useChat'
 import { usePush } from '@/hooks/usePush'
 import { useAuthStore } from '@/stores/authStore'
@@ -31,16 +31,6 @@ export function StreamPage() {
     onAction,
   } = useChat()
   const plateIsOpen = usePlateStore((s) => s.isOpen)
-  const updatePlate = usePlateStore((s) => s.updateFromMessages)
-
-  // Sync plate data from messages when they change
-  // NOTE: Requires backend to include `metadata.plate` on reflection messages.
-  // Until that backend change lands, the Plate will remain empty.
-  useEffect(() => {
-    if (messages.length > 0) {
-      updatePlate(messages)
-    }
-  }, [messages, updatePlate])
 
   // Push notifications after 6+ messages
   usePush(token ?? '', messages.filter((m) => m.role === 'user').length)

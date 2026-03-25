@@ -112,17 +112,25 @@ async def _exec_query_graph(
 
                 # Get immediate edges (up to 3) for context
                 edge_stmt = select(GraphEdge).where(
-                    GraphEdge.source_node_id == node.id
+                    GraphEdge.user_id == user_uuid,
+                    GraphEdge.source_node_id == node.id,
                 ).limit(3)
                 node_edges = (await session.execute(edge_stmt)).scalars().all()
 
+                # Batch-fetch all target nodes to avoid N+1
+                target_ids = [e.target_node_id for e in node_edges]
+                target_map: dict[uuid.UUID, str] = {}
+                if target_ids:
+                    target_nodes = (await session.execute(
+                        select(GraphNode).where(GraphNode.id.in_(target_ids))
+                    )).scalars().all()
+                    target_map = {t.id: t.content for t in target_nodes}
+
                 edge_info = []
                 for e in node_edges:
-                    target = await session.get(GraphNode, e.target_node_id)
-                    target_content = target.content if target else "?"
                     edge_info.append({
                         "type": e.edge_type,
-                        "target": target_content,
+                        "target": target_map.get(e.target_node_id, "?"),
                         "metadata": e.metadata_,
                     })
 

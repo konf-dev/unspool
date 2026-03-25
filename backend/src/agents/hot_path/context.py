@@ -66,7 +66,7 @@ async def assemble_context(
                 all_edges = []
                 for node in nodes[:3]:
                     neighborhood_nodes, neighborhood_edges = await get_node_neighborhood(
-                        session, node.id, hops=1
+                        session, node.id, user_id=uuid.UUID(user_id), hops=1
                     )
                     all_node_ids.update(n.id for n in neighborhood_nodes)
                     all_edges.extend(neighborhood_edges)

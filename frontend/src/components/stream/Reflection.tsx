@@ -10,13 +10,21 @@ interface ReflectionProps {
 
 export const Reflection = memo(function Reflection({ message, onAction }: ReflectionProps) {
   const isError = message.metadata?.type === 'error'
-  const isProactive = message.metadata?.type === 'proactive'
+  const proactiveTrigger = message.metadata?.type === 'proactive' ? (message.metadata?.trigger as string) : null
 
   return (
     <div className="pl-6 animate-fade-in border-l-2 border-primary/10">
-      {isProactive && (
+      {proactiveTrigger && (
         <span className="text-[10px] tracking-wider text-primary/50 uppercase mb-1 block">
-          welcome back
+          {proactiveTrigger === 'welcome_back' || proactiveTrigger === 'long_absence'
+            ? 'welcome back'
+            : proactiveTrigger === 'deadline_imminent'
+              ? 'heads up'
+              : proactiveTrigger === 'something_slipped'
+                ? 'gentle nudge'
+                : proactiveTrigger === 'momentum'
+                  ? 'nice streak'
+                  : ''}
         </span>
       )}
       <div

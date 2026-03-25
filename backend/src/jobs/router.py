@@ -138,13 +138,17 @@ async def process_message(request: ProcessMessageRequest) -> dict:
         metadata={"parent_chat_trace_id": request.trace_id} if request.trace_id else None,
     ):
         from src.agents.cold_path.extractor import process_brain_dump
+        from src.db.queries import get_profile
 
         try:
+            profile = await get_profile(request.user_id)
+            user_tz = (profile.get("timezone") if profile else None) or "UTC"
+
             await process_brain_dump(
                 user_id=uuid.UUID(request.user_id),
                 raw_message=request.message,
                 current_time_iso=datetime.now(timezone.utc).isoformat(),
-                timezone="UTC",
+                timezone=user_tz,
                 trace_id=trace_id,
             )
             result = {"status": "processed"}

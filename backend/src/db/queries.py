@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import select, text, update, delete, func, and_
+from sqlalchemy import select, text, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import AsyncSessionLocal
@@ -105,10 +105,15 @@ async def get_profile(user_id: str) -> dict[str, Any] | None:
 
 async def update_profile(user_id: str, **fields: Any) -> None:
     async with AsyncSessionLocal() as session:
-        stmt = update(UserProfile).where(
-            UserProfile.id == uuid.UUID(user_id)
-        ).values(**fields)
-        await session.execute(stmt)
+        result = await session.execute(
+            update(UserProfile).where(
+                UserProfile.id == uuid.UUID(user_id)
+            ).values(**fields)
+        )
+        if result.rowcount == 0:
+            # Profile doesn't exist yet — create it with the given fields
+            profile = UserProfile(id=uuid.UUID(user_id), **fields)
+            session.add(profile)
         await session.commit()
 
 
@@ -142,14 +147,18 @@ async def create_subscription(
     stripe_subscription_id: str,
 ) -> None:
     async with AsyncSessionLocal() as session:
-        sub = Subscription(
-            user_id=uuid.UUID(user_id),
-            tier=tier,
-            stripe_customer_id=stripe_customer_id,
-            stripe_subscription_id=stripe_subscription_id,
-            status="active",
+        await session.execute(
+            text("""
+                INSERT INTO subscriptions (user_id, tier, stripe_customer_id, stripe_subscription_id, status)
+                VALUES (CAST(:uid AS uuid), :tier, :cid, :sid, 'active')
+                ON CONFLICT (user_id) DO UPDATE SET
+                    tier = EXCLUDED.tier,
+                    stripe_customer_id = EXCLUDED.stripe_customer_id,
+                    stripe_subscription_id = EXCLUDED.stripe_subscription_id,
+                    status = 'active'
+            """),
+            {"uid": user_id, "tier": tier, "cid": stripe_customer_id, "sid": stripe_subscription_id},
         )
-        session.add(sub)
         await session.commit()
 
 
@@ -294,24 +303,22 @@ async def get_pending_actions() -> list[dict[str, Any]]:
 
 
 async def claim_action(action_id: str) -> dict[str, Any] | None:
+    """Atomically claim a pending action using UPDATE ... RETURNING to prevent races."""
     async with AsyncSessionLocal() as session:
-        stmt = select(ScheduledAction).where(
-            ScheduledAction.id == uuid.UUID(action_id),
-            ScheduledAction.status == "pending",
+        result = await session.execute(
+            text("""
+                UPDATE scheduled_actions
+                SET status = 'executing'
+                WHERE id = CAST(:aid AS uuid) AND status = 'pending'
+                RETURNING id, user_id, action_type, payload, rrule
+            """),
+            {"aid": action_id},
         )
-        result = await session.execute(stmt)
-        action = result.scalar_one_or_none()
-        if not action:
+        row = result.mappings().first()
+        if not row:
             return None
-        action.status = "executing"
         await session.commit()
-        return {
-            "id": str(action.id),
-            "user_id": str(action.user_id),
-            "action_type": action.action_type,
-            "payload": action.payload,
-            "rrule": action.rrule,
-        }
+        return {k: str(v) if isinstance(v, uuid.UUID) else v for k, v in dict(row).items()}
 
 
 async def update_action_status(action_id: str, status: str) -> None:

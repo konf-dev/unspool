@@ -96,13 +96,13 @@ app = FastAPI(
 # CORS — restricted to FRONTEND_URL + extras
 cors_origins = [settings.FRONTEND_URL]
 if settings.CORS_EXTRA_ORIGINS:
-    cors_origins.extend(settings.CORS_EXTRA_ORIGINS.split(","))
+    cors_origins.extend(o.strip() for o in settings.CORS_EXTRA_ORIGINS.split(",") if o.strip())
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
 

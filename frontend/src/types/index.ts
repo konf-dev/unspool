@@ -21,13 +21,14 @@ export interface PlateItem {
   isDone: boolean
 }
 
-export type SSEEventType = 'token' | 'actions' | 'tool_status' | 'done' | 'error'
+export type SSEEventType = 'token' | 'actions' | 'tool_status' | 'plate' | 'done' | 'error'
 
 export interface ParsedSSEEvent {
   type: SSEEventType | 'unknown'
   content?: string
   tool?: string
   status?: 'running' | 'done'
+  items?: Array<{ id: string; content: string; deadline?: string }>
 }
 
 export type Route = 'landing' | 'login' | 'chat' | 'privacy' | 'terms'

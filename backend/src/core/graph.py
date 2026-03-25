@@ -161,6 +161,7 @@ async def update_status_event(
     # Remove existing IS_STATUS edge(s) from this node
     existing = await session.execute(
         select(GraphEdge).where(
+            GraphEdge.user_id == user_id,
             GraphEdge.source_node_id == node_id,
             GraphEdge.edge_type == "IS_STATUS",
         )
@@ -234,10 +235,13 @@ async def delete_node_event(
         "content": node.content,
     })
 
-    # Delete edges
+    # Delete edges (scoped to user)
     await session.execute(
         delete(GraphEdge).where(
-            (GraphEdge.source_node_id == node_id) | (GraphEdge.target_node_id == node_id)
+            and_(
+                GraphEdge.user_id == user_id,
+                (GraphEdge.source_node_id == node_id) | (GraphEdge.target_node_id == node_id),
+            )
         )
     )
     await session.delete(node)
@@ -337,6 +341,7 @@ async def search_nodes_by_edge_structure(
 async def get_node_neighborhood(
     session: AsyncSession,
     node_id: uuid.UUID,
+    user_id: uuid.UUID | None = None,
     hops: int = 1,
 ) -> tuple[list[GraphNode], list[GraphEdge]]:
     """Get a node's immediate neighborhood (nodes + edges within N hops)."""
@@ -352,6 +357,8 @@ async def get_node_neighborhood(
             (GraphEdge.source_node_id.in_(current_ids)) |
             (GraphEdge.target_node_id.in_(current_ids))
         )
+        if user_id is not None:
+            edges_stmt = edges_stmt.where(GraphEdge.user_id == user_id)
         result = await session.execute(edges_stmt)
         edges = list(result.scalars().all())
         all_edges.extend(edges)
@@ -367,6 +374,8 @@ async def get_node_neighborhood(
     # Fetch all nodes
     if visited_node_ids:
         nodes_stmt = select(GraphNode).where(GraphNode.id.in_(visited_node_ids))
+        if user_id is not None:
+            nodes_stmt = nodes_stmt.where(GraphNode.user_id == user_id)
         result = await session.execute(nodes_stmt)
         nodes = list(result.scalars().all())
     else:
@@ -390,6 +399,7 @@ async def get_nodes_by_ids(
 async def get_edges_for_nodes(
     session: AsyncSession,
     node_ids: list[uuid.UUID],
+    user_id: uuid.UUID | None = None,
 ) -> list[GraphEdge]:
     """Get all edges where source or target is in the given node IDs."""
     if not node_ids:
@@ -398,5 +408,7 @@ async def get_edges_for_nodes(
         (GraphEdge.source_node_id.in_(node_ids)) |
         (GraphEdge.target_node_id.in_(node_ids))
     )
+    if user_id is not None:
+        stmt = stmt.where(GraphEdge.user_id == user_id)
     result = await session.execute(stmt)
     return list(result.scalars().all())

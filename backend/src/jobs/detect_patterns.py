@@ -2,6 +2,7 @@
 
 import json
 import time
+from typing import Any
 
 from src.core.config_loader import load_config
 from src.core.prompt_renderer import render_prompt
@@ -99,7 +100,44 @@ async def _run_llm_analysis(
         return None
 
     confidence_threshold = analysis.get("confidence_threshold", 0.5)
-    variables = {"lookback_days": analysis.get("lookback_days", 30)}
+    variables: dict[str, Any] = {"lookback_days": analysis.get("lookback_days", 30)}
+
+    # Load user context for the LLM analysis
+    try:
+        from sqlalchemy import text as sa_text
+        from src.core.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as session:
+            # Recent messages
+            msg_result = await session.execute(sa_text("""
+                SELECT payload->>'content' as content, event_type, created_at
+                FROM event_stream
+                WHERE user_id = CAST(:uid AS uuid)
+                  AND event_type IN ('MessageReceived', 'AgentReplied')
+                  AND created_at >= NOW() - (:days || ' days')::interval
+                ORDER BY created_at DESC
+                LIMIT 50
+            """), {"uid": user_id, "days": str(analysis.get("lookback_days", 30))})
+            messages = [dict(r) for r in msg_result.mappings().all()]
+            variables["recent_messages"] = "\n".join(
+                f"[{r.get('event_type', '')}] {r.get('content', '')[:200]}" for r in messages
+            ) if messages else "No recent messages."
+
+            # Active graph nodes
+            node_result = await session.execute(sa_text("""
+                SELECT content, node_type FROM graph_nodes
+                WHERE user_id = CAST(:uid AS uuid)
+                  AND node_type NOT LIKE 'archived_%%'
+                  AND node_type NOT LIKE 'system_%%'
+                ORDER BY updated_at DESC LIMIT 30
+            """), {"uid": user_id})
+            nodes = [dict(r) for r in node_result.mappings().all()]
+            variables["active_nodes"] = "\n".join(
+                f"[{r.get('node_type', '')}] {r.get('content', '')}" for r in nodes
+            ) if nodes else "No active nodes."
+    except Exception:
+        variables["recent_messages"] = "Failed to load."
+        variables["active_nodes"] = "Failed to load."
 
     try:
         from google.genai import types

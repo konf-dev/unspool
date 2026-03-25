@@ -47,8 +47,18 @@ Streams an AI response via Server-Sent Events.
 data: {"type": "tool_start", "calls": ["query_graph"]}
 data: {"type": "tool_end", "name": "query_graph"}
 data: {"type": "token", "content": "Got it, I'll remember that."}
+data: {"type": "plate", "items": [{"id": "uuid", "content": "finish thesis", "deadline": "2026-03-28"}]}
 data: {"type": "done"}
 ```
+
+SSE event types:
+| Type | Payload | Description |
+|------|---------|-------------|
+| `token` | `content: string` | Streamed text token |
+| `tool_start` | `calls: string[]` | Tool invocation started |
+| `tool_end` | `name: string` | Tool invocation completed |
+| `plate` | `items: [{id, content, deadline?}]` | Current plate items, sent before `done` |
+| `done` | — | Stream complete |
 
 **Headers:** `X-Trace-Id: <uuid>`, `Cache-Control: no-cache`, `Connection: keep-alive`
 
@@ -65,10 +75,11 @@ data: {"type": "done"}
 3. Persist user message as `MessageReceived` event
 4. Assemble context in parallel: profile, last 20 messages, graph semantic search, 72h deadlines
 5. Stream LangGraph hot path token-by-token via `astream_events` (Gemini model with query_graph + mutate_graph tools, max 5 iterations)
-6. Filter `<thought>` blocks from streamed tokens
-7. Persist assistant response as `AgentReplied` event
-8. Dispatch cold path extraction via QStash (5s delay)
-9. On timeout (60s) or error: send graceful error message, still persist
+6. Filter `<thought>` blocks from streamed tokens (state machine handles split/combined chunks)
+7. Send `plate` event with current action items (before `done`)
+8. Persist assistant response as `AgentReplied` event (with plate metadata for history hydration)
+9. Dispatch cold path extraction via QStash (5s delay)
+10. On timeout (60s) or error: send graceful error message, still persist
 
 ---
 
@@ -109,9 +120,11 @@ Paginated chat history projected from `vw_messages` view.
 ```
 
 **On initial load** (no `before` param):
-1. Evaluates proactive triggers from `proactive.yaml` (6h cooldown)
-2. Delivers queued `proactive_messages` (marks as delivered)
-3. Proactive messages prepended to results
+1. Checks `last_interaction_at` — skips proactive if user was active within 1 hour
+2. Updates `last_interaction_at` before proactive check (gates subsequent loads in same session)
+3. Evaluates proactive triggers from `proactive.yaml` (6h cooldown, restored on failure)
+4. Delivers queued `proactive_messages` (marks as delivered)
+5. Proactive messages included in results
 
 ---
 

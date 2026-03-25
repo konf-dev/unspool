@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Message, ActionButton } from '@/types'
-import { sendMessage as apiSendMessage, fetchMessages as apiFetchMessages, fetchLatestPlate } from '@/lib/api'
+import { sendMessage as apiSendMessage, fetchMessages as apiFetchMessages } from '@/lib/api'
 import { useAuthStore } from '@/stores/authStore'
 import { usePlateStore } from '@/stores/plateStore'
 import { parseInlineActions } from '@/lib/parseActions'
@@ -163,27 +163,6 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
           pendingActions: null,
         }))
 
-        // Refresh plate data from the persisted message metadata.
-        // Delay slightly — the backend's finally block may not have committed yet.
-        // #1: Use fresh token to avoid stale closure
-        void new Promise((r) => setTimeout(r, 1500)).then(() => {
-          const freshToken = getFreshToken()
-          if (!freshToken) return
-          return fetchLatestPlate(freshToken).then((plate) => {
-            if (plate?.items) {
-              usePlateStore.getState().setPlate(
-                plate.items.map((p) => ({
-                  id: p.id,
-                  label: p.content,
-                  deadline: p.deadline,
-                  hasDeadline: !!p.deadline,
-                  isDone: false,
-                })),
-              )
-            }
-          }).catch(() => {})
-        })
-
         // #3: After stream completes, flush next queued message if any
         const queue = get().queue
         if (queue.length > 0) {
@@ -219,6 +198,18 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
           _abortController: null,
           pendingActions: null,
         }))
+      },
+      // Handle plate data from SSE stream — no more fetchLatestPlate race
+      (items) => {
+        usePlateStore.getState().setPlate(
+          items.map((p) => ({
+            id: p.id,
+            label: p.content,
+            deadline: p.deadline,
+            hasDeadline: !!p.deadline,
+            isDone: false,
+          })),
+        )
       },
     )
 
@@ -282,6 +273,31 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
           hasMore: messages.length >= 50,
         }
       })
+
+      // On initial load, populate plate from the latest message metadata
+      if (!before) {
+        const allMessages = get().messages
+        for (let i = allMessages.length - 1; i >= 0; i--) {
+          const m = allMessages[i]
+          if (m?.metadata?.plate) {
+            const plate = m.metadata.plate as {
+              items?: Array<{ id: string; content: string; deadline?: string }>
+            }
+            if (plate.items) {
+              usePlateStore.getState().setPlate(
+                plate.items.map((p) => ({
+                  id: p.id,
+                  label: p.content,
+                  deadline: p.deadline,
+                  hasDeadline: !!p.deadline,
+                  isDone: false,
+                })),
+              )
+            }
+            break
+          }
+        }
+      }
     } finally {
       set({ _isFetching: false })
     }

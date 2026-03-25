@@ -48,12 +48,20 @@ async def check_proactive(user_id: str) -> dict[str, Any] | None:
             )
             return None
 
-    # Eager cooldown update — lock out concurrent requests before LLM call
+    # Save original cooldown in case no trigger matches (we'll restore it)
+    original_last_proactive_at = profile.get("last_proactive_at") if profile else None
+
+    # Set cooldown eagerly to lock out concurrent requests during LLM call
     await update_profile(user_id, last_proactive_at=datetime.now(timezone.utc))
 
     try:
         proactive_config = load_config("proactive")
     except FileNotFoundError:
+        # Restore cooldown — no config means no triggers can fire
+        try:
+            await update_profile(user_id, last_proactive_at=original_last_proactive_at)
+        except Exception:
+            pass
         return None
 
     triggers = proactive_config.get("triggers", {})
@@ -137,4 +145,9 @@ async def check_proactive(user_id: str) -> dict[str, Any] | None:
             report_error("proactive.save_failed", e, user_id=user_id, trigger=trigger_name)
             continue
 
+    # No trigger matched or all failed — restore the cooldown so it's not burned
+    try:
+        await update_profile(user_id, last_proactive_at=original_last_proactive_at)
+    except Exception:
+        pass
     return None
