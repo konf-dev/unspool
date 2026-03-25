@@ -35,6 +35,14 @@ async def get_messages(
     is_initial_load = before is None
 
     if is_initial_load:
+        # Mark the user as active — prevents days_absent from re-triggering on next open
+        try:
+            from src.db.queries import update_profile
+            from datetime import timezone as tz
+            await update_profile(user_id, last_interaction_at=datetime.now(tz.utc))
+        except Exception:
+            pass
+
         # Evaluate proactive triggers — generates + persists to event_stream.
         # We await fully so the message is committed before the fetch below.
         try:

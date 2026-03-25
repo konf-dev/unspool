@@ -141,20 +141,23 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
           pendingActions: null,
         }))
 
-        // Refresh plate data from the persisted message metadata
-        void fetchLatestPlate(token).then((plate) => {
-          if (plate?.items) {
-            usePlateStore.getState().setPlate(
-              plate.items.map((p) => ({
-                id: p.id,
-                label: p.content,
-                deadline: p.deadline,
-                hasDeadline: !!p.deadline,
-                isDone: false,
-              })),
-            )
-          }
-        }).catch(() => {})
+        // Refresh plate data from the persisted message metadata.
+        // Delay slightly — the backend's finally block may not have committed yet.
+        void new Promise((r) => setTimeout(r, 1500)).then(() =>
+          fetchLatestPlate(token).then((plate) => {
+            if (plate?.items) {
+              usePlateStore.getState().setPlate(
+                plate.items.map((p) => ({
+                  id: p.id,
+                  label: p.content,
+                  deadline: p.deadline,
+                  hasDeadline: !!p.deadline,
+                  isDone: false,
+                })),
+              )
+            }
+          }).catch(() => {})
+        )
       },
       (err: unknown) => {
         if (rafId !== null) cancelAnimationFrame(rafId)
