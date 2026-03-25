@@ -1,0 +1,42 @@
+/* Pulse sage — thinking indicator */
+@keyframes pulse-sage {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+/* Fade in */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Cursor blink for streaming */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Utility classes */
+@utility animate-pulse-sage {
+  animation: pulse-sage 2s ease-in-out infinite;
+}
+
+@utility animate-fade-in {
+  animation: fade-in 300ms ease-in-out forwards;
+}
+
+@utility animate-cursor-blink {
+  animation: cursor-blink 1s ease-in-out infinite;
+}

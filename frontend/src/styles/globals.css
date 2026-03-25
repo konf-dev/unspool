@@ -1,0 +1,127 @@
+@import "tailwindcss";
+@import "./animations.css";
+
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('/fonts/Manrope-Variable.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
+    U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Midnight Sanctuary design tokens */
+@theme {
+  --color-background: #0d0e0d;
+  --color-surface: #0d0e0d;
+  --color-surface-dim: #0d0e0d;
+  --color-surface-container-lowest: #000000;
+  --color-surface-container-low: #121411;
+  --color-surface-container: #181a17;
+  --color-surface-container-high: #1e201c;
+  --color-surface-container-highest: #232722;
+  --color-surface-bright: #292d27;
+  --color-surface-variant: #232722;
+  --color-surface-tint: #aecdc0;
+
+  --color-primary: #aecdc0;
+  --color-primary-dim: #a1c0b3;
+  --color-primary-container: #304c42;
+  --color-primary-fixed: #caeadc;
+  --color-primary-fixed-dim: #bcdbce;
+  --color-on-primary: #2a463c;
+  --color-on-primary-container: #b8d7ca;
+  --color-on-primary-fixed: #29453b;
+  --color-on-primary-fixed-variant: #456157;
+  --color-inverse-primary: #48655a;
+
+  --color-secondary: #9f9e97;
+  --color-secondary-dim: #9f9e97;
+  --color-secondary-container: #3b3c36;
+  --color-secondary-fixed: #e4e3da;
+  --color-secondary-fixed-dim: #d6d5cc;
+  --color-on-secondary: #20211b;
+  --color-on-secondary-container: #c0bfb7;
+  --color-on-secondary-fixed: #3f403a;
+  --color-on-secondary-fixed-variant: #5c5c55;
+
+  --color-tertiary: #ffe7ca;
+  --color-tertiary-dim: #e8caa2;
+  --color-tertiary-container: #f7d8af;
+  --color-tertiary-fixed: #f7d8af;
+  --color-tertiary-fixed-dim: #e8caa2;
+  --color-on-tertiary: #695333;
+  --color-on-tertiary-container: #604b2c;
+  --color-on-tertiary-fixed: #4c381b;
+  --color-on-tertiary-fixed-variant: #6a5434;
+
+  --color-error: #ee7d77;
+  --color-error-dim: #bb5551;
+  --color-error-container: #7f2927;
+  --color-on-error: #490106;
+  --color-on-error-container: #ff9993;
+
+  --color-on-surface: #e4e6de;
+  --color-on-surface-variant: #a9aca4;
+  --color-on-background: #e4e6de;
+  --color-outline: #737670;
+  --color-outline-variant: #464943;
+  --color-inverse-surface: #fbf9f5;
+  --color-inverse-on-surface: #555552;
+
+  --color-user-bubble: #1A1815;
+
+  --font-sans: 'Manrope', system-ui, -apple-system, sans-serif;
+}
+
+/* Base styles */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-background);
+  color: var(--color-on-surface);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* Selection colors */
+::selection {
+  background-color: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+/* Scrollbar suppression for stream */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Safe area padding */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Ghost border for inputs */
+.ghost-border {
+  border: 1px solid rgba(70, 73, 67, 0.15);
+}
+
+/* Focus styles */
+textarea:focus {
+  outline: none;
+  box-shadow: none;
+}
