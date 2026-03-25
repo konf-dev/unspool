@@ -24,52 +24,50 @@ Copy `.env.example` and fill in your keys — see [docs/DEPLOY.md](docs/DEPLOY.m
 
 | Layer | Stack |
 |-------|-------|
-| Frontend | React + Vite + TypeScript (PWA) → Vercel |
+| Frontend | React 19 + Vite 6 + Tailwind 4 + Zustand 5 + Framer Motion 12 (PWA) → Vercel |
 | Backend | Python 3.11+ / FastAPI / async → Railway |
 | Database | Supabase (Postgres + pgvector + Auth) |
 | Cache | Upstash Redis |
 | Jobs | Upstash QStash (cron + delayed queue) |
-| LLM | Anthropic (chat) + OpenAI (embeddings) |
+| LLM | Gemini (chat) + OpenAI (embeddings) |
 
 ## Repo Structure
 
 ```
 unspool/
-├── frontend/          # React PWA — single chat interface
+├── frontend/              # React 19 PWA — "Midnight Sanctuary" design system
 │   ├── src/
-│   │   ├── components/   # Chat UI components
-│   │   ├── hooks/        # Auth, voice, push, offline
-│   │   ├── lib/          # API client, Supabase, constants
-│   │   └── styles/       # CSS
+│   │   ├── components/    # stream/, plate/, landing/, auth/, legal/, shared/, system/
+│   │   ├── stores/        # Zustand: auth, message, plate, ui
+│   │   ├── hooks/         # useAuth, useChat, useVoice, usePush, useScrollAnchor, ...
+│   │   ├── lib/           # API client (SSE), Supabase, action parser
+│   │   ├── styles/        # Tailwind globals + animations
+│   │   └── types/         # TypeScript types + env declarations
+│   ├── test/              # Vitest unit tests + MSW mocks
+│   ├── e2e/               # Playwright E2E tests
 │   └── package.json
 ├── backend/
-│   ├── config/           # YAML pipelines, prompts, scoring rules
-│   ├── prompts/          # Jinja2 prompt templates
-│   ├── src/              # FastAPI app
-│   │   ├── api/          # User-facing endpoints
-│   │   ├── jobs/         # Background job endpoints
-│   │   ├── orchestrator/ # Config-driven message processing engine
-│   │   ├── tools/        # Tool registry + implementations
-│   │   ├── llm/          # LLM provider abstraction
-│   │   └── db/           # Supabase + Redis clients
+│   ├── config/            # YAML pipelines, prompts, scoring rules
+│   ├── prompts/           # Jinja2 prompt templates (first-person voice v2.1)
+│   ├── src/               # FastAPI app
+│   │   ├── api/           # User-facing endpoints (chat SSE, messages, push)
+│   │   ├── jobs/          # Background job endpoints
+│   │   ├── orchestrator/  # Config-driven message processing engine
+│   │   ├── tools/         # Tool registry + implementations
+│   │   ├── llm/           # LLM provider abstraction
+│   │   └── db/            # Supabase + Redis clients
 │   ├── tests/
 │   └── requirements.txt
-├── docs/                 # Detailed specs and guides
-└── CLAUDE.md             # Full project context (architecture, conventions, data model)
+├── docs/                  # Detailed specs and guides
+└── archive/               # V1 frontend (reference)
 ```
-
-See [CLAUDE.md](CLAUDE.md) for the complete architecture, data model, coding conventions, and design principles.
 
 ## Documentation
 
-- [CLAUDE.md](CLAUDE.md) — Full project context and conventions
 - [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) — Product specification
-- [docs/ORCHESTRATOR_FLOW.md](docs/ORCHESTRATOR_FLOW.md) — Message processing pipeline
-- [docs/FRONTEND_SPEC.md](docs/FRONTEND_SPEC.md) — UI/UX specification
-- [docs/SCHEMA.md](docs/SCHEMA.md) — Database schema reference
-- [docs/PIPELINE_FORMAT.md](docs/PIPELINE_FORMAT.md) — Pipeline YAML format
-- [docs/TOOLS.md](docs/TOOLS.md) — Tool registry reference
-- [docs/DEPLOY.md](docs/DEPLOY.md) — Deployment and infrastructure guide
+- [docs/FRONTEND_SPEC.md](docs/FRONTEND_SPEC.md) — Frontend V2 specification (Midnight Sanctuary)
+- [docs/MEMORY_ARCHITECTURE.md](docs/MEMORY_ARCHITECTURE.md) — Memory system design
+- [docs/CHAT_INTERACTIONS.md](docs/CHAT_INTERACTIONS.md) — Interaction pattern examples
 
 ## Tests
 
@@ -77,8 +75,11 @@ See [CLAUDE.md](CLAUDE.md) for the complete architecture, data model, coding con
 # Backend (103 tests)
 cd backend && pytest -v
 
-# Frontend (type check + build)
-cd frontend && npx tsc --noEmit && npm run build
+# Frontend (17 unit tests + type check + build)
+cd frontend && npm test && npx tsc --noEmit && npm run build
+
+# Frontend E2E
+cd frontend && npx playwright test
 ```
 
 ## License

@@ -1,26 +1,98 @@
-import { ChatStream } from './components/stream/ChatStream';
-import { MobilePlate } from './components/plate/MobilePlate';
+import { useEffect, lazy, Suspense } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { useAuth } from '@/hooks/useAuth'
+import { useUIStore } from '@/stores/uiStore'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
+import { LoadingScreen } from '@/components/system/LoadingScreen'
+import { ErrorBoundary } from '@/components/system/ErrorBoundary'
 
-function App() {
-  return (
-    <div className="relative w-full h-screen bg-black overflow-hidden sm:flex">
-      {/* Desktop Split View */}
-      <div className="hidden sm:block w-1/3 h-full border-r border-[#333]">
-        <ChatStream />
-      </div>
-      <div className="hidden sm:block w-2/3 h-full bg-[#121212] p-8">
-         <h1 className="text-2xl font-medium text-white mb-8">The Plate</h1>
-         <div className="text-gray-400">Desktop Dashboard View (Expanded)</div>
-         {/* In a full implementation, the logic from MobilePlate is expanded here into columns */}
-      </div>
+const LandingPage = lazy(() =>
+  import('@/components/landing/LandingPage').then((m) => ({ default: m.LandingPage })),
+)
+const LoginScreen = lazy(() =>
+  import('@/components/auth/LoginScreen').then((m) => ({ default: m.LoginScreen })),
+)
+const StreamPage = lazy(() =>
+  import('@/components/stream/StreamPage').then((m) => ({ default: m.StreamPage })),
+)
+const PrivacyPage = lazy(() =>
+  import('@/components/legal/PrivacyPage').then((m) => ({ default: m.PrivacyPage })),
+)
+const TermsPage = lazy(() =>
+  import('@/components/legal/TermsPage').then((m) => ({ default: m.TermsPage })),
+)
 
-      {/* Mobile Fluid View */}
-      <div className="sm:hidden w-full h-full relative">
-        <MobilePlate />
-        <ChatStream />
-      </div>
-    </div>
-  );
+const pageTransition = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+  transition: { duration: 0.3, ease: 'easeInOut' },
 }
 
-export default App;
+export function App() {
+  const { isAuthenticated, isLoading } = useAuth()
+  const route = useUIStore((s) => s.route)
+  const reduced = useReducedMotion()
+
+  useEffect(() => {
+    const cleanup = useUIStore.getState()._initRoute()
+    return cleanup
+  }, [])
+
+  // Auth-based routing
+  useEffect(() => {
+    if (isLoading) return
+
+    const { navigate } = useUIStore.getState()
+
+    if (isAuthenticated && (route === 'login' || route === 'landing')) {
+      navigate('chat')
+    } else if (!isAuthenticated && route === 'chat') {
+      navigate('login')
+    }
+
+    // PWA standalone: skip landing, go to login
+    if (
+      !isAuthenticated &&
+      route === 'landing' &&
+      window.matchMedia('(display-mode: standalone)').matches
+    ) {
+      navigate('login')
+    }
+  }, [isAuthenticated, isLoading, route])
+
+  if (isLoading) {
+    return <LoadingScreen />
+  }
+
+  const renderPage = () => {
+    switch (route) {
+      case 'landing':
+        return <LandingPage />
+      case 'login':
+        return <LoginScreen />
+      case 'chat':
+        return <StreamPage />
+      case 'privacy':
+        return <PrivacyPage />
+      case 'terms':
+        return <TermsPage />
+      default:
+        return <LandingPage />
+    }
+  }
+
+  const motionProps = reduced ? {} : pageTransition
+
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<LoadingScreen />}>
+        <AnimatePresence mode="wait">
+          <motion.div key={route} {...motionProps} className="min-h-screen">
+            {renderPage()}
+          </motion.div>
+        </AnimatePresence>
+      </Suspense>
+    </ErrorBoundary>
+  )
+}
