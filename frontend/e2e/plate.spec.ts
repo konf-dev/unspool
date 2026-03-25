@@ -23,9 +23,11 @@ test.describe('The Plate', () => {
     await expect(input).toBeEnabled()
   })
 
-  authTest('Plate items section has accessible list role', async ({ page }) => {
+  authTest('Empty plate shows placeholder text', async ({ page }) => {
     await authenticate(page)
-    const list = page.locator('[role="list"][aria-label="Current items"]')
-    await expect(list).toBeAttached()
+    // With no items, the plate content exists but shows empty state
+    // The list role only renders when items are present
+    const emptyText = page.getByText('nothing on your plate right now')
+    await expect(emptyText).toBeAttached()
   })
 })

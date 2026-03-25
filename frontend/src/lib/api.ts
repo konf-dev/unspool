@@ -200,11 +200,15 @@ export async function fetchMessages(
 export async function fetchLatestPlate(
   token: string,
 ): Promise<{ items: Array<{ id: string; content: string; deadline?: string }> } | null> {
-  // Fetch just the latest message to extract plate metadata
-  const messages = await fetchMessages(token, 1)
-  const latest = messages[messages.length - 1]
-  if (latest?.metadata?.plate) {
-    return latest.metadata.plate as { items: Array<{ id: string; content: string; deadline?: string }> }
+  // Fetch recent messages to find the latest with plate metadata.
+  // Use limit=5 to handle cases where the very latest message is the user's.
+  const messages = await fetchMessages(token, 5)
+  // messages are returned oldest-first from fetchMessages, so search from end
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m?.metadata?.plate) {
+      return m.metadata.plate as { items: Array<{ id: string; content: string; deadline?: string }> }
+    }
   }
   return null
 }

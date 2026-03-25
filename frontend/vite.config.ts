@@ -57,6 +57,11 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Force immediate activation of new service worker — no stale cache during dev
+        skipWaiting: true,
+        clientsClaim: true,
+        // Don't precache index.html — let it always hit the network
+        navigateFallback: null,
         runtimeCaching: [
           {
             urlPattern: /\/api\/.*/,

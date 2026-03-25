@@ -32,14 +32,14 @@ export function PlateOverlay() {
 
   return (
     <motion.div
-      className="fixed top-0 left-0 right-0 z-50 flex flex-col items-center touch-none"
+      className="fixed left-0 right-0 z-50 flex flex-col items-center touch-none"
       drag="y"
       dragConstraints={{ top: -PLATE_HEIGHT, bottom: 0 }}
       dragElastic={0.2}
       dragMomentum={false}
       onDrag={handleDrag}
       onDragEnd={handleDragEnd}
-      style={{ y }}
+      style={{ y, top: 'env(safe-area-inset-top, 0px)' }}
       animate={{ y: isOpen ? 0 : -PLATE_HEIGHT }}
       transition={{ type: 'tween', duration: 0.3, ease: 'easeInOut' }}
     >
