@@ -36,8 +36,10 @@ async def get_messages_from_events(
             "SELECT id, user_id, role, content, metadata, created_at "
             "FROM vw_messages "
             "WHERE user_id = CAST(:user_id AS uuid) "
-            "  AND created_at < (SELECT created_at FROM event_stream WHERE id = CAST(:before_id AS uuid)) "
-            "ORDER BY created_at DESC "
+            "  AND (created_at, id) < ("
+            "    SELECT created_at, id FROM event_stream WHERE id = CAST(:before_id AS uuid)"
+            "  ) "
+            "ORDER BY created_at DESC, id DESC "
             "LIMIT :lim"
         )
         params: dict[str, Any] = {"user_id": user_id, "before_id": before, "lim": limit}
@@ -46,7 +48,7 @@ async def get_messages_from_events(
             "SELECT id, user_id, role, content, metadata, created_at "
             "FROM vw_messages "
             "WHERE user_id = CAST(:user_id AS uuid) "
-            "ORDER BY created_at DESC "
+            "ORDER BY created_at DESC, id DESC "
             "LIMIT :lim"
         )
         params = {"user_id": user_id, "lim": limit}
@@ -449,6 +451,19 @@ async def delete_user_data(user_id: str) -> dict[str, int]:
 
 
 # ──────────────────────────── Proactive Condition Helpers ─────────────
+
+async def get_plate_items(user_id: str) -> list[dict[str, Any]]:
+    """Get all OPEN action items for the plate overlay."""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(text("""
+            SELECT node_id, content, deadline, deadline_type, created_at
+            FROM vw_actionable
+            WHERE user_id = :uid
+            ORDER BY created_at DESC
+            LIMIT 20
+        """), {"uid": user_id})
+        return [dict(r) for r in result.mappings().all()]
+
 
 async def get_proactive_items(user_id: str, hours: int = 24) -> list[dict[str, Any]]:
     """Get OPEN action nodes with deadlines within N hours."""

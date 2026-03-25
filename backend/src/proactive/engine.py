@@ -48,6 +48,9 @@ async def check_proactive(user_id: str) -> dict[str, Any] | None:
             )
             return None
 
+    # Eager cooldown update — lock out concurrent requests before LLM call
+    await update_profile(user_id, last_proactive_at=datetime.now(timezone.utc))
+
     try:
         proactive_config = load_config("proactive")
     except FileNotFoundError:
@@ -116,8 +119,6 @@ async def check_proactive(user_id: str) -> dict[str, Any] | None:
             continue
 
         try:
-            await update_profile(user_id, last_proactive_at=datetime.now(timezone.utc))
-
             async with AsyncSessionLocal() as session:
                 await append_message_event(
                     session, user_id, "assistant", content,

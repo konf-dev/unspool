@@ -34,47 +34,44 @@ async def get_messages(
 ) -> dict[str, Any]:
     is_initial_load = before is None
 
-    proactive_injected: list[dict[str, Any]] = []
     if is_initial_load:
-        # Evaluate proactive triggers
+        # Evaluate proactive triggers — generates + persists to event_stream.
+        # We await fully so the message is committed before the fetch below.
         try:
             from src.proactive.engine import check_proactive
-            proactive_msg = await check_proactive(user_id)
-            if proactive_msg:
-                proactive_injected.append(_serialize_message(proactive_msg))
-                _log.info("messages.proactive_generated", user_id=user_id)
+            await check_proactive(user_id)
         except Exception as e:
             report_error("messages.proactive_failed", e, user_id=user_id)
 
-        # Deliver queued proactive messages
+        # Deliver queued proactive messages — persist to event_stream then mark delivered
         try:
             from src.db.queries import (
                 get_unconsumed_proactive_messages,
                 mark_proactive_messages_delivered,
+                append_message_event,
             )
             queued = await get_unconsumed_proactive_messages(user_id)
             if queued:
                 ids = [q["id"] for q in queued]
-                for q in queued:
-                    proactive_injected.append({
-                        "id": q["id"],
-                        "role": "assistant",
-                        "content": q["content"],
-                        "created_at": q["created_at"].isoformat() if isinstance(q["created_at"], datetime) else str(q["created_at"]),
-                        "metadata": {"type": "proactive", "trigger": q["trigger_type"], "is_queued": True},
-                    })
+                async with AsyncSessionLocal() as sess:
+                    for q in queued:
+                        await append_message_event(
+                            sess, user_id, "assistant", q["content"],
+                            metadata={"type": "proactive", "trigger": q["trigger_type"], "is_queued": True},
+                        )
+                    await sess.commit()
                 await mark_proactive_messages_delivered(user_id, ids)
                 _log.info("messages.queued_proactive_delivered", count=len(queued), user_id=user_id)
         except Exception as e:
             report_error("messages.queued_proactive_failed", e, user_id=user_id)
 
+    # Fetch messages — proactive + queued messages are already committed to event_stream
     async with AsyncSessionLocal() as session:
         messages = await get_messages_from_events(session, user_id, limit=limit, before=before)
 
     serialized = [_serialize_message(m) for m in messages]
-    all_messages = proactive_injected + serialized
 
     return {
-        "messages": all_messages,
+        "messages": serialized,
         "has_more": len(messages) == limit,
     }

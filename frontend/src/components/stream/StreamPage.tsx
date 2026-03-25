@@ -46,7 +46,7 @@ export function StreamPage() {
   usePush(token ?? '', messages.filter((m) => m.role === 'user').length)
 
   return (
-    <div className="h-dvh flex flex-col bg-background overflow-hidden">
+    <div className="fixed inset-0 flex flex-col bg-background overflow-hidden">
       <AmbientGlow />
       <DragHandle />
       <OfflineBanner />
@@ -55,7 +55,7 @@ export function StreamPage() {
       <button
         type="button"
         onClick={() => void handleSignOut()}
-        className="fixed top-4 right-4 z-40 text-xs text-on-surface-variant/30 hover:text-on-surface-variant/60 transition-colors tracking-wide"
+        className="fixed top-4 right-4 z-[60] text-xs text-on-surface-variant/30 hover:text-on-surface-variant/60 transition-colors tracking-wide"
       >
         sign out
       </button>

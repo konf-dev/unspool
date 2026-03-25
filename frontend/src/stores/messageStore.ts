@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Message, ActionButton } from '@/types'
-import { sendMessage as apiSendMessage, fetchMessages as apiFetchMessages } from '@/lib/api'
+import { sendMessage as apiSendMessage, fetchMessages as apiFetchMessages, fetchLatestPlate } from '@/lib/api'
+import { usePlateStore } from '@/stores/plateStore'
 import { parseInlineActions } from '@/lib/parseActions'
 
 const SESSION_KEY = 'unspool-session-id'
@@ -139,6 +140,21 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
           _abortController: null,
           pendingActions: null,
         }))
+
+        // Refresh plate data from the persisted message metadata
+        void fetchLatestPlate(token).then((plate) => {
+          if (plate?.items) {
+            usePlateStore.getState().setPlate(
+              plate.items.map((p) => ({
+                id: p.id,
+                label: p.content,
+                deadline: p.deadline,
+                hasDeadline: !!p.deadline,
+                isDone: false,
+              })),
+            )
+          }
+        }).catch(() => {})
       },
       (err: unknown) => {
         if (rafId !== null) cancelAnimationFrame(rafId)
