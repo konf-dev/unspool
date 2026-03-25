@@ -11,10 +11,10 @@ export function LandingPage() {
         <div className="w-10 h-1 mt-4 rounded-full bg-surface-container-high" />
       </header>
 
-      <main className="flex-grow flex flex-col items-center px-8 pt-24 pb-32 max-w-lg mx-auto w-full text-center">
+      <main className="flex-grow flex flex-col items-center px-8 pt-14 pb-32 max-w-lg mx-auto w-full text-center">
         {/* Title */}
-        <section className="mb-16">
-          <h1 className="text-[2.5rem] font-extralight tracking-[0.4em] text-on-surface mb-2">
+        <section className="mb-10">
+          <h1 className="text-[2.5rem] font-extralight tracking-[0.2em] text-on-surface mb-2">
             unspool
           </h1>
           <p className="text-on-surface-variant text-sm tracking-wide leading-relaxed">

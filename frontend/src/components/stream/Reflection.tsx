@@ -13,7 +13,7 @@ export const Reflection = memo(function Reflection({ message, onAction }: Reflec
   const isProactive = message.metadata?.type === 'proactive'
 
   return (
-    <div className="pl-6 animate-fade-in">
+    <div className="pl-6 animate-fade-in border-l-2 border-primary/10">
       {isProactive && (
         <span className="text-[10px] tracking-wider text-primary/50 uppercase mb-1 block">
           welcome back

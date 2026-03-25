@@ -97,16 +97,18 @@ export function InputBar({ onSend, onStop, isStreaming, disabled }: InputBarProp
 
             {isStreaming ? (
               <button
+                type="button"
                 onClick={onStop}
                 className="w-10 h-10 flex items-center justify-center bg-surface-bright text-on-surface rounded-full transition-all duration-300 hover:bg-surface-container-highest"
                 aria-label="Stop generating"
               >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" className="pointer-events-none">
                   <rect width="14" height="14" rx="2" />
                 </svg>
               </button>
             ) : (
               <button
+                type="button"
                 onClick={handleSend}
                 disabled={!hasContent || disabled}
                 className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300 ${
@@ -125,6 +127,7 @@ export function InputBar({ onSend, onStop, isStreaming, disabled }: InputBarProp
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  className="pointer-events-none"
                 >
                   <line x1="12" y1="19" x2="12" y2="5" />
                   <polyline points="5 12 12 5 19 12" />

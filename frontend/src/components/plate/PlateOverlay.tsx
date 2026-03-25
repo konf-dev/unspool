@@ -28,7 +28,7 @@ export function PlateOverlay() {
     setOpen(false)
   }, [setOpen])
 
-  if (items.length === 0 && !summary) return null
+  const isEmpty = items.length === 0 && !summary
 
   return (
     <motion.div
@@ -48,13 +48,21 @@ export function PlateOverlay() {
         style={{ opacity }}
       >
         <div className="px-8 mt-12 flex flex-col space-y-8">
-          {summary && <PlateSummary summary={summary} />}
+          {isEmpty ? (
+            <p className="text-on-surface-variant/50 text-sm text-center py-8 tracking-wide">
+              nothing on your plate right now
+            </p>
+          ) : (
+            <>
+              {summary && <PlateSummary summary={summary} />}
 
-          <section className="space-y-5" role="list" aria-label="Current items">
-            {items.map((item) => (
-              <PlateItem key={item.id} item={item} />
-            ))}
-          </section>
+              <section className="space-y-5" role="list" aria-label="Current items">
+                {items.map((item) => (
+                  <PlateItem key={item.id} item={item} />
+                ))}
+              </section>
+            </>
+          )}
         </div>
 
         <PlateHandle />

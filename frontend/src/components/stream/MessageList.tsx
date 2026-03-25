@@ -1,5 +1,7 @@
 import type { Message, ActionButton } from '@/types'
 import { useScrollAnchor } from '@/hooks/useScrollAnchor'
+import { useMessageStore } from '@/stores/messageStore'
+import { PulseDot } from '@/components/shared/PulseDot'
 import { UserThought } from './UserThought'
 import { Reflection } from './Reflection'
 import { StreamingText } from './StreamingText'
@@ -23,6 +25,7 @@ export function MessageList({
   toolStatus,
   onAction,
 }: MessageListProps) {
+  const isFetching = useMessageStore((s) => s._isFetching)
   const { scrollRef, isAtBottom, scrollToBottom } = useScrollAnchor([
     messages.length,
     streamingContent,
@@ -38,8 +41,14 @@ export function MessageList({
         aria-live="polite"
         aria-label="Message stream"
       >
-        <div className="max-w-[640px] mx-auto space-y-8 pt-16 pb-4">
-          {messages.length === 0 && !isStreaming && (
+        <div className="max-w-[640px] mx-auto space-y-5 pt-16 pb-4">
+          {isFetching && messages.length === 0 && (
+            <div className="flex justify-center py-8 animate-fade-in">
+              <PulseDot label="loading..." />
+            </div>
+          )}
+
+          {messages.length === 0 && !isStreaming && !isFetching && (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
               <h1 className="text-on-surface-variant font-light text-lg tracking-tight leading-relaxed opacity-80">
                 just start typing — I'll remember everything
