@@ -81,6 +81,9 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+  overscroll-behavior: none;
+  text-rendering: optimizeLegibility;
 }
 
 body {
@@ -89,6 +92,7 @@ body {
   color: var(--color-on-surface);
   line-height: 1.6;
   overflow-x: hidden;
+  overscroll-behavior: none;
 }
 
 /* Selection colors */

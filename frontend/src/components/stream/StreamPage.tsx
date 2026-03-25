@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { useChat } from '@/hooks/useChat'
 import { usePush } from '@/hooks/usePush'
 import { useAuthStore } from '@/stores/authStore'
+import { useUIStore } from '@/stores/uiStore'
 import { usePlateStore } from '@/stores/plateStore'
 import { DragHandle } from '@/components/shared/DragHandle'
 import { AmbientGlow } from '@/components/shared/AmbientGlow'
@@ -13,6 +14,12 @@ import { PlateOverlay } from '@/components/plate/PlateOverlay'
 
 export function StreamPage() {
   const token = useAuthStore((s) => s.token)
+  const navigate = useUIStore((s) => s.navigate)
+
+  const handleSignOut = useCallback(async () => {
+    await useAuthStore.getState().signOut()
+    navigate('login')
+  }, [navigate])
   const {
     messages,
     streamingContent,
@@ -39,11 +46,19 @@ export function StreamPage() {
   usePush(token ?? '', messages.filter((m) => m.role === 'user').length)
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
+    <div className="h-dvh flex flex-col bg-background overflow-hidden">
       <AmbientGlow />
       <DragHandle />
       <OfflineBanner />
       <PlateOverlay />
+
+      <button
+        type="button"
+        onClick={() => void handleSignOut()}
+        className="fixed top-4 right-4 z-40 text-xs text-on-surface-variant/30 hover:text-on-surface-variant/60 transition-colors tracking-wide"
+      >
+        sign out
+      </button>
 
       <main
         className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${
