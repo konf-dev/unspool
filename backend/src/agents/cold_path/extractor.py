@@ -158,7 +158,7 @@ async def _find_semantic_match(
         if matches:
             return matches[0]
     except Exception:
-        logger.debug("cold_path.semantic_match_failed", content=content, exc_info=True)
+        logger.warning("cold_path.semantic_match_failed", content=content, exc_info=True)
     return None
 
 

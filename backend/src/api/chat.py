@@ -7,9 +7,9 @@ from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from pydantic import BaseModel, Field
 
 from src.agents.hot_path.context import assemble_context
@@ -33,6 +33,42 @@ _log = get_logger("api.chat")
 router = APIRouter()
 
 _PIPELINE_TIMEOUT_SECONDS = 60
+
+
+def _token_event(text: str) -> str:
+    return f"data: {json.dumps({'type': 'token', 'content': text})}\n\n"
+
+
+def _update_thought_state(text: str, in_thought: bool) -> bool:
+    """Compute the final in_thought state after processing a chunk."""
+    while "<thought>" in text or "</thought>" in text:
+        if "<thought>" in text:
+            _, _, text = text.partition("<thought>")
+            in_thought = True
+        if "</thought>" in text:
+            _, _, text = text.partition("</thought>")
+            in_thought = False
+    return in_thought
+
+
+async def _filter_thoughts(text: str, in_thought: bool):
+    """Yield token events for visible text, filtering out <thought> blocks.
+
+    Handles: both tags in one chunk, split across chunks, multiple blocks.
+    """
+    while "<thought>" in text or "</thought>" in text:
+        if "<thought>" in text:
+            before, _, rest = text.partition("<thought>")
+            if before and not in_thought:
+                yield _token_event(before)
+            in_thought = True
+            text = rest
+        if "</thought>" in text:
+            _, _, after = text.partition("</thought>")
+            in_thought = False
+            text = after
+    if text and not in_thought:
+        yield _token_event(text)
 
 
 class ChatRequest(BaseModel):
@@ -106,25 +142,13 @@ async def _stream_response(
                                 else:
                                     text = str(block)
                                 if text:
-                                    # Filter <thought> blocks from streamed tokens
-                                    if "<thought>" in text:
-                                        in_thought = True
-                                        text = text.split("<thought>")[0]
-                                    if "</thought>" in text:
-                                        in_thought = False
-                                        text = text.split("</thought>")[-1]
-                                    if text and not in_thought:
-                                        yield f"data: {json.dumps({'type': 'token', 'content': text})}\n\n"
+                                    async for evt in _filter_thoughts(text, in_thought):
+                                        yield evt
+                                    in_thought = _update_thought_state(text, in_thought)
                         elif isinstance(content, str) and content:
-                            # Filter <thought> blocks
-                            if "<thought>" in content:
-                                in_thought = True
-                                content = content.split("<thought>")[0]
-                            if "</thought>" in content:
-                                in_thought = False
-                                content = content.split("</thought>")[-1]
-                            if content and not in_thought:
-                                yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
+                            async for evt in _filter_thoughts(content, in_thought):
+                                yield evt
+                            in_thought = _update_thought_state(content, in_thought)
 
                         # Tool calls from the LLM
                         if hasattr(chunk, "tool_calls") and chunk.tool_calls:
@@ -135,6 +159,23 @@ async def _stream_response(
                     tool_name = event.get("name", "")
                     if tool_name:
                         yield f"data: {json.dumps({'type': 'tool_end', 'name': tool_name})}\n\n"
+
+            # Send plate data inline before done to avoid race condition
+            try:
+                from src.db.queries import get_plate_items
+                plate_items = await get_plate_items(user_id)
+                if plate_items:
+                    plate_data = [
+                        {
+                            "id": str(p["node_id"]),
+                            "content": p["content"],
+                            "deadline": str(p["deadline"]) if p.get("deadline") else None,
+                        }
+                        for p in plate_items
+                    ]
+                    yield f"data: {json.dumps({'type': 'plate', 'items': plate_data})}\n\n"
+            except Exception:
+                pass  # Plate failure should never block done
 
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
@@ -236,7 +277,12 @@ async def chat(
                     plate_items = await get_plate_items(user_id)
                     metadata["plate"] = {
                         "items": [
-                            {"id": p["node_id"], "content": p["content"], "deadline": p.get("deadline")}
+                            {
+                                "id": str(p["node_id"]),
+                                "content": p["content"],
+                                "deadline": str(p["deadline"]) if p.get("deadline") else None,
+                                "created_at": str(p["created_at"]) if p.get("created_at") else None,
+                            }
                             for p in plate_items
                         ]
                     }

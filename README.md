@@ -29,7 +29,7 @@ Copy `.env.example` and fill in your keys — see [docs/DEPLOY.md](docs/DEPLOY.m
 | Database | Supabase (Postgres + pgvector + Auth) |
 | Cache | Upstash Redis |
 | Jobs | Upstash QStash (cron + delayed queue) |
-| LLM | Gemini (chat) + OpenAI (embeddings) |
+| LLM | Google Gemini (chat, extraction, embeddings) |
 
 ## Repo Structure
 
@@ -47,16 +47,17 @@ unspool/
 │   ├── e2e/               # Playwright E2E tests
 │   └── package.json
 ├── backend/
-│   ├── config/            # YAML pipelines, prompts, scoring rules
-│   ├── prompts/           # Jinja2 prompt templates (first-person voice v2.1)
+│   ├── config/            # YAML config (proactive triggers, scoring, jobs)
+│   ├── prompts/           # Jinja2 prompt templates (first-person voice)
 │   ├── src/               # FastAPI app
 │   │   ├── api/           # User-facing endpoints (chat SSE, messages, push)
-│   │   ├── jobs/          # Background job endpoints
-│   │   ├── orchestrator/  # Config-driven message processing engine
-│   │   ├── tools/         # Tool registry + implementations
-│   │   ├── llm/           # LLM provider abstraction
-│   │   └── db/            # Supabase + Redis clients
-│   ├── tests/
+│   │   ├── agents/        # Hot path (LangGraph + Gemini) + Cold path (extraction)
+│   │   ├── core/          # Graph ops, models, database, settings
+│   │   ├── jobs/          # Background job endpoints (cron, synthesis)
+│   │   ├── proactive/     # Proactive message engine + evaluators
+│   │   ├── integrations/  # Gemini, QStash, Redis, Push
+│   │   └── db/            # Queries, Redis client
+│   ├── supabase/          # Migrations
 │   └── requirements.txt
 ├── docs/                  # Detailed specs and guides
 └── archive/               # V1 frontend (reference)
@@ -65,9 +66,11 @@ unspool/
 ## Documentation
 
 - [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) — Product specification
-- [docs/FRONTEND_SPEC.md](docs/FRONTEND_SPEC.md) — Frontend V2 specification (Midnight Sanctuary)
+- [docs/FRONTEND_SPEC.md](docs/FRONTEND_SPEC.md) — Frontend specification (Midnight Sanctuary)
 - [docs/MEMORY_ARCHITECTURE.md](docs/MEMORY_ARCHITECTURE.md) — Memory system design
 - [docs/CHAT_INTERACTIONS.md](docs/CHAT_INTERACTIONS.md) — Interaction pattern examples
+- [docs/DEPLOY.md](docs/DEPLOY.md) — Deployment guide
+- [docs/v2/](docs/v2/README.md) — V2 backend docs (architecture, API, agent design, database, auth, telemetry)
 
 ## Tests
 

@@ -62,8 +62,6 @@ async def run_check_deadlines() -> dict:
             if not items:
                 continue
 
-            await update_profile(user_id, notification_sent_today=True)
-
             subscriptions = await get_push_subscriptions(user_id)
             if not subscriptions:
                 continue
@@ -76,6 +74,9 @@ async def run_check_deadlines() -> dict:
             from src.integrations.push import send_push_notification
             for sub in subscriptions:
                 await send_push_notification(subscription=sub, title=title, body=body, user_id=user_id)
+
+            # Mark notification as sent AFTER successful push delivery
+            await update_profile(user_id, notification_sent_today=True)
 
             notified += 1
         except Exception:

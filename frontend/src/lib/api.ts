@@ -23,6 +23,11 @@ function mapToSSEEvent(parsed: Record<string, unknown>): ParsedSSEEvent {
         tool: parsed.name as string,
         status: 'done',
       }
+    case 'plate':
+      return {
+        type: 'plate',
+        items: parsed.items as Array<{ id: string; content: string; deadline?: string }>,
+      }
     case 'error':
       return { type: 'error', content: parsed.content as string }
     case 'done':
@@ -79,6 +84,7 @@ export function sendMessage(
   onToolStatus?: (tool: string, status: 'running' | 'done') => void,
   onDone?: () => void,
   onError?: (err: unknown) => void,
+  onPlate?: (items: Array<{ id: string; content: string; deadline?: string }>) => void,
 ): AbortController {
   const controller = new AbortController()
   let streamDone = false
@@ -131,6 +137,11 @@ export function sendMessage(
           case 'tool_status':
             if (onToolStatus && parsed.tool && parsed.status) {
               onToolStatus(parsed.tool, parsed.status)
+            }
+            break
+          case 'plate':
+            if (onPlate && parsed.items) {
+              onPlate(parsed.items)
             }
             break
           case 'error':
@@ -204,22 +215,6 @@ export async function fetchMessages(
       metadata: msg.metadata ?? undefined,
     }))
     .reverse()
-}
-
-export async function fetchLatestPlate(
-  token: string,
-): Promise<{ items: Array<{ id: string; content: string; deadline?: string }> } | null> {
-  // Fetch recent messages to find the latest with plate metadata.
-  // Use limit=5 to handle cases where the very latest message is the user's.
-  const messages = await fetchMessages(token, 5)
-  // messages are returned oldest-first from fetchMessages, so search from end
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i]
-    if (m?.metadata?.plate) {
-      return m.metadata.plate as { items: Array<{ id: string; content: string; deadline?: string }> }
-    }
-  }
-  return null
 }
 
 export { getApiUrl }

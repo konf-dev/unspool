@@ -35,43 +35,62 @@ async def get_messages(
     is_initial_load = before is None
 
     if is_initial_load:
-        # Mark the user as active — prevents days_absent from re-triggering on next open
+        from src.db.queries import get_profile, update_profile
+
+        # Check if user was recently active — skip proactive if so.
+        # This prevents proactive messages on page refresh, re-login, or fetchLatestPlate.
+        should_run_proactive = False
         try:
-            from src.db.queries import update_profile
-            from datetime import timezone as tz
-            await update_profile(user_id, last_interaction_at=datetime.now(tz.utc))
+            profile = await get_profile(user_id)
+            if profile:
+                last = profile.get("last_interaction_at")
+                if last:
+                    if isinstance(last, str):
+                        last = datetime.fromisoformat(last)
+                    if last.tzinfo is None:
+                        last = last.replace(tzinfo=timezone.utc)
+                    hours_since = (datetime.now(timezone.utc) - last).total_seconds() / 3600
+                    should_run_proactive = hours_since >= 1
+                else:
+                    should_run_proactive = True  # First-ever session
         except Exception:
             pass
 
-        # Evaluate proactive triggers — generates + persists to event_stream.
-        # We await fully so the message is committed before the fetch below.
+        # Mark the user as active BEFORE proactive check
         try:
-            from src.proactive.engine import check_proactive
-            await check_proactive(user_id)
-        except Exception as e:
-            report_error("messages.proactive_failed", e, user_id=user_id)
+            await update_profile(user_id, last_interaction_at=datetime.now(timezone.utc))
+        except Exception:
+            pass
 
-        # Deliver queued proactive messages — persist to event_stream then mark delivered
-        try:
-            from src.db.queries import (
-                get_unconsumed_proactive_messages,
-                mark_proactive_messages_delivered,
-                append_message_event,
-            )
-            queued = await get_unconsumed_proactive_messages(user_id)
-            if queued:
-                ids = [q["id"] for q in queued]
-                async with AsyncSessionLocal() as sess:
-                    for q in queued:
-                        await append_message_event(
-                            sess, user_id, "assistant", q["content"],
-                            metadata={"type": "proactive", "trigger": q["trigger_type"], "is_queued": True},
-                        )
-                    await sess.commit()
-                await mark_proactive_messages_delivered(user_id, ids)
-                _log.info("messages.queued_proactive_delivered", count=len(queued), user_id=user_id)
-        except Exception as e:
-            report_error("messages.queued_proactive_failed", e, user_id=user_id)
+        if should_run_proactive:
+            # Evaluate proactive triggers — generates + persists to event_stream.
+            try:
+                from src.proactive.engine import check_proactive
+                await check_proactive(user_id)
+            except Exception as e:
+                report_error("messages.proactive_failed", e, user_id=user_id)
+
+            # Deliver queued proactive messages — persist to event_stream then mark delivered
+            try:
+                from src.db.queries import (
+                    get_unconsumed_proactive_messages,
+                    mark_proactive_messages_delivered,
+                    append_message_event,
+                )
+                queued = await get_unconsumed_proactive_messages(user_id)
+                if queued:
+                    ids = [q["id"] for q in queued]
+                    async with AsyncSessionLocal() as sess:
+                        for q in queued:
+                            await append_message_event(
+                                sess, user_id, "assistant", q["content"],
+                                metadata={"type": "proactive", "trigger": q["trigger_type"], "is_queued": True},
+                            )
+                        await sess.commit()
+                    await mark_proactive_messages_delivered(user_id, ids)
+                    _log.info("messages.queued_proactive_delivered", count=len(queued), user_id=user_id)
+            except Exception as e:
+                report_error("messages.queued_proactive_failed", e, user_id=user_id)
 
     # Fetch messages — proactive + queued messages are already committed to event_stream
     async with AsyncSessionLocal() as session:
