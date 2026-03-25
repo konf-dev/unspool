@@ -84,6 +84,42 @@ nodes:
 edges:
   - source_content: "ran 5km", target_content: "running", edge_type: "TRACKS_METRIC", metadata: {"value": 5.0, "unit": "km"}
   - source_content: "ran 5km", target_content: "feeling good", edge_type: "EXPERIENCED_DURING"
+
+EXAMPLE 4 — "my car registration expires next month"
+(assuming Current Time is 2026-03-23)
+
+nodes:
+  - content: "renew car registration", node_type: "action"
+  - content: "OPEN", node_type: "system_status"
+
+edges:
+  - source_content: "renew car registration", target_content: "OPEN", edge_type: "IS_STATUS"
+  - source_content: "renew car registration", target_content: "renew car registration", edge_type: "HAS_DEADLINE", metadata: {"date": "2026-04-23T17:00:00Z", "deadline_type": "soft"}
+
+Note: Implicit task. "expires next month" means the user needs to renew it. Extract the action, not the expiry.
+
+EXAMPLE 5 — "my boss keeps piling things on and I'm losing it"
+
+nodes:
+  - content: "feeling overwhelmed at work", node_type: "emotion"
+
+edges: []
+
+Note: Venting, not a task. Extract emotion only. Do not create action items from emotional statements.
+
+EXAMPLE 6 — "finish report before the presentation on Friday"
+(assuming Current Time is 2026-03-23)
+
+nodes:
+  - content: "finish report", node_type: "action"
+  - content: "presentation", node_type: "action"
+  - content: "OPEN", node_type: "system_status"
+
+edges:
+  - source_content: "finish report", target_content: "OPEN", edge_type: "IS_STATUS"
+  - source_content: "presentation", target_content: "OPEN", edge_type: "IS_STATUS"
+  - source_content: "finish report", target_content: "presentation", edge_type: "DEPENDS_ON"
+  - source_content: "presentation", target_content: "presentation", edge_type: "HAS_DEADLINE", metadata: {"date": "2026-03-27T17:00:00Z"}
 """
 
 
@@ -95,7 +131,10 @@ async def ensure_status_nodes(session, user_id: uuid.UUID):
 
 @observe(name="cold_path.extraction")
 async def run_extraction(
-    raw_message: str, current_time_iso: str, timezone: str,
+    raw_message: str,
+    current_time_iso: str,
+    timezone: str,
+    recent_messages: list[str] | None = None,
 ) -> ExtractionResult:
     """Uses Gemini with structured outputs to parse a brain dump into a Graph.
 
@@ -115,7 +154,13 @@ async def run_extraction(
     settings = get_settings()
     client = get_gemini_client()
 
-    user_content = f"Current Time: {current_time_iso}\nUser Timezone: {timezone}\n\n{raw_message}"
+    # Include recent conversation context for anaphora resolution
+    context_prefix = ""
+    if recent_messages:
+        context_lines = "\n".join(f"- {m}" for m in recent_messages[-3:])
+        context_prefix = f"Recent conversation (for context only — extract from the LAST message):\n{context_lines}\n\n"
+
+    user_content = f"Current Time: {current_time_iso}\nUser Timezone: {timezone}\n\n{context_prefix}{raw_message}"
 
     response = await client.aio.models.generate_content(
         model=settings.EXTRACTION_MODEL,
@@ -174,6 +219,7 @@ async def process_brain_dump(
     current_time_iso: str,
     timezone: str,
     trace_id: str | None = None,
+    recent_messages: list[str] | None = None,
 ) -> None:
     """The main entry point for the Cold Path Archiver. Idempotent."""
     idem_key = _idempotency_key(str(user_id), raw_message)
@@ -198,7 +244,7 @@ async def process_brain_dump(
 
         # Run LLM extraction
         try:
-            extraction = await run_extraction(raw_message, current_time_iso, timezone)
+            extraction = await run_extraction(raw_message, current_time_iso, timezone, recent_messages)
         except Exception as e:
             report_error(
                 "cold_path.extraction_failed", e,

@@ -40,7 +40,7 @@ def _get_llm_with_tools() -> ChatGoogleGenerativeAI:
         llm = ChatGoogleGenerativeAI(
             google_api_key=settings.api_key_for(settings.CHAT_PROVIDER),
             model=settings.CHAT_MODEL,
-            temperature=0.7,
+            temperature=0.4,
             thinking_budget=4096,
         )
         _llm_with_tools = llm.bind_tools([query_graph, mutate_graph])
@@ -94,17 +94,21 @@ async def call_tools(state: HotPathState):
             if tool_call["name"] == "query_graph":
                 args = tool_call["args"]
                 semantic_query = args.get("semantic_query")
-                if not semantic_query or not str(semantic_query).strip():
+                edge_type_filter = args.get("edge_type_filter")
+                node_type = args.get("node_type")
+                # At least one filter must be provided
+                sq = str(semantic_query).strip() if semantic_query else None
+                if not sq and not edge_type_filter and not node_type:
                     result = (
-                        "Error: semantic_query is required. "
-                        "Describe what to search for, e.g. 'open tasks', 'Mom', 'deadlines'."
+                        "Error: provide at least one of semantic_query, "
+                        "edge_type_filter, or node_type."
                     )
                 else:
                     result = await _exec_query_graph(
                         user_id=user_id,
-                        semantic_query=str(semantic_query).strip(),
-                        edge_type_filter=args.get("edge_type_filter"),
-                        node_type=args.get("node_type"),
+                        semantic_query=sq,
+                        edge_type_filter=edge_type_filter,
+                        node_type=node_type,
                     )
             elif tool_call["name"] == "mutate_graph":
                 args = tool_call["args"]

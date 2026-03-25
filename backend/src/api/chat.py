@@ -302,10 +302,17 @@ async def chat(
                 if stream_state.get("completed") and not stream_state.get("failed"):
                     try:
                         from src.integrations.qstash import dispatch_job
+                        # Include last 3 user messages for anaphora resolution
+                        recent_user_msgs = [
+                            str(m.get("content", ""))
+                            for m in recent_messages[-3:]
+                            if m.get("role") == "user" and m.get("content")
+                        ]
                         await dispatch_job("process-message", {
                             "user_id": user_id,
                             "trace_id": trace_id,
                             "message": request.message,
+                            "recent_messages": recent_user_msgs or None,
                         }, delay=5)
                     except Exception:
                         _log.error("chat.cold_path_dispatch_failed", trace_id=trace_id, exc_info=True)

@@ -20,6 +20,7 @@ class ProcessMessageRequest(BaseModel):
     user_id: str
     trace_id: str | None = None
     message: str = ""
+    recent_messages: list[str] | None = None
 
 
 class ExecuteActionRequest(BaseModel):
@@ -150,6 +151,7 @@ async def process_message(request: ProcessMessageRequest) -> dict:
                 current_time_iso=datetime.now(timezone.utc).isoformat(),
                 timezone=user_tz,
                 trace_id=trace_id,
+                recent_messages=request.recent_messages,
             )
             result = {"status": "processed"}
         except Exception as e:

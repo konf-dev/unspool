@@ -33,6 +33,20 @@ defaultTest:
   assert:
     - type: latency
       threshold: 15000
+    - type: not-contains
+      value: "query_graph"
+    - type: not-contains
+      value: "mutate_graph"
+    - type: not-contains
+      value: "node_id"
+    - type: not-contains
+      value: "edge_type"
+    - type: not-contains
+      value: "embedding"
+    - type: not-contains
+      value: "pipeline"
+    - type: not-contains
+      value: "system_status"
 
 tests:
   - file://cases/intent.yaml

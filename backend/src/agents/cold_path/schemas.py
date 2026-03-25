@@ -17,8 +17,8 @@ class ExtractedEdge(BaseModel):
     source_content: str = Field(..., description="The content of the source node. MUST match a node's content exactly.")
     target_content: str = Field(..., description="The content of the target node. MUST match a node's content exactly.")
     edge_type: str = Field(
-        ..., 
-        description="The relationship. Must be one of: 'HAS_DEADLINE', 'IS_STATUS', 'RELATES_TO', 'TRACKS_METRIC', 'EXPERIENCED_DURING'"
+        ...,
+        description="The relationship. Must be one of: 'HAS_DEADLINE', 'IS_STATUS', 'RELATES_TO', 'TRACKS_METRIC', 'EXPERIENCED_DURING', 'DEPENDS_ON', 'PART_OF'"
     )
     metadata: Optional[EdgeMetadata] = Field(
         default=None, 
