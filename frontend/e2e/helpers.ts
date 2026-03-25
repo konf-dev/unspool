@@ -1,36 +1,46 @@
 import { type Page, expect } from '@playwright/test'
 
+const isRemote = !!(process.env.PLAYWRIGHT_BASE_URL && !process.env.PLAYWRIGHT_BASE_URL.includes('localhost'))
+const hasTestCredentials = !!(process.env.PLAYWRIGHT_TEST_EMAIL && process.env.PLAYWRIGHT_TEST_OTP)
+
+/**
+ * Whether authenticated tests can run.
+ * On remote (prod), we need PLAYWRIGHT_TEST_EMAIL + PLAYWRIGHT_TEST_OTP.
+ * On local (mock mode), auth always works via the mock OTP flow.
+ */
+export const canAuthenticate = !isRemote || hasTestCredentials
+
 /**
  * Authenticate for e2e tests.
  *
- * Strategy depends on environment:
- * - PLAYWRIGHT_TEST_EMAIL + PLAYWRIGHT_TEST_OTP: real OTP flow (for prod)
- * - Default (local/mock mode): walk through the OTP UI which auto-succeeds
+ * - Remote + credentials: real OTP flow
+ * - Local (mock mode): walk through OTP UI which auto-succeeds
  */
 export async function authenticate(page: Page) {
   const testEmail = process.env.PLAYWRIGHT_TEST_EMAIL
   const testOtp = process.env.PLAYWRIGHT_TEST_OTP
 
-  if (testEmail && testOtp) {
+  if (isRemote && testEmail && testOtp) {
     // Real auth flow for prod testing
     await page.goto('/login')
     await page.getByPlaceholder('your@email.com').fill(testEmail)
     await page.getByRole('button', { name: 'send login code' }).click()
-    // Wait for OTP stage
-    await expect(page.getByLabel('Login code')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByLabel('Login code')).toBeVisible({ timeout: 15000 })
     await page.getByLabel('Login code').fill(testOtp)
-    // Auto-submits on 6 digits, redirects to /chat
     await page.waitForURL(/\/chat/, { timeout: 15000 })
-  } else {
-    // Mock mode: walk through the UI — sendOtp is a no-op, verifyOtp sets mock state
+  } else if (!isRemote) {
+    // Mock mode: sendOtp is no-op, verifyOtp sets mock state instantly
     await page.goto('/login')
     await page.getByPlaceholder('your@email.com').fill('test@e2e.local')
     await page.getByRole('button', { name: 'send login code' }).click()
-    // In mock mode, sendOtp returns immediately → OTP stage appears
     await expect(page.getByLabel('Login code')).toBeVisible({ timeout: 5000 })
     await page.getByLabel('Login code').fill('123456')
-    // verifyOtp in mock mode sets auth state → App redirects to /chat
     await page.waitForURL(/\/chat/, { timeout: 10000 })
+  } else {
+    throw new Error(
+      'Cannot authenticate: running against remote but PLAYWRIGHT_TEST_EMAIL and PLAYWRIGHT_TEST_OTP are not set. ' +
+      'Set these env vars or run against localhost.'
+    )
   }
 
   await page.waitForSelector('[aria-label="Message input"]', { timeout: 10000 })
@@ -38,7 +48,7 @@ export async function authenticate(page: Page) {
 
 /**
  * Inject coarse pointer media query to simulate mobile touch device.
- * Must be called BEFORE navigating to the page.
+ * Must be called BEFORE navigating to the page (before authenticate).
  */
 export async function simulateMobilePointer(page: Page) {
   await page.addInitScript(() => {
