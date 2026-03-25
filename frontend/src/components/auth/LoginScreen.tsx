@@ -105,7 +105,7 @@ export function LoginScreen() {
           unspool
         </h1>
         <p className="text-on-surface-variant font-light text-sm tracking-[0.05em] opacity-80">
-          your mind, but reliable
+          I listen. I remember.
         </p>
       </header>
 
