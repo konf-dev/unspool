@@ -4,11 +4,30 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
+import { writeFileSync, mkdirSync } from 'fs'
+import { execSync } from 'child_process'
+
+function versionJsonPlugin() {
+  return {
+    name: 'version-json',
+    closeBundle() {
+      const sha = process.env.VERCEL_GIT_COMMIT_SHA
+        || (() => { try { return execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim() } catch { return 'dev' } })()
+      const data = {
+        git_sha: sha,
+        built_at: new Date().toISOString(),
+      }
+      mkdirSync('dist', { recursive: true })
+      writeFileSync('dist/version.json', JSON.stringify(data))
+    },
+  }
+}
 
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    versionJsonPlugin(),
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
