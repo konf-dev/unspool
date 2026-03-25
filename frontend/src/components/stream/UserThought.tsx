@@ -9,7 +9,7 @@ export const UserThought = memo(function UserThought({ message }: UserThoughtPro
   return (
     <div className="animate-fade-in flex justify-end">
       <div className="bg-user-bubble px-5 py-4 rounded-3xl rounded-tr-none ml-12">
-        <p className="text-[15px] leading-relaxed text-on-surface font-normal tracking-tight">
+        <p className="text-[15px] leading-relaxed text-on-surface font-normal tracking-tight whitespace-pre-wrap">
           {message.content}
         </p>
         {message.status === 'queued' && (

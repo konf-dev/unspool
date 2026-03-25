@@ -10,6 +10,7 @@ export function useScrollAnchor(deps: unknown[]): UseScrollAnchorReturn {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const userScrolledRef = useRef(false)
+  const prevDepsLenRef = useRef<number | null>(null)
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current
@@ -35,8 +36,15 @@ export function useScrollAnchor(deps: unknown[]): UseScrollAnchorReturn {
     return () => el.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // Auto-scroll when new content arrives and user hasn't scrolled up
+  // Auto-scroll when new content arrives.
+  // Reset the "user scrolled" flag when messages.length grows (user sent a message).
   useEffect(() => {
+    const messagesLen = typeof deps[0] === 'number' ? deps[0] : null
+    if (messagesLen !== null && prevDepsLenRef.current !== null && messagesLen > prevDepsLenRef.current) {
+      userScrolledRef.current = false
+    }
+    prevDepsLenRef.current = messagesLen
+
     if (!userScrolledRef.current) {
       const el = scrollRef.current
       if (el) {
