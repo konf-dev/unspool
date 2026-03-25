@@ -2,22 +2,26 @@ import { useEffect } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 
 export function useAuth() {
-  const store = useAuthStore()
+  // #4: Use individual selectors to avoid re-rendering on every store change
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const isLoading = useAuthStore((s) => s.isLoading)
+  const userId = useAuthStore((s) => s.userId)
+  const token = useAuthStore((s) => s.token)
+  const hasCalendar = useAuthStore((s) => s.hasCalendar)
 
   useEffect(() => {
-    const cleanup = store._initSession()
+    const cleanup = useAuthStore.getState()._initSession()
     return cleanup
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return {
-    isAuthenticated: store.isAuthenticated,
-    isLoading: store.isLoading,
-    userId: store.userId,
-    token: store.token,
-    hasCalendar: store.hasCalendar,
-    sendOtp: store.sendOtp,
-    verifyOtp: store.verifyOtp,
-    signOut: store.signOut,
+    isAuthenticated,
+    isLoading,
+    userId,
+    token,
+    hasCalendar,
+    sendOtp: useAuthStore.getState().sendOtp,
+    verifyOtp: useAuthStore.getState().verifyOtp,
+    signOut: useAuthStore.getState().signOut,
   }
 }

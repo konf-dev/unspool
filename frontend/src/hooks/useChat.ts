@@ -1,9 +1,11 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useMessageStore } from '@/stores/messageStore'
 import { useAuthStore } from '@/stores/authStore'
+import { useUIStore } from '@/stores/uiStore'
 
 export function useChat() {
   const token = useAuthStore((s) => s.token)
+  const isOnline = useUIStore((s) => s.isOnline)
   const messages = useMessageStore((s) => s.messages)
   const streamingContent = useMessageStore((s) => s.streamingContent)
   const isStreaming = useMessageStore((s) => s.isStreaming)
@@ -27,12 +29,12 @@ export function useChat() {
     if (!token) historyFetchedRef.current = false
   }, [token])
 
-  // Flush offline queue when coming online
+  // #2: Flush offline queue when coming online (depends on isOnline, not just token)
   useEffect(() => {
-    if (token && navigator.onLine) {
+    if (token && isOnline) {
       useMessageStore.getState().flushQueue(token)
     }
-  }, [token])
+  }, [token, isOnline])
 
   const send = useCallback(
     (content: string) => {

@@ -38,14 +38,23 @@ export function parseSSEEvents(data: string): ParsedSSEEvent[] {
     return [mapToSSEEvent(parsed)]
   } catch {
     // data may contain multiple concatenated JSON objects — parse each one
+    // #5: Skip braces inside string literals to handle {"content": "use { and }"}
     const events: ParsedSSEEvent[] = []
     let depth = 0
     let start = -1
+    let inString = false
     for (let i = 0; i < data.length; i++) {
-      if (data[i] === '{') {
+      const ch = data[i]
+      if (inString) {
+        if (ch === '\\') { i++; continue } // skip escaped char
+        if (ch === '"') inString = false
+        continue
+      }
+      if (ch === '"') { inString = true; continue }
+      if (ch === '{') {
         if (depth === 0) start = i
         depth++
-      } else if (data[i] === '}') {
+      } else if (ch === '}') {
         depth--
         if (depth === 0 && start >= 0) {
           try {

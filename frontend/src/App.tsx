@@ -39,27 +39,27 @@ export function App() {
     return cleanup
   }, [])
 
-  // Auth-based routing
+  // #14: Auth-based routing — only react to auth changes, read route from store
   useEffect(() => {
     if (isLoading) return
 
-    const { navigate } = useUIStore.getState()
+    const { navigate, route: currentRoute } = useUIStore.getState()
 
-    if (isAuthenticated && (route === 'login' || route === 'landing')) {
+    if (isAuthenticated && (currentRoute === 'login' || currentRoute === 'landing')) {
       navigate('chat')
-    } else if (!isAuthenticated && route === 'chat') {
+    } else if (!isAuthenticated && currentRoute === 'chat') {
       navigate('login')
     }
 
     // PWA standalone: skip landing, go to login
     if (
       !isAuthenticated &&
-      route === 'landing' &&
+      currentRoute === 'landing' &&
       window.matchMedia('(display-mode: standalone)').matches
     ) {
       navigate('login')
     }
-  }, [isAuthenticated, isLoading, route])
+  }, [isAuthenticated, isLoading])
 
   if (isLoading) {
     return <LoadingScreen />
