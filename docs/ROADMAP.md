@@ -80,14 +80,14 @@ Goal: Every feature in PRODUCT_SPEC.md actually works end-to-end. v0.1 spec fulf
 - [ ] **Stripe checkout wiring** — `/api/subscribe` → Stripe API, webhook handler for checkout.completed/subscription.deleted/payment.failed, update user tier in DB
 - [ ] **Google Calendar OAuth user flow** — User-facing consent from within chat (meta intent), sync backend already exists
 - [ ] **Push notification e2e** — Verify VAPID on real devices (iOS 16.4+, Android Chrome), test check-deadlines → proactive message → device notification path
-- [ ] **Concurrent message handling** — Users send while AI processes; queue in InputBar, pending visual state, message ordering guarantees, context assembly for in-flight messages
-- [ ] **Frontend 429 error handling** — Chat shows generic "couldn't reach the server" on rate limit. Should parse 429 response body and show the actual message ("You've reached your daily message limit"). Also show upgrade prompt for free tier users
+- [x] **Concurrent message handling** — Offline queue in messageStore, pending visual state, message ordering preserved
+- [x] **Frontend 429 error handling** — Parses 429 response body, shows actual rate limit message
 - [x] **UI polish pass** — Animation jank, responsive edge cases, sent-while-offline indicator. Sprint 0 completion
 - [x] **PWA install prompt** — Device-aware "add to home screen" suggestion. Sprint 0 completion
-- [ ] **Account deletion via chat** — Meta intent with confirmation step, uses existing `DELETE /api/account`
+- [x] **Account deletion via chat** — System prompt handles deletion intent with confirmation button `[delete my account](action:delete_account)`, frontend `messageStore.ts` calls `DELETE /api/account`
 - [ ] **Item update/correction via chat** — "the meeting moved to Wednesday" / "actually the deadline is next Friday" — user needs to correct the AI's understanding of an existing item (deadline, description, etc.) from conversation
 - [ ] **Item removal via chat** — "forget about the dentist" / "never mind about that" — user wants to delete or deprioritize a specific item. Needs matching + removal to work reliably, not just a generic meta response
-- [ ] **Offline message queuing** — Frontend queues messages typed while offline and sends them when connection returns. Offline banner exists but messages typed offline are currently lost
+- [x] **Offline message queuing** — Frontend queues messages in localStorage when offline, flushes sequentially on reconnect
 
 ---
 
@@ -102,7 +102,7 @@ Goal: Handle 50+ concurrent users without things breaking.
 - [x] **ASGI middleware for tracing** — Raw ASGI middleware replacing BaseHTTPMiddleware; fixes SSE streaming buffering; `scope["state"]["trace_id"]` + `send_wrapper` for header injection
 - [x] **Prompt file caching** — `_env.get_template()` with Jinja2's built-in mtime cache; frontmatter stripped in `_PromptLoader.get_source()`; eager hash computation in `get_prompt_hash()`
 - [ ] **Timezone-aware operations** — Rate limiting resets at user's local midnight, but also deadline calculations (check_deadlines job, proactive triggers, urgency decay) need user timezone for correct "24 hours away" / quiet hours logic
-- [x] **Graph memory integration** — Postgres-native graph (memory_nodes + bi-temporal memory_edges + node_neighbors cache), halfvec embeddings, trigger-based retrieval, token-budgeted serialization, shadow mode. See `docs/GRAPH_MEMORY.md`
+- [x] **Graph memory integration** — Postgres-native graph (graph_nodes + graph_edges), pgvector embeddings, semantic + structural queries, deterministic structured context loading (open items, deadlines, completions), cold path extraction with DEPENDS_ON/PART_OF edges. Migration 00009 optimized views and added composite indexes
 - [ ] **Graph evolution cron job** — Daily per-user evolution: embedding generation, edge decay, weak edge pruning, LLM synthesis (merges, contradictions), neighbor cache rebuild
 - [ ] **Migration rollback scripts** — Write a paired `00NNN_<name>.down.sql` for every migration. Two-phase destructive DDL: before dropping a column, (1) deploy code that stops reading it, (2) confirm stable, (3) drop in the next migration
 
@@ -115,7 +115,7 @@ Goal: The AI feels genuinely smart and personal. "It gets me."
 **Conversation intelligence:**
 - [ ] **Multi-step confirmations** — Destructive actions (delete account, mass deprioritize, cancel subscription) check recent_messages for confirmation before executing
 - [ ] **Disambiguation responses** — fuzzy_match_item with multiple matches asks "which one?", resolves from conversation context on next message
-- [ ] **Action buttons from backend** — Parse `[button text]` patterns in response, emit SSE `actions` event, strip from saved text (frontend already handles the event)
+- [x] **Action buttons from backend** — Inline `[text](action:value)` parsed by `parseInlineActions`, stripped from display, rendered as ActionChips. SSE `actions` event also supported
 - [ ] **Focus mode** — Single-task mode, AI refuses additions and redirects to current task, session-level state in Redis
 - [ ] **Task decomposition** — When a task feels too big ("write chapter 3"), AI offers to break it into 5-15 minute chunks specific to what the user has mentioned. Key ADHD feature — the blocker isn't the task, it's that the task is too large to start
 - [ ] **Counter-catastrophizing with data** — "I'm not getting anywhere" → AI pulls actual completion stats and counters with real data ("you've done 47 things this month"). Emotional responses need access to item_events data to ground reassurance in facts, not platitudes

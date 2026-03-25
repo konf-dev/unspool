@@ -43,6 +43,6 @@ test.describe('Authentication', () => {
 
   test('login page shows tagline', async ({ page }) => {
     await page.goto('/login')
-    await expect(page.getByText('your mind, but reliable')).toBeVisible()
+    await expect(page.getByText('I listen. I remember.')).toBeVisible()
   })
 })
