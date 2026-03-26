@@ -179,10 +179,17 @@ git push origin main
 
 ### Backups
 
-On Supabase Free tier, daily backups exist but **cannot be restored**. The `migrate.sh` script runs `pg_dump` automatically before applying migrations. Backups are stored in `backups/` (gitignored, keeps last 5). For manual backup:
+On Supabase Free tier, daily backups exist but **cannot be restored**. The `migrate.sh` script runs `pg_dump` automatically before applying migrations. Each backup gets a companion `.manifest.txt` with the git commit, applied migrations, tables, and views — so you know exactly what state the backup represents.
+
+Backups are stored in `backups/` (gitignored, keeps last 5). To restore:
 
 ```bash
-pg_dump "$PGURL" --no-owner --no-privileges | gzip > backups/manual_$(date +%Y-%m-%d).sql.gz
+source .env
+PGURL="${DATABASE_URL//+asyncpg/}"
+# Check the manifest first to see what's in the backup
+cat backups/backup_XXXX.manifest.txt
+# Restore
+gunzip -c backups/backup_XXXX.sql.gz | psql "$PGURL"
 ```
 
 ## Post-Deploy Verification
