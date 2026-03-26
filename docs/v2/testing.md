@@ -44,18 +44,15 @@ PGPASSWORD=... psql "$PGURL" -c "
 DROP VIEW IF EXISTS vw_messages, vw_actionable, vw_timeline, vw_metrics CASCADE;
 DROP TABLE IF EXISTS error_log, llm_usage, proactive_messages, scheduled_actions,
   push_subscriptions, subscriptions, graph_edges, graph_nodes, event_stream,
-  user_profiles CASCADE;
+  user_profiles, schema_migrations CASCADE;
 DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE;
 DROP FUNCTION IF EXISTS public.on_auth_user_created() CASCADE;
 "
 
-# Apply all 6 migrations in order
-for f in supabase/migrations/0000*.sql; do
-  echo "Applying $f..."
-  PGPASSWORD=... psql "$PGURL" -f "$f"
-done
+# Apply all 11 migrations
+./scripts/migrate.sh --no-backup
 
-# Verify: should show 10 tables + 4 views
+# Verify: should show 11 tables + 4 views
 PGPASSWORD=... psql "$PGURL" -c "
 SELECT 'TABLE' as type, tablename as name FROM pg_tables WHERE schemaname='public'
 UNION ALL SELECT 'VIEW', viewname FROM pg_views WHERE schemaname='public'
@@ -63,7 +60,7 @@ ORDER BY type, name;
 "
 ```
 
-Expected output: 10 TABLEs (`error_log`, `event_stream`, `graph_edges`, `graph_nodes`, `llm_usage`, `proactive_messages`, `push_subscriptions`, `scheduled_actions`, `subscriptions`, `user_profiles`) + 4 VIEWs (`vw_actionable`, `vw_messages`, `vw_metrics`, `vw_timeline`).
+Expected output: 11 TABLEs (`error_log`, `event_stream`, `graph_edges`, `graph_nodes`, `llm_usage`, `proactive_messages`, `push_subscriptions`, `scheduled_actions`, `schema_migrations`, `subscriptions`, `user_profiles`) + 4 VIEWs (`vw_actionable`, `vw_messages`, `vw_metrics`, `vw_timeline`).
 
 ## Start the Server
 

@@ -203,6 +203,29 @@ All nodes with `HAS_DEADLINE` edges, ordered by deadline date.
 
 All user-facing tables have RLS enabled. Policies enforce `auth.uid() = user_id` (or `= id` for profiles). Operational tables (`error_log`, `llm_usage`) have no RLS — accessed only via admin endpoints using the service key.
 
+### Migration Tracking (Migration 00011)
+
+#### `schema_migrations`
+
+Tracks which database migrations have been applied, with checksums for drift detection.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| version | TEXT PK | e.g. `00010_graph_node_unique_constraint` |
+| applied_at | TIMESTAMPTZ | When the migration was applied |
+| checksum | TEXT | SHA-256 of the `.sql` file (NULL for backfilled entries) |
+| applied_by | TEXT | `current_user` at time of application |
+
+No RLS — accessed only by the migration runner script (`scripts/migrate.sh`).
+
+### Additional Migrations
+
+| Migration | Purpose |
+|-----------|---------|
+| 00008 | Fix duplicate items in `vw_actionable` view |
+| 00009 | Composite indexes on `(user_id, node_type)`, optimized view queries |
+| 00010 | Unique constraint on `graph_nodes(user_id, content, node_type)` |
+
 ## SQLAlchemy Models
 
 10 ORM models in `src/core/models.py`:

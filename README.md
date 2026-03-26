@@ -59,6 +59,7 @@ unspool/
 │   │   └── db/            # Queries, Redis client
 │   ├── supabase/          # Migrations
 │   └── requirements.txt
+├── scripts/               # Operational scripts (migrate.sh, diagnose.sh)
 ├── docs/                  # Detailed specs and guides
 └── archive/               # V1 frontend (reference)
 ```
@@ -69,21 +70,32 @@ unspool/
 - [docs/FRONTEND_SPEC.md](docs/FRONTEND_SPEC.md) — Frontend specification (Midnight Sanctuary)
 - [docs/MEMORY_ARCHITECTURE.md](docs/MEMORY_ARCHITECTURE.md) — Memory system design
 - [docs/CHAT_INTERACTIONS.md](docs/CHAT_INTERACTIONS.md) — Interaction pattern examples
-- [docs/DEPLOY.md](docs/DEPLOY.md) — Deployment guide
+- [docs/DEPLOY.md](docs/DEPLOY.md) — Deployment guide (initial setup)
 - [docs/v2/](docs/v2/README.md) — V2 backend docs (architecture, API, agent design, database, auth, telemetry)
+- [docs/v2/deployment.md](docs/v2/deployment.md) — Ongoing deployment & migration protocol
 
 ## Tests
 
 ```bash
-# Backend (103 tests)
+# Backend unit tests
 cd backend && pytest -v
 
-# Frontend (17 unit tests + type check + build)
+# Frontend (17 unit + 14 E2E + type check + build)
 cd frontend && npm test && npx tsc --noEmit && npm run build
-
-# Frontend E2E
 cd frontend && npx playwright test
 ```
+
+## Database Migrations
+
+Migrations are tracked via `schema_migrations` and applied with the runner:
+
+```bash
+./scripts/migrate.sh --status     # See what's applied/pending
+./scripts/migrate.sh --dry-run    # Preview changes
+./scripts/migrate.sh              # Backup + apply
+```
+
+See [docs/v2/deployment.md](docs/v2/deployment.md#migration-protocol) for the full protocol.
 
 ## License
 

@@ -187,6 +187,65 @@ else
     skip "Vercel CLI: not installed"
 fi
 
+# --- 8. Migration Status ---
+echo ""
+echo "-- Migrations --"
+
+# Load DATABASE_URL from .env
+if [[ -z "${DATABASE_URL:-}" && -f .env ]]; then
+    DB_URL=$(grep -E '^DATABASE_URL=' .env | head -1 | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+else
+    DB_URL="${DATABASE_URL:-}"
+fi
+
+if [[ -n "$DB_URL" ]] && command -v psql &>/dev/null; then
+    # Strip +asyncpg for psql compatibility
+    DB_URL="${DB_URL//+asyncpg/}"
+
+    # Check if schema_migrations table exists
+    table_exists=$(psql "$DB_URL" -t -A -c "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='schema_migrations');" 2>/dev/null || echo "false")
+
+    if [[ "$table_exists" == "t" ]]; then
+        applied_versions=$(psql "$DB_URL" -t -A -c "SELECT version FROM public.schema_migrations ORDER BY version;" 2>/dev/null || echo "")
+        applied_count=$(echo "$applied_versions" | grep -c . 2>/dev/null || echo "0")
+
+        # Count local migration files
+        local_count=0
+        pending_list=()
+        modified_list=()
+        for file in backend/supabase/migrations/[0-9]*.sql; do
+            [[ -f "$file" ]] || continue
+            ((local_count++))
+            basename_f=$(basename "$file" .sql)
+            if ! echo "$applied_versions" | grep -qx "$basename_f"; then
+                pending_list+=("$basename_f")
+            elif command -v sha256sum &>/dev/null; then
+                checksum=$(sha256sum "$file" | cut -d' ' -f1)
+                stored=$(psql "$DB_URL" -t -A -c "SELECT checksum FROM public.schema_migrations WHERE version = '$basename_f';" 2>/dev/null | tr -d '[:space:]')
+                if [[ -n "$stored" && "$stored" != "$checksum" ]]; then
+                    modified_list+=("$basename_f")
+                fi
+            fi
+        done
+
+        pass "Applied: $applied_count / $local_count migrations"
+
+        if [[ ${#pending_list[@]} -gt 0 ]]; then
+            warn "Pending: ${pending_list[*]}"
+        fi
+
+        if [[ ${#modified_list[@]} -gt 0 ]]; then
+            warn "Modified since applied: ${modified_list[*]}"
+        fi
+    else
+        warn "schema_migrations table not found (run migration 00011 to bootstrap)"
+    fi
+elif [[ -z "$DB_URL" ]]; then
+    skip "Migrations: DATABASE_URL not set"
+else
+    skip "Migrations: psql not installed"
+fi
+
 # --- Summary ---
 echo ""
 echo "=== $passed passed, $failed failed, $warnings warnings, $skipped skipped ==="
