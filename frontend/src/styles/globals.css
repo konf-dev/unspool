@@ -127,5 +127,5 @@ body {
 /* Focus styles */
 textarea:focus {
   outline: none;
-  box-shadow: none;
+  box-shadow: 0 0 0 2px rgba(174, 205, 192, 0.4);
 }

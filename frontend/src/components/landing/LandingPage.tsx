@@ -11,9 +11,9 @@ export function LandingPage() {
         <div className="w-10 h-1 mt-4 rounded-full bg-surface-container-high" />
       </header>
 
-      <main className="flex-grow flex flex-col items-center px-8 pt-14 pb-32 max-w-lg mx-auto w-full text-center">
+      <main className="flex-grow flex flex-col items-center px-8 pt-8 pb-16 sm:pt-14 sm:pb-32 max-w-lg mx-auto w-full text-center">
         {/* Title */}
-        <section className="mb-10">
+        <section className="mb-6 sm:mb-10">
           <h1 className="text-[2.5rem] font-extralight tracking-[0.2em] text-on-surface mb-2">
             unspool
           </h1>
@@ -23,7 +23,7 @@ export function LandingPage() {
         </section>
 
         {/* Demo */}
-        <section className="w-full mb-12">
+        <section className="w-full mb-6 sm:mb-12">
           <DemoChat onSignIn={() => navigate('login')} />
         </section>
 
@@ -60,13 +60,13 @@ export function LandingPage() {
         <div className="relative z-10 flex justify-center gap-6 py-8 pb-12">
           <button
             onClick={() => navigate('privacy')}
-            className="text-[10px] text-on-surface-variant/40 tracking-widest uppercase hover:text-on-surface transition-colors"
+            className="text-[10px] text-on-surface-variant/60 tracking-widest uppercase hover:text-on-surface transition-colors"
           >
             privacy
           </button>
           <button
             onClick={() => navigate('terms')}
-            className="text-[10px] text-on-surface-variant/40 tracking-widest uppercase hover:text-on-surface transition-colors"
+            className="text-[10px] text-on-surface-variant/60 tracking-widest uppercase hover:text-on-surface transition-colors"
           >
             terms
           </button>

@@ -45,7 +45,7 @@ export function StreamPage() {
       <button
         type="button"
         onClick={() => void handleSignOut()}
-        className="fixed right-4 z-[60] text-xs text-on-surface-variant/30 hover:text-on-surface-variant/60 transition-colors tracking-wide"
+        className="fixed right-4 z-[60] text-xs text-on-surface-variant/50 hover:text-on-surface-variant/60 transition-colors tracking-wide"
         style={{ top: 'calc(1rem + env(safe-area-inset-top, 0px))' }}
       >
         sign out

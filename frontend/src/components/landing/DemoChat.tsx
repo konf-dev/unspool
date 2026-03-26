@@ -32,12 +32,14 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
   const [input, setInput] = useState('')
   const [interactiveCount, setInteractiveCount] = useState(0)
   const [failCount, setFailCount] = useState(0)
+  const [showSignInButtons, setShowSignInButtons] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const playSequence = useCallback((index: number) => {
     const seq = DEMO_SEQUENCES[index]
     if (!seq) {
       setIsAutoPlaying(false)
+      setShowSignInButtons(true)
       return
     }
 
@@ -92,7 +94,7 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
         { role: 'assistant', content: response.content },
       ])
       if (response.shouldPromptSignIn) {
-        onSignIn()
+        setShowSignInButtons(true)
       }
     } catch {
       const newFailCount = failCount + 1
@@ -114,8 +116,11 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
 
   return (
     <div className="w-full">
-      <div className="bg-surface-container-high rounded-xl p-6 shadow-[0_20px_40px_rgba(0,0,0,0.4)] text-left flex flex-col gap-6 ring-1 ring-outline-variant/10">
-        <div className="space-y-6 min-h-[200px] max-h-[280px] overflow-y-auto no-scrollbar">
+      <p className="text-on-surface-variant/50 text-[10px] tracking-[0.15em] uppercase mb-3 text-center">
+        see how it works
+      </p>
+      <div className="bg-surface-container-high rounded-xl p-4 sm:p-6 shadow-[0_20px_40px_rgba(0,0,0,0.4)] text-left flex flex-col gap-6 ring-1 ring-outline-variant/10">
+        <div className="space-y-3 sm:space-y-6 min-h-[200px] max-h-[200px] sm:max-h-[280px] overflow-y-auto no-scrollbar">
           {messages.map((msg, i) => (
             <div key={`${msg.role}-${i}`} className="animate-fade-in">
               <DemoMessage role={msg.role} content={msg.content} />
@@ -158,6 +163,18 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
           </div>
         </div>
       </div>
+      {showSignInButtons && (
+        <div className="flex gap-3 mt-4 animate-fade-in justify-center">
+          <button onClick={onSignIn}
+            className="px-4 py-1.5 rounded-full text-sm text-primary font-light tracking-wide ghost-border hover:bg-surface-container-high active:scale-[0.97] transition-all duration-300">
+            sign up
+          </button>
+          <button onClick={onSignIn}
+            className="px-4 py-1.5 rounded-full text-sm text-primary font-light tracking-wide ghost-border hover:bg-surface-container-high active:scale-[0.97] transition-all duration-300">
+            log in
+          </button>
+        </div>
+      )}
     </div>
   )
 }
