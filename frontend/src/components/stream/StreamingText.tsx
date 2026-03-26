@@ -5,14 +5,16 @@ interface StreamingTextProps {
   content: string
 }
 
-// Buffer incomplete markdown action patterns to prevent flickering
+// Buffer incomplete markdown action patterns and strip complete ones to prevent flickering
 function bufferContent(raw: string): string {
-  // If it ends with an incomplete [label](action:... pattern, hold it
-  const incompleteAction = /\[[^\]]*$/.exec(raw)
+  // Strip complete action patterns from streaming display
+  let cleaned = raw.replace(/\[([^\]]+)\]\(action:[^)]+\)/g, '')
+  // Buffer incomplete action patterns (trailing `[...`)
+  const incompleteAction = /\[[^\]]*$/.exec(cleaned)
   if (incompleteAction) {
-    return raw.slice(0, incompleteAction.index)
+    return cleaned.slice(0, incompleteAction.index)
   }
-  return raw
+  return cleaned
 }
 
 export function StreamingText({ content }: StreamingTextProps) {

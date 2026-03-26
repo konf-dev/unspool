@@ -124,8 +124,8 @@ body {
   border: 1px solid rgba(70, 73, 67, 0.15);
 }
 
-/* Focus styles */
+/* Focus styles — suppress default, let Tailwind classes handle per-component */
 textarea:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(174, 205, 192, 0.4);
+  box-shadow: none;
 }

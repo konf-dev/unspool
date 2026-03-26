@@ -34,7 +34,9 @@ class TestGraphOperations:
 
         # Mock execute to return no existing node
         mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = None
+        mock_scalars = MagicMock()
+        mock_scalars.first.return_value = None
+        mock_result.scalars.return_value = mock_scalars
         session.execute = AsyncMock(return_value=mock_result)
 
         user_id = uuid.uuid4()

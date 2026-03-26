@@ -40,7 +40,7 @@ async def get_or_create_node(
         GraphNode.node_type == node_type,
     )
     result = await session.execute(stmt)
-    node = result.scalar_one_or_none()
+    node = result.scalars().first()
 
     if not node:
         node = GraphNode(
@@ -101,7 +101,7 @@ async def upsert_edge(
         GraphEdge.edge_type == edge_type,
     )
     result = await session.execute(stmt)
-    edge = result.scalar_one_or_none()
+    edge = result.scalars().first()
 
     if edge:
         edge.weight = weight
@@ -262,7 +262,7 @@ async def remove_edge_event(
         GraphEdge.edge_type == edge_type,
     )
     result = await session.execute(stmt)
-    edge = result.scalar_one_or_none()
+    edge = result.scalars().first()
     if not edge:
         return False
 

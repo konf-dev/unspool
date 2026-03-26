@@ -10,7 +10,7 @@ const hasAdminAuth = !!(
 export const canAuthenticate = !isRemote || hasAdminAuth
 
 export async function authenticate(page: Page) {
-  if (isRemote && hasAdminAuth) {
+  if (hasAdminAuth) {
     await authenticateViaAdmin(page)
   } else if (!isRemote) {
     await authenticateViaMockOtp(page)
