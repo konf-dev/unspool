@@ -16,6 +16,7 @@ Unspool is an AI personal assistant designed for people with ADHD. The V2 backen
 | [Telemetry](telemetry.md) | Structured logging, Langfuse, error reporting |
 | [Testing Guide](testing.md) | Local setup, smoke tests, endpoint verification, reproducing results |
 | [Deployment Guide](deployment.md) | Railway, Supabase migrations, QStash, env vars |
+| [Deploy Checklist](deploy-checklist.md) | Step-by-step verification for every production push |
 | [Audit Report](audit-report.md) | Code audit findings across 3 rounds, all resolved |
 
 ## Quick Start
