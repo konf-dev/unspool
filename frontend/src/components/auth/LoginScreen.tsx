@@ -126,7 +126,7 @@ export function LoginScreen() {
               autoFocus
               autoComplete="email"
               required
-              className="w-full h-14 bg-surface-container-low text-on-surface rounded-full px-6 text-sm font-light placeholder:text-on-surface-variant/40 focus:outline-none ghost-border"
+              className="w-full h-14 bg-surface-container-low text-on-surface rounded-full px-6 text-sm font-light placeholder:text-on-surface-variant/40 focus:outline-none focus:ring-2 focus:ring-primary/40 ghost-border"
             />
             <button
               type="submit"
@@ -138,6 +138,12 @@ export function LoginScreen() {
           </form>
         ) : (
           <div className="w-full flex flex-col items-center gap-6 animate-fade-in">
+            <button
+              onClick={() => { setStage('email'); setOtp(''); setError('') }}
+              className="self-start text-on-surface-variant/60 text-sm tracking-wide hover:text-on-surface transition-colors"
+            >
+              ← back
+            </button>
             <div className="text-center space-y-1">
               <p className="text-on-surface text-sm">enter the 6-digit code</p>
               <p className="text-on-surface-variant text-xs">
@@ -155,7 +161,7 @@ export function LoginScreen() {
               onChange={(e) => handleOtpChange(e.target.value)}
               maxLength={OTP_LENGTH}
               disabled={isVerifying}
-              className="w-48 h-16 bg-surface-container-low text-on-surface text-center text-2xl font-light tracking-[0.5em] rounded-2xl focus:outline-none ghost-border disabled:opacity-50"
+              className="w-48 h-16 bg-surface-container-low text-on-surface text-center text-2xl font-light tracking-[0.5em] rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/40 ghost-border disabled:opacity-50"
               aria-label="Login code"
             />
 
@@ -177,7 +183,7 @@ export function LoginScreen() {
                   setOtp('')
                   setError('')
                 }}
-                className="text-on-surface-variant/40 text-xs tracking-wide hover:text-on-surface-variant transition-colors"
+                className="text-on-surface-variant/60 text-xs tracking-wide hover:text-on-surface-variant transition-colors"
               >
                 use a different email
               </button>
@@ -188,7 +194,7 @@ export function LoginScreen() {
 
       <footer className="w-full flex flex-col items-center gap-6 z-10">
         <div className="w-1 h-1 rounded-full bg-primary/20" />
-        <nav className="flex items-center gap-4 text-[11px] font-light tracking-[0.1em] text-on-surface-variant/40 uppercase">
+        <nav className="flex items-center gap-4 text-[11px] font-light tracking-[0.1em] text-on-surface-variant/60 uppercase">
           <button
             onClick={() => navigate('privacy')}
             className="hover:text-on-surface-variant transition-colors duration-300"

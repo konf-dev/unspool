@@ -19,7 +19,7 @@ export function PWAInstallPrompt({ messageCount }: { messageCount: number }) {
           </div>
           <button
             onClick={dismiss}
-            className="text-on-surface-variant/40 hover:text-on-surface-variant text-lg leading-none"
+            className="text-on-surface-variant/60 hover:text-on-surface-variant text-lg leading-none"
             aria-label="Dismiss install prompt"
           >
             &times;

@@ -11,11 +11,13 @@ export function DragHandle() {
       {/* #8/#9: Only the handle bar itself receives pointer events, not the full-width area */}
       <button
         type="button"
-        className="w-10 h-1 mt-4 rounded-full bg-surface-container-high pointer-events-auto cursor-grab active:cursor-grabbing"
+        className="flex items-center justify-center w-20 h-10 pointer-events-auto cursor-grab active:cursor-grabbing"
         onClick={() => setOpen(!isOpen)}
         aria-label={isOpen ? 'Close plate' : 'Open plate'}
         aria-expanded={isOpen}
-      />
+      >
+        <div className="w-10 h-1 rounded-full bg-surface-container-high" />
+      </button>
     </div>
   )
 }

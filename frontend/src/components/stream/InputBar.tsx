@@ -125,7 +125,7 @@ export function InputBar({ onSend, onStop, isStreaming, disabled }: InputBarProp
                 className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300 ${
                   hasContent
                     ? 'bg-primary text-on-primary hover:scale-95 active:scale-90 shadow-lg shadow-primary/10'
-                    : 'text-on-surface-variant/30'
+                    : 'text-on-surface-variant/50'
                 }`}
                 aria-label="Send message"
               >

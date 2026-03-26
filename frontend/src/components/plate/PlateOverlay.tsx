@@ -5,7 +5,7 @@ import { PlateSummary } from './PlateSummary'
 import { PlateItem } from './PlateItem'
 import { PlateHandle } from './PlateHandle'
 
-const PLATE_HEIGHT = 400
+const PLATE_HEIGHT = typeof window !== 'undefined' ? Math.min(400, window.innerHeight * 0.75) : 400
 
 export function PlateOverlay() {
   const { summary, items, isOpen, setOpen } = usePlateStore()

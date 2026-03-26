@@ -49,11 +49,14 @@ export function MessageList({
           )}
 
           {messages.length === 0 && !isStreaming && !isFetching && (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-5 px-4">
               <h1 className="text-on-surface-variant font-light text-lg tracking-tight leading-relaxed opacity-80">
-                just start typing — I'll remember everything
+                I'm your personal memory — not a chatbot.
               </h1>
-              <p className="text-on-surface-variant/40 text-sm tracking-wide">
+              <p className="text-on-surface-variant/60 text-sm leading-relaxed max-w-xs">
+                Tell me tasks, deadlines, ideas, feelings — I'll keep track so you don't have to.
+              </p>
+              <p className="text-on-surface-variant/50 text-sm tracking-wide">
                 try: dump everything on your mind right now
               </p>
             </div>
