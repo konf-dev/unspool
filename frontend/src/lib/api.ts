@@ -1,5 +1,6 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source'
 import type { ActionButton, Message, ParsedSSEEvent } from '@/types'
+import { parseInlineActions } from './parseActions'
 
 function getApiUrl(): string {
   return (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000'
@@ -207,13 +208,19 @@ export async function fetchMessages(
 
   const data = (await response.json()) as MessagesResponse
   return data.messages
-    .map((msg) => ({
-      id: msg.id,
-      role: (msg.role === 'assistant' ? 'reflection' : msg.role) as 'user' | 'reflection',
-      content: msg.content,
-      createdAt: msg.created_at,
-      metadata: msg.metadata ?? undefined,
-    }))
+    .map((msg) => {
+      const content =
+        msg.role === 'assistant'
+          ? parseInlineActions(msg.content).cleanContent
+          : msg.content
+      return {
+        id: msg.id,
+        role: (msg.role === 'assistant' ? 'reflection' : msg.role) as 'user' | 'reflection',
+        content,
+        createdAt: msg.created_at,
+        metadata: msg.metadata ?? undefined,
+      }
+    })
     .reverse()
 }
 

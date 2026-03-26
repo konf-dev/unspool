@@ -59,6 +59,9 @@ export function MessageList({
               <p className="text-on-surface-variant/50 text-sm tracking-wide">
                 try: dump everything on your mind right now
               </p>
+              <p className="text-on-surface-variant/40 text-xs tracking-wide mt-2">
+                &uarr; pull down to see your plate
+              </p>
             </div>
           )}
 
