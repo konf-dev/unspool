@@ -104,6 +104,7 @@ Goal: Handle 50+ concurrent users without things breaking.
 - [ ] **Timezone-aware operations** — Rate limiting resets at user's local midnight, but also deadline calculations (check_deadlines job, proactive triggers, urgency decay) need user timezone for correct "24 hours away" / quiet hours logic
 - [x] **Graph memory integration** — Postgres-native graph (graph_nodes + graph_edges), pgvector embeddings, semantic + structural queries, deterministic structured context loading (open items, deadlines, completions), cold path extraction with DEPENDS_ON/PART_OF edges. Migration 00009 optimized views and added composite indexes
 - [ ] **Graph evolution cron job** — Daily per-user evolution: embedding generation, edge decay, weak edge pruning, LLM synthesis (merges, contradictions), neighbor cache rebuild
+- [x] **Migration tracking & safety** — `schema_migrations` table tracks applied versions + SHA-256 checksums; `scripts/migrate.sh` runner with automatic `pg_dump` backup, dry-run, destructive statement guard, and status reporting; `scripts/diagnose.sh` includes migration health check
 - [ ] **Migration rollback scripts** — Write a paired `00NNN_<name>.down.sql` for every migration. Two-phase destructive DDL: before dropping a column, (1) deploy code that stops reading it, (2) confirm stable, (3) drop in the next migration
 
 ---

@@ -95,12 +95,14 @@ Migrations live in `backend/supabase/migrations/`. Apply in order:
 | `00005_operational.sql` | `error_log`, `llm_usage` (no RLS — admin only) |
 | `00006_graph_views.sql` | `vw_messages`, `vw_actionable`, `vw_timeline`, `vw_metrics` |
 | `00007_gemini_embeddings.sql` | Wipe embeddings, change `vector(1536)` → `vector(768)`, recreate HNSW index |
+| `00008_fix_actionable_dedup.sql` | Fix duplicate items in `vw_actionable` view |
+| `00009_view_and_index_optimizations.sql` | Composite indexes, optimized view queries |
+| `00010_graph_node_unique_constraint.sql` | Unique constraint on `(user_id, content, node_type)` |
+| `00011_migration_tracking.sql` | `schema_migrations` table + backfill of all existing migrations |
 
-To apply:
+To apply, use the migration runner (see [Migration Protocol](#migration-protocol)):
 ```bash
-for f in backend/supabase/migrations/0000*.sql; do
-  PGPASSWORD=... psql "$PGURL" -f "$f"
-done
+./scripts/migrate.sh
 ```
 
 ### Row Level Security
@@ -131,6 +133,57 @@ curl -s -X DELETE -H "Authorization: Bearer $QSTASH_TOKEN" https://qstash.upstas
 ### EU Region
 
 If your QStash instance is in EU, set `QSTASH_URL=https://qstash-eu-central-1.upstash.io` in your env. The SDK will use this as base URL instead of the default US endpoint.
+
+## Migration Protocol
+
+Migrations are tracked in a `schema_migrations` table and applied via `scripts/migrate.sh`. Never apply migrations with a raw `psql` loop — always use the runner.
+
+### Deploy Order
+
+```bash
+# 1. Preview what will change
+./scripts/migrate.sh --dry-run
+
+# 2. Backup + apply (automatic)
+./scripts/migrate.sh
+
+# 3. Deploy backend + frontend
+git push origin main
+
+# 4. Verify everything
+./scripts/diagnose.sh
+```
+
+### Script Options
+
+| Flag | Effect |
+|------|--------|
+| `--dry-run` | Show pending migrations without applying |
+| `--status` | Show applied/pending/modified counts |
+| `--no-backup` | Skip `pg_dump` backup (local dev / re-runs) |
+| `--force` | Apply destructive migrations without confirmation |
+
+### Safety Features
+
+- **Automatic backup**: `pg_dump` before every migration run (stored in `backups/`, gitignored)
+- **Checksum tracking**: SHA-256 of each `.sql` file recorded; warns if a file changes after being applied
+- **Destructive guard**: `DROP TABLE`, `DROP COLUMN`, `TRUNCATE`, `DELETE FROM` require `--force` or interactive confirmation
+- **Idempotent bootstrap**: The runner creates `schema_migrations` if it doesn't exist, so it works on a fresh DB
+
+### Writing New Migrations
+
+1. Create `backend/supabase/migrations/00NNN_description.sql`
+2. Use `IF NOT EXISTS` / `IF EXISTS` where possible for idempotency
+3. Run `./scripts/migrate.sh --dry-run` to verify it's detected
+4. Run `./scripts/migrate.sh` to apply
+
+### Backups
+
+On Supabase Free tier, daily backups exist but **cannot be restored**. The `migrate.sh` script runs `pg_dump` automatically before applying migrations. Backups are stored in `backups/` (gitignored, keeps last 5). For manual backup:
+
+```bash
+pg_dump "$PGURL" --no-owner --no-privileges | gzip > backups/manual_$(date +%Y-%m-%d).sql.gz
+```
 
 ## Post-Deploy Verification
 
