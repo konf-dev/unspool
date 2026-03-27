@@ -32,6 +32,7 @@ async def get_or_create_node(
     content: str,
     node_type: str = "concept",
     embedding: list[float] | None = None,
+    metadata: dict | None = None,
 ) -> GraphNode:
     """Gets an exact matching node or creates a new one with event."""
     stmt = select(GraphNode).where(
@@ -43,12 +44,15 @@ async def get_or_create_node(
     node = result.scalars().first()
 
     if not node:
-        node = GraphNode(
-            user_id=user_id,
-            content=content,
-            node_type=node_type,
-            embedding=embedding,
-        )
+        kwargs: dict[str, Any] = {
+            "user_id": user_id,
+            "content": content,
+            "node_type": node_type,
+            "embedding": embedding,
+        }
+        if metadata:
+            kwargs["metadata_"] = metadata
+        node = GraphNode(**kwargs)
         session.add(node)
         await session.flush()
         await append_event(session, user_id, "NodeCreated", {

@@ -118,26 +118,76 @@ async def _run_llm_analysis(
                 ORDER BY created_at DESC
                 LIMIT 50
             """), {"uid": user_id, "days": str(analysis.get("lookback_days", 30))})
-            messages = [dict(r) for r in msg_result.mappings().all()]
+            messages_raw = [dict(r) for r in msg_result.mappings().all()]
             variables["recent_messages"] = "\n".join(
-                f"[{r.get('event_type', '')}] {r.get('content', '')[:200]}" for r in messages
-            ) if messages else "No recent messages."
+                f"[{r.get('event_type', '')}] {r.get('content', '')[:200]}" for r in messages_raw
+            ) if messages_raw else "No recent messages."
+            # Template expects `messages` as a list for iteration (detect_preferences.md)
+            variables["messages"] = [r.get("content", "")[:200] for r in messages_raw if r.get("event_type") == "MessageReceived"]
 
             # Active graph nodes
             node_result = await session.execute(sa_text("""
-                SELECT content, node_type FROM graph_nodes
+                SELECT id, content, node_type, created_at FROM graph_nodes
                 WHERE user_id = CAST(:uid AS uuid)
                   AND node_type NOT LIKE 'archived_%%'
                   AND node_type NOT LIKE 'system_%%'
                 ORDER BY updated_at DESC LIMIT 30
             """), {"uid": user_id})
-            nodes = [dict(r) for r in node_result.mappings().all()]
+            nodes_raw = [dict(r) for r in node_result.mappings().all()]
             variables["active_nodes"] = "\n".join(
-                f"[{r.get('node_type', '')}] {r.get('content', '')}" for r in nodes
-            ) if nodes else "No active nodes."
+                f"[{r.get('node_type', '')}] {r.get('content', '')}" for r in nodes_raw
+            ) if nodes_raw else "No active nodes."
+            # Template expects `nodes` as a list for iteration (consolidate_memories.md)
+            variables["nodes"] = [
+                {"id": str(r.get("id", "")), "content": r.get("content", ""), "node_type": r.get("node_type", ""), "created_at": str(r.get("created_at", ""))}
+                for r in nodes_raw
+            ]
+
+            # Completion data for behavioral patterns template
+            completion_result = await session.execute(sa_text("""
+                SELECT
+                    EXTRACT(DOW FROM created_at) as day_of_week,
+                    COUNT(*) as count
+                FROM event_stream
+                WHERE user_id = CAST(:uid AS uuid)
+                  AND event_type = 'StatusUpdated'
+                  AND payload->>'new_status' = 'DONE'
+                  AND created_at >= NOW() - (:days || ' days')::interval
+                GROUP BY day_of_week
+                ORDER BY day_of_week
+            """), {"uid": user_id, "days": str(analysis.get("lookback_days", 30))})
+            completion_rows = completion_result.mappings().all()
+            variables["completion_data"] = {int(r["day_of_week"]): int(r["count"]) for r in completion_rows}
+
+            # Message activity for behavioral patterns template
+            activity_result = await session.execute(sa_text("""
+                SELECT
+                    DATE(created_at) as day,
+                    COUNT(*) as count
+                FROM event_stream
+                WHERE user_id = CAST(:uid AS uuid)
+                  AND event_type = 'MessageReceived'
+                  AND created_at >= NOW() - (:days || ' days')::interval
+                GROUP BY day
+                ORDER BY day
+            """), {"uid": user_id, "days": str(analysis.get("lookback_days", 30))})
+            activity_rows = activity_result.mappings().all()
+            variables["message_activity"] = {str(r["day"]): int(r["count"]) for r in activity_rows}
+
+        # Load current profile for templates that need it
+        existing_profile = await get_profile(user_id)
+        variables["current_profile"] = existing_profile or {}
+        variables["current_patterns"] = (existing_profile or {}).get("patterns") or {}
+
     except Exception:
         variables["recent_messages"] = "Failed to load."
         variables["active_nodes"] = "Failed to load."
+        variables["messages"] = []
+        variables["nodes"] = []
+        variables["completion_data"] = {}
+        variables["message_activity"] = {}
+        variables["current_profile"] = {}
+        variables["current_patterns"] = {}
 
     try:
         from google.genai import types

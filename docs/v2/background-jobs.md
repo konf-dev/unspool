@@ -19,7 +19,11 @@ Runs sequentially, each catching its own errors:
    - Executes by type: `nudge` → push notification, others → queued proactive message
    - Handles rrule recurrence: calculates next occurrence, creates new action, dispatches via QStash `dispatch_at` if within 7 days
 
-3. **expire_items** — Archives OPEN action nodes with passed hard deadlines
+3. **expire_items** — Tiered expiry of OPEN nodes past their deadlines:
+   - **Hard:** archive at T+0 (immediate)
+   - **Soft:** archive at T+48h
+   - **Routine:** archive at midnight of deadline day
+   - **Undated:** archive after 14 days with no edge updates
 
 ### `POST /jobs/nightly-batch` — 3 AM UTC
 1. **reset_notifications** — Sets `notification_sent_today = false` on all profiles
@@ -32,20 +36,34 @@ Runs sequentially, each catching its own errors:
 
 ## Cold Path Dispatch
 
-When a chat completes successfully, the cold path is dispatched via:
+When a chat completes successfully, the cold path uses **session-level debounce**:
+
 ```python
-await dispatch_job("process-message", {
+# Store session_id in Redis with 3-min TTL (resets on each message)
+await cache_set(f"pending_extraction:{user_id}", session_id, ttl_seconds=180)
+
+# Schedule QStash job — fires when session goes idle
+await dispatch_job("process-session", {
     "user_id": user_id,
+    "session_id": session_id,
     "trace_id": trace_id,
-    "message": request.message,
-}, delay=5)  # 5 second delay
+}, delay=180)
+
+# Intent shift to QUERY → trigger extraction immediately
+if query_detected:
+    await cache_delete(session_key)
+    await dispatch_job("process-session", {...}, delay=0)
 ```
 
-This hits `POST /jobs/process-message` which runs `process_brain_dump()`.
+This hits `POST /jobs/process-session` which:
+1. Checks if debounce key still exists (session still active → skip, will be requeued)
+2. Calls `process_session()` which loads ALL messages for the session and extracts the NET STATE
+
+The legacy `POST /jobs/process-message` endpoint still exists for backward compat.
 
 ## Scheduled Actions
 
-User-facing scheduled reminders/nudges. Created via the proactive system or could be extended to agent tools.
+User-facing scheduled reminders/nudges. Created via the proactive system or the `schedule_reminder` agent tool.
 
 ### Lifecycle
 1. Created with `save_scheduled_action()` — status: `pending`
@@ -56,6 +74,7 @@ User-facing scheduled reminders/nudges. Created via the proactive system or coul
 
 ### Action Types
 - `nudge` — Push notification with message
+- `reminder` — User-created via `schedule_reminder` tool, dispatched via QStash `dispatch_at()`
 - `check_in` — Queued proactive message
 - `ask_question` — Queued proactive message
 - `surface_item` — Queued proactive message

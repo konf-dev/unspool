@@ -1,19 +1,22 @@
-"""Context assembly for the hot path — parallel loads of profile, messages, graph, structured data."""
+"""Context assembly for the hot path — fast reads from graph views, no embedding API calls.
+
+V2: 3-4 SQL queries, 0 API calls. ~100ms total.
+Semantic graph search moved to query_graph tool only.
+"""
 
 import asyncio
-import uuid
 from typing import Any
 
 from src.core.database import AsyncSessionLocal
-from src.core.graph import search_nodes_semantic, get_node_neighborhood
 from src.db.queries import (
     get_messages_from_events,
     get_plate_items,
     get_profile,
-    get_proactive_items,
     get_recently_done_count,
+    get_slipped_items,
+    get_deadline_calendar,
+    get_metric_summary,
 )
-from src.integrations.gemini import get_embedding
 from src.telemetry.error_reporting import report_error
 from src.telemetry.langfuse_integration import observe
 from src.telemetry.logger import get_logger
@@ -40,11 +43,11 @@ async def assemble_context(
 ) -> tuple[str, dict[str, Any], list[dict[str, Any]]]:
     """Assemble context for the agent.
 
+    V2: No embedding API calls. 3-4 SQL queries against pre-computed views.
     Returns: (context_block, profile, recent_messages)
     """
     profile: dict[str, Any] = {}
     recent_messages: list[dict[str, Any]] = []
-    graph_context: str = ""
     structured_context: str = ""
 
     async def _load_profile() -> None:
@@ -65,102 +68,80 @@ async def assemble_context(
         except Exception as e:
             report_error("context.messages_failed", e, user_id=user_id)
 
-    async def _load_graph() -> None:
-        nonlocal graph_context
-        try:
-            embedding = await get_embedding(message, task_type="RETRIEVAL_QUERY")
-            async with AsyncSessionLocal() as session:
-                user_uuid = uuid.UUID(user_id)
-                nodes = await search_nodes_semantic(session, user_uuid, embedding, limit=10)
-                if not nodes:
-                    return
-
-                # Parallelize neighborhood expansion — each gets its own session
-                # because AsyncSession is not safe for concurrent use.
-                async def _get_neighborhood(node_id: uuid.UUID) -> tuple:
-                    async with AsyncSessionLocal() as s:
-                        return await get_node_neighborhood(s, node_id, user_id=user_uuid, hops=1)
-
-                neighborhoods = await asyncio.gather(*[
-                    _get_neighborhood(node.id)
-                    for node in nodes[:3]
-                ])
-                all_neighborhood_nodes: list[Any] = []
-                all_edges: list[Any] = []
-                for n_nodes, n_edges in neighborhoods:
-                    all_neighborhood_nodes.extend(n_nodes)
-                    all_edges.extend(n_edges)
-
-                # Deduplicate edges from overlapping neighborhoods
-                seen_edge_ids: set[uuid.UUID] = set()
-                deduped_edges: list[Any] = []
-                for e in all_edges:
-                    if e.id not in seen_edge_ids:
-                        seen_edge_ids.add(e.id)
-                        deduped_edges.append(e)
-                all_edges = deduped_edges
-
-                # Serialize into human-readable linearized format
-                lines = []
-                seen_node_ids: set[uuid.UUID] = set()
-                for node in nodes:
-                    if node.id in seen_node_ids:
-                        continue
-                    seen_node_ids.add(node.id)
-                    node_edges = [e for e in all_edges if e.source_node_id == node.id]
-                    edge_strs = []
-                    for e in node_edges[:3]:
-                        target = next(
-                            (n for n in all_neighborhood_nodes if n.id == e.target_node_id),
-                            None,
-                        )
-                        if e.edge_type == "IS_STATUS" and target:
-                            edge_strs.append(f"status: {target.content.lower()}")
-                        elif e.edge_type == "HAS_DEADLINE":
-                            date = (e.metadata_ or {}).get("date", "")
-                            edge_strs.append(f"due: {date[:10]}" if date else "has deadline")
-                        elif e.edge_type == "TRACKS_METRIC":
-                            val = (e.metadata_ or {}).get("value", "")
-                            unit = (e.metadata_ or {}).get("unit", "")
-                            edge_strs.append(f"{val} {unit}".strip() if val else "tracked")
-                        elif e.edge_type == "DEPENDS_ON" and target:
-                            edge_strs.append(f"depends on: {target.content}")
-                        elif target:
-                            edge_strs.append(f"related: {target.content}")
-                    edge_info = f" — {', '.join(edge_strs)}" if edge_strs else ""
-                    lines.append(f"- {node.content}{edge_info}")
-
-                if lines:
-                    graph_context = "\n".join(lines[:15])
-        except Exception as e:
-            report_error("context.graph_failed", e, user_id=user_id)
-
     async def _load_structured_items() -> None:
-        """Load deterministic structured data — open items, deadlines, recent completions."""
+        """Load deterministic structured data from graph views.
+
+        Runs all queries concurrently for speed (~100ms total instead of sequential).
+        """
         nonlocal structured_context
         sections = []
 
         try:
-            plate = await get_plate_items(user_id)
+            # Run all view queries concurrently — each opens its own session
+            overdue, plate, calendar, metrics, done_count = await asyncio.gather(
+                get_slipped_items(user_id),
+                get_plate_items(user_id),
+                get_deadline_calendar(user_id),
+                get_metric_summary(user_id),
+                get_recently_done_count(user_id, hours=48),
+                return_exceptions=True,
+            )
+
+            # Handle any individual query failures gracefully
+            if isinstance(overdue, Exception):
+                report_error("context.overdue_failed", overdue, user_id=user_id)
+                overdue = []
+            if isinstance(plate, Exception):
+                report_error("context.plate_failed", plate, user_id=user_id)
+                plate = []
+            if isinstance(calendar, Exception):
+                report_error("context.calendar_failed", calendar, user_id=user_id)
+                calendar = {"today": [], "tomorrow": [], "this_week": []}
+            if isinstance(metrics, Exception):
+                report_error("context.metrics_failed", metrics, user_id=user_id)
+                metrics = []
+            if isinstance(done_count, Exception):
+                report_error("context.done_count_failed", done_count, user_id=user_id)
+                done_count = 0
+
+            if overdue:
+                lines = []
+                for item in overdue:
+                    deadline_str = str(item["deadline"]) if item.get("deadline") else ""
+                    lines.append(f"  - {item['content']} (was due: {deadline_str})")
+                sections.append("Overdue:\n" + "\n".join(lines))
+
             if plate:
                 lines = []
                 for item in plate:
                     parts = [item["content"]]
                     if item.get("deadline"):
-                        parts.append(f"due: {str(item['deadline'])[:10]}")
+                        parts.append(f"due: {str(item['deadline'])}")
                     lines.append(f"  - {' — '.join(parts)}")
-                sections.append(f"Open items ({len(plate)}):\n" + "\n".join(lines))
+                sections.append(f"Your plate ({len(plate)}):\n" + "\n".join(lines))
+            else:
+                sections.append("Your plate: Nothing open right now.")
 
-            # Imminent deadlines (next 48h)
-            imminent = await get_proactive_items(user_id, hours=48)
-            if imminent:
-                lines = [f"  - {i['content']} (due: {str(i['deadline'])[:10]})" for i in imminent]
-                sections.append("Due soon:\n" + "\n".join(lines))
+            cal_lines = []
+            for period, items in calendar.items():
+                if items:
+                    for item in items:
+                        time_str = str(item.get("deadline", ""))
+                        cal_lines.append(f"  {period.title()}: {item['content']} at {time_str}")
+            if cal_lines:
+                sections.append("Coming up:\n" + "\n".join(cal_lines))
 
-            # Recent completions (momentum signal)
-            done_count = await get_recently_done_count(user_id, hours=48)
+            if metrics:
+                lines = []
+                for m in metrics:
+                    val = m.get('latest_value') or '?'
+                    unit = m.get('unit') or ''
+                    date = m.get('latest_date') or ''
+                    lines.append(f"  - {m['metric_name']}: {val} {unit} ({date})".rstrip())
+                sections.append("Tracking:\n" + "\n".join(lines))
+
             if done_count > 0:
-                sections.append(f"Recently completed: {done_count} item{'s' if done_count != 1 else ''} in the last 48h.")
+                sections.append(f"Recently done: {done_count} item{'s' if done_count != 1 else ''} in the last 48h.")
 
         except Exception as e:
             report_error("context.structured_failed", e, user_id=user_id)
@@ -171,35 +152,29 @@ async def assemble_context(
     await asyncio.gather(
         _load_profile(),
         _load_messages(),
-        _load_graph(),
         _load_structured_items(),
         return_exceptions=True,
     )
 
     # Build hierarchical context block
-    context_block = ""
     sections: list[str] = []
 
     # Tier 1: Structured (deterministic, always accurate)
     if structured_context:
         sections.append(structured_context)
 
-    # Tier 2: Semantic (relevant memories from graph search)
-    if graph_context:
-        sections.append("Related memories:\n" + graph_context)
-
-    # Tier 3: Temporal (conversation continuity — recent mentions not yet in graph)
+    # Tier 2: Temporal (conversation continuity — recent mentions not yet in graph)
     recent_mentions = _extract_recent_mentions(recent_messages[-3:])
     if recent_mentions:
         sections.append("Just mentioned:\n" + recent_mentions)
 
+    context_block = ""
     if sections:
         context_block = "<context>\n" + "\n\n".join(sections) + "\n</context>"
 
     _log.info(
         "context.assembled",
         trace_id=trace_id,
-        has_graph=bool(graph_context),
         has_structured=bool(structured_context),
         message_count=len(recent_messages),
     )

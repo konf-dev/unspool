@@ -43,8 +43,8 @@ All writes flow through `append_event()`. The hot path's `mutate_graph` tool app
               ┌─────────────┼─────────────┐
               │             │             │
               ▼             ▼             ▼
-         Profile      Graph Search    Deadlines
-         (DB)         (pgvector)      (vw_actionable)
+         Profile       Messages     Structured Items
+         (DB)          (DB)         (graph views)
               │             │             │
               └─────────────┼─────────────┘
                             │
@@ -82,29 +82,35 @@ All writes flow through `append_event()`. The hot path's `mutate_graph` tool app
 ### Hot Path (Foreground, Real-Time)
 
 The hot path handles the conversational experience. It:
-1. Assembles context in parallel (profile, recent messages, graph search, deadlines)
+1. Assembles context in parallel (profile, recent messages, structured items from graph views) — **0 API calls, 3-4 SQL queries**
 2. Builds a dynamic system prompt from `agent_system.md` template
-3. Runs a LangGraph state machine with 2 tools: `query_graph` and `mutate_graph`
+3. Runs a LangGraph state machine with 3 tools: `query_graph`, `mutate_graph`, `schedule_reminder`
 4. Streams responses via SSE
 5. Strips `<thought>` blocks from output before sending to client
+
+Semantic graph search is **not** done at context assembly time — it's only triggered when the LLM explicitly calls `query_graph` during the conversation. This keeps initial response latency low (~100ms for context).
 
 **Key design: No `user_id` in tool params.** The LLM never sees or passes user_id. It's injected from LangGraph state in `call_tools()`, eliminating a hallucination vector.
 
 ### Cold Path (Background, Async)
 
 The cold path extracts structured knowledge from user messages:
-1. Dispatched via QStash (not `asyncio.create_task`) — retries on failure
-2. Uses idempotency keys (SHA256 of user_id + message) to prevent duplicates
-3. Gemini with structured outputs (JSON schema) extracts nodes and edges
-4. Semantic dedup: before creating a node, searches for >0.9 cosine similarity match (using SEMANTIC_SIMILARITY task type)
-5. All writes go through `append_event()` → graph projection
+1. **Session-level extraction** — processes the full conversation at once (not per-message), seeing corrections and the full arc
+2. **Debounce dispatch** — Redis key with 3-min TTL resets on each message. QStash job fires when session goes idle. Intent shift to QUERY triggers immediate extraction.
+3. Uses idempotency keys (SHA256 of user_id + session_id) to prevent duplicates
+4. Gemini with structured outputs — rich metadata extraction (entities, temporal, quantities, actionable flag)
+5. **Status lock** — won't create IS_STATUS→OPEN edges if node already has DONE status (hot path wins)
+6. Semantic dedup with cross-type matching (memory/action/concept are equivalent for dedup)
+7. All writes go through `append_event()` → graph projection
+8. **503 retry** — exponential backoff (1s, 2s, 4s) for transient Gemini errors
 
 ### Nightly Synthesis
 
 Runs at 3 AM UTC for all active users:
-1. **Archive:** DONE items older than 7 days → `archived_action`
+1. **Archive:** DONE items older than 7 days → `archived_{type}`
 2. **Merge:** Nodes with >0.9 cosine similarity → remap edges, delete duplicate
 3. **Decay:** Edge weights multiplied by 0.99 per night (min 0.01)
+4. **Recompute actionable flags:** Nodes with `tense=future` but all dates in the past → mark `actionable=false, tense=past`
 
 ## Directory Structure
 
@@ -125,6 +131,6 @@ backend/
     jobs/           router + 5 job implementations
     proactive/      evaluator registry, engine, scheduled actions
     telemetry/      structlog, trace middleware, error reporting, langfuse, PII scrubbing
-  supabase/migrations/  7 SQL migrations
+  supabase/migrations/  12 SQL migrations
   tests/            7 test modules + conftest
 ```

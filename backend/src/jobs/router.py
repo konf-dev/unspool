@@ -23,6 +23,12 @@ class ProcessMessageRequest(BaseModel):
     recent_messages: list[str] | None = None
 
 
+class ProcessSessionRequest(BaseModel):
+    user_id: str
+    session_id: str
+    trace_id: str | None = None
+
+
 class ExecuteActionRequest(BaseModel):
     action_ids: list[str]
 
@@ -159,6 +165,45 @@ async def process_message(request: ProcessMessageRequest) -> dict:
             result = {"status": "failed", "error": str(e)}
 
         _log.info("job.done", job="process_message", trace_id=trace_id)
+        return result
+
+
+@router.post("/process-session")
+@observe(name="job.process_session")
+async def process_session_job(request: ProcessSessionRequest) -> dict:
+    """Session-level extraction — processes full conversation at once."""
+    trace_id = request.trace_id or str(uuid.uuid4())
+    _log.info("job.start", job="process_session", trace_id=trace_id, user_id=request.user_id, session_id=request.session_id)
+
+    with propagate_trace_attributes(
+        user_id=request.user_id,
+        tags=["job", "cold_path", "session"],
+        metadata={"parent_chat_trace_id": request.trace_id} if request.trace_id else None,
+    ):
+        # Check if debounce key still exists (session still active)
+        from src.db.redis import cache_get
+        session_key = f"pending_extraction:{request.user_id}"
+        pending = await cache_get(session_key)
+
+        # If session is still active (key exists and matches), skip — will be requeued
+        if pending and pending == request.session_id:
+            _log.info("job.process_session.debounced", user_id=request.user_id, session_id=request.session_id)
+            return {"status": "debounced", "reason": "session still active"}
+
+        from src.agents.cold_path.extractor import process_session
+
+        try:
+            await process_session(
+                user_id=uuid.UUID(request.user_id),
+                session_id=request.session_id,
+                trace_id=trace_id,
+            )
+            result = {"status": "processed"}
+        except Exception as e:
+            _log.error("process_session.failed", exc_info=True)
+            result = {"status": "failed", "error": str(e)}
+
+        _log.info("job.done", job="process_session", trace_id=trace_id)
         return result
 
 

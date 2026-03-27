@@ -1,9 +1,10 @@
-"""Hot path tools — query_graph and mutate_graph.
+"""Hot path tools — query_graph, mutate_graph, schedule_reminder.
 
 user_id is NOT a tool parameter — it's injected from LangGraph state in call_tools.
 """
 
 import uuid
+from datetime import datetime, timezone as tz
 from typing import Any
 
 from sqlalchemy import select, and_, func
@@ -45,13 +46,17 @@ async def query_graph(
     semantic_query: str | None = None,
     edge_type_filter: str | None = None,
     node_type: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
 ) -> list[dict[str, Any]]:
     """Searches the user's memory graph.
 
     Args:
         semantic_query: Optional search term. If omitted, returns all matching nodes.
         edge_type_filter: Filter by edge type (e.g. 'HAS_DEADLINE', 'IS_STATUS').
-        node_type: Filter by node type (e.g. 'action', 'concept', 'person').
+        node_type: Filter by node type (e.g. 'action', 'concept', 'person', 'memory').
+        date_from: Optional ISO8601 date. Filter results to items with edge dates >= this.
+        date_to: Optional ISO8601 date. Filter results to items with edge dates <= this.
 
     At least one of semantic_query, edge_type_filter, or node_type must be provided.
     """
@@ -80,6 +85,21 @@ async def mutate_graph(
     raise RuntimeError("mutate_graph must be called via call_tools with user_id injection")
 
 
+@tool
+async def schedule_reminder(
+    reminder_text: str,
+    remind_at: str,
+) -> str:
+    """Schedule a reminder for the user at a specific time.
+
+    Args:
+        reminder_text: What to remind the user about.
+        remind_at: ISO8601 timestamp for when to send the reminder (e.g. "2026-03-27T17:00:00Z").
+    """
+    # user_id will be injected by call_tools — this is a placeholder
+    raise RuntimeError("schedule_reminder must be called via call_tools with user_id injection")
+
+
 # Actual implementations called by call_tools with user_id injected
 
 async def _exec_query_graph(
@@ -87,6 +107,8 @@ async def _exec_query_graph(
     semantic_query: str | None = None,
     edge_type_filter: str | None = None,
     node_type: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
 ) -> list[dict[str, Any]] | str:
     """Returns list of node dicts on success, or an error string on failure."""
     try:
@@ -125,12 +147,34 @@ async def _exec_query_graph(
                     if not edges:
                         continue
 
-                # Get immediate edges (up to 3) for context
+                # Get immediate edges (up to 20 for post-filtering) for context
                 edge_stmt = select(GraphEdge).where(
                     GraphEdge.user_id == user_uuid,
                     GraphEdge.source_node_id == node.id,
-                ).limit(3)
+                ).limit(20)
                 node_edges = (await session.execute(edge_stmt)).scalars().all()
+
+                # Apply temporal filtering if date params provided
+                if date_from or date_to:
+                    has_matching_date = False
+                    for e in node_edges:
+                        edge_date = (e.metadata_ or {}).get("date") or (e.metadata_ or {}).get("logged_at")
+                        if edge_date:
+                            try:
+                                edge_dt = datetime.fromisoformat(edge_date.replace("Z", "+00:00"))
+                                if date_from:
+                                    from_dt = datetime.fromisoformat(date_from.replace("Z", "+00:00"))
+                                    if edge_dt < from_dt:
+                                        continue
+                                if date_to:
+                                    to_dt = datetime.fromisoformat(date_to.replace("Z", "+00:00"))
+                                    if edge_dt > to_dt:
+                                        continue
+                                has_matching_date = True
+                            except (ValueError, TypeError):
+                                pass
+                    if not has_matching_date:
+                        continue
 
                 # Batch-fetch all target nodes to avoid N+1
                 target_ids = [e.target_node_id for e in node_edges]
@@ -141,15 +185,15 @@ async def _exec_query_graph(
                     )).scalars().all()
                     target_map = {t.id: t.content for t in target_nodes}
 
-                # Build humanized edge descriptions
+                # Build humanized edge descriptions (limit display to 5)
                 edge_details = []
-                for e in node_edges:
+                for e in node_edges[:5]:
                     target_content = target_map.get(e.target_node_id, "")
                     if e.edge_type == "IS_STATUS" and target_content:
                         edge_details.append(f"status: {target_content.lower()}")
                     elif e.edge_type == "HAS_DEADLINE":
                         date = (e.metadata_ or {}).get("date", "")
-                        edge_details.append(f"due: {date[:10]}" if date else "has deadline")
+                        edge_details.append(f"due: {date}" if date else "has deadline")
                     elif e.edge_type == "TRACKS_METRIC":
                         val = (e.metadata_ or {}).get("value", "")
                         unit = (e.metadata_ or {}).get("unit", "")
@@ -244,4 +288,48 @@ async def _exec_mutate_graph(
 
     except Exception as e:
         logger.error("mutate_graph.failed", error=str(e), exc_info=True)
+        return _sanitize_error(e)
+
+
+async def _exec_schedule_reminder(
+    user_id: str,
+    reminder_text: str,
+    remind_at: str,
+) -> str:
+    """Schedule a reminder using existing ScheduledAction + QStash infrastructure."""
+    try:
+        remind_dt = datetime.fromisoformat(remind_at.replace("Z", "+00:00"))
+        if remind_dt.tzinfo is None:
+            remind_dt = remind_dt.replace(tzinfo=tz.utc)
+
+        if remind_dt <= datetime.now(tz.utc):
+            return "Error: reminder time must be in the future."
+
+        from src.db.queries import save_scheduled_action
+        from src.integrations.qstash import dispatch_at
+        from src.db.queries import mark_action_dispatched
+
+        action = await save_scheduled_action(
+            user_id=user_id,
+            action_type="reminder",
+            execute_at=remind_dt,
+            payload={"text": reminder_text},
+        )
+
+        # Dispatch to QStash for delivery at the right time
+        msg_id = await dispatch_at(
+            "execute-action",
+            {"action_ids": [action["id"]]},
+            deliver_at=remind_dt,
+        )
+
+        if msg_id:
+            await mark_action_dispatched(action["id"], msg_id)
+
+        return f"Reminder set for {remind_dt.strftime('%B %d at %H:%M %Z')}."
+
+    except ValueError as e:
+        return f"Error: invalid time format — {e}"
+    except Exception as e:
+        logger.error("schedule_reminder.failed", error=str(e), exc_info=True)
         return _sanitize_error(e)

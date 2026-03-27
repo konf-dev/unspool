@@ -1,10 +1,10 @@
-"""Cold path extractor — with idempotency, semantic dedup, and event-first pattern."""
+"""Cold path extractor — with idempotency, semantic dedup, session-level extraction, and status lock."""
 
 import hashlib
 import json
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, and_
 
 from src.agents.cold_path.schemas import ExtractionResult
 from src.core.database import AsyncSessionLocal
@@ -14,7 +14,7 @@ from src.core.graph import (
     search_nodes_semantic,
     upsert_edge,
 )
-from src.core.models import EventStream, GraphNode
+from src.core.models import EventStream, GraphNode, GraphEdge
 from src.core.settings import get_settings
 from src.integrations.gemini import (
     get_gemini_client,
@@ -35,91 +35,153 @@ STATUS_DONE = "DONE"
 # means similarity >= 0.9.
 _DEDUP_MAX_DISTANCE = 0.1
 
+# Retry config for transient Gemini errors (503/UNAVAILABLE)
+_GEMINI_MAX_RETRIES = 3
+_GEMINI_RETRY_BASE_DELAY = 1.0  # seconds
+
 _EXTRACTION_SYSTEM_INSTRUCTION = """You are the Unspool Archiver. You translate unstructured human messages into a structured Knowledge Graph of nodes and edges.
 
 RULES — follow every one precisely:
 
-1. Every distinct entity is a Node: tasks, people, concepts, emotions, metrics.
-2. Every Action/Task MUST have an IS_STATUS edge pointing to a node with content "OPEN".
-3. Every date/deadline MUST produce a HAS_DEADLINE edge with an ISO8601 "date" in metadata. Resolve relative dates ("Friday" → the next Friday from Current Time, "tomorrow" → day after Current Time).
-4. Metrics (e.g., "ran 5km", "spent $200") produce a TRACKS_METRIC edge with "value" and "unit" in metadata.
-5. Related entities get a RELATES_TO edge.
-6. If the message is purely conversational ("hey", "thanks", "lol", "👍"), return empty nodes and edges arrays.
-7. Nodes: source_content and target_content in edges MUST exactly match a node's content string.
+1. Default node_type is "memory" (catch-all). Only use "person" for people, "system_status" for OPEN/DONE.
+2. Every node gets metadata with entities, temporal info, quantities, and actionable flag.
+3. actionable: false for past-tense activities ("spent $50", "ran 5km", "bought milk"), emotions, and facts.
+4. actionable: true for future-oriented items ("need to buy", "finish by Friday", "call Mom").
+5. Status updates ("done with X", "finished Y") → return EMPTY nodes and edges arrays. The hot path handles status.
+6. Meta-instructions ("start tracking X", "remind me at X") → return EMPTY nodes and edges arrays. The hot path handles these.
+7. Every actionable item MUST have an IS_STATUS edge pointing to a node with content "OPEN".
 8. Always include "OPEN" as a system_status node when you create any IS_STATUS edge.
+9. Every date/deadline MUST produce a HAS_DEADLINE edge with full ISO8601 timestamp in metadata (not date-only). Include deadline_type: "hard", "soft", or "routine".
+10. Metrics (e.g., "ran 5km", "spent $200") produce a TRACKS_METRIC edge with "value", "unit", and "logged_at" (= Current Time) in metadata.
+11. Related entities get a RELATES_TO edge.
+12. Nodes: source_content and target_content in edges MUST exactly match a node's content string.
+13. If the message is purely conversational ("hey", "thanks", "lol", "👍"), return empty nodes and edges arrays.
+14. When processing a FULL SESSION, extract the NET STATE — only keep final versions after corrections. If something was marked done, don't create it as open.
 
 EXAMPLE 1 — "I need to finish my thesis by next Friday and call Mom tomorrow"
-(assuming Current Time is 2026-03-23)
+(assuming Current Time is 2026-03-23T10:00:00Z)
 
 nodes:
-  - content: "finish my thesis", node_type: "action"
-  - content: "call Mom", node_type: "action"
-  - content: "OPEN", node_type: "system_status"
+  - content: "finish my thesis", node_type: "memory", metadata: {entities: [{text: "thesis", likely: "project"}], temporal: {tense: "future", dates: ["2026-03-28T17:00:00Z"]}, quantities: [], actionable: true}
+  - content: "call Mom", node_type: "memory", metadata: {entities: [{text: "Mom", likely: "person"}], temporal: {tense: "future", dates: ["2026-03-24T12:00:00Z"]}, quantities: [], actionable: true}
+  - content: "Mom", node_type: "person", metadata: {entities: [{text: "Mom", likely: "person"}], temporal: {}, quantities: [], actionable: false}
+  - content: "OPEN", node_type: "system_status", metadata: {entities: [], temporal: {}, quantities: [], actionable: false}
 
 edges:
   - source_content: "finish my thesis", target_content: "OPEN", edge_type: "IS_STATUS"
-  - source_content: "finish my thesis", target_content: "finish my thesis", edge_type: "HAS_DEADLINE", metadata: {"date": "2026-03-27T17:00:00Z"}
+  - source_content: "finish my thesis", target_content: "finish my thesis", edge_type: "HAS_DEADLINE", metadata: {date: "2026-03-28T17:00:00Z", deadline_type: "hard"}
   - source_content: "call Mom", target_content: "OPEN", edge_type: "IS_STATUS"
-  - source_content: "call Mom", target_content: "call Mom", edge_type: "HAS_DEADLINE", metadata: {"date": "2026-03-24T12:00:00Z"}
+  - source_content: "call Mom", target_content: "call Mom", edge_type: "HAS_DEADLINE", metadata: {date: "2026-03-24T12:00:00Z", deadline_type: "soft"}
+  - source_content: "call Mom", target_content: "Mom", edge_type: "RELATES_TO"
 
 EXAMPLE 2 — "I need to buy groceries and my dentist appointment is Thursday at 2pm"
+(assuming Current Time is 2026-03-23T10:00:00Z)
 
 nodes:
-  - content: "buy groceries", node_type: "action"
-  - content: "dentist appointment", node_type: "action"
-  - content: "OPEN", node_type: "system_status"
+  - content: "buy groceries", node_type: "memory", metadata: {entities: [{text: "groceries", likely: "errand"}], temporal: {tense: "future"}, quantities: [], actionable: true}
+  - content: "dentist appointment", node_type: "memory", metadata: {entities: [{text: "dentist", likely: "appointment"}], temporal: {tense: "future", dates: ["2026-03-27T14:00:00Z"]}, quantities: [], actionable: true}
+  - content: "OPEN", node_type: "system_status", metadata: {entities: [], temporal: {}, quantities: [], actionable: false}
 
 edges:
   - source_content: "buy groceries", target_content: "OPEN", edge_type: "IS_STATUS"
   - source_content: "dentist appointment", target_content: "OPEN", edge_type: "IS_STATUS"
-  - source_content: "dentist appointment", target_content: "dentist appointment", edge_type: "HAS_DEADLINE", metadata: {"date": "2026-03-26T14:00:00Z"}
+  - source_content: "dentist appointment", target_content: "dentist appointment", edge_type: "HAS_DEADLINE", metadata: {date: "2026-03-27T14:00:00Z", deadline_type: "hard"}
 
 EXAMPLE 3 — "ran 5km this morning, feeling pretty good"
+(assuming Current Time is 2026-03-23T10:00:00Z)
 
 nodes:
-  - content: "ran 5km", node_type: "action"
-  - content: "running", node_type: "metric"
-  - content: "feeling good", node_type: "emotion"
+  - content: "ran 5km", node_type: "memory", metadata: {entities: [], temporal: {tense: "past", dates: ["2026-03-23T08:00:00Z"]}, quantities: [{value: 5, unit: "km"}], actionable: false}
+  - content: "running", node_type: "memory", metadata: {entities: [], temporal: {}, quantities: [], actionable: false}
+  - content: "feeling good", node_type: "memory", metadata: {entities: [], temporal: {tense: "present"}, quantities: [], actionable: false}
 
 edges:
-  - source_content: "ran 5km", target_content: "running", edge_type: "TRACKS_METRIC", metadata: {"value": 5.0, "unit": "km"}
+  - source_content: "ran 5km", target_content: "running", edge_type: "TRACKS_METRIC", metadata: {value: 5.0, unit: "km", logged_at: "2026-03-23T10:00:00Z"}
   - source_content: "ran 5km", target_content: "feeling good", edge_type: "EXPERIENCED_DURING"
 
 EXAMPLE 4 — "my car registration expires next month"
-(assuming Current Time is 2026-03-23)
+(assuming Current Time is 2026-03-23T10:00:00Z)
 
 nodes:
-  - content: "renew car registration", node_type: "action"
-  - content: "OPEN", node_type: "system_status"
+  - content: "renew car registration", node_type: "memory", metadata: {entities: [{text: "car registration", likely: "document"}], temporal: {tense: "future", dates: ["2026-04-23T17:00:00Z"]}, quantities: [], actionable: true}
+  - content: "OPEN", node_type: "system_status", metadata: {entities: [], temporal: {}, quantities: [], actionable: false}
 
 edges:
   - source_content: "renew car registration", target_content: "OPEN", edge_type: "IS_STATUS"
-  - source_content: "renew car registration", target_content: "renew car registration", edge_type: "HAS_DEADLINE", metadata: {"date": "2026-04-23T17:00:00Z", "deadline_type": "soft"}
+  - source_content: "renew car registration", target_content: "renew car registration", edge_type: "HAS_DEADLINE", metadata: {date: "2026-04-23T17:00:00Z", deadline_type: "soft"}
 
-Note: Implicit task. "expires next month" means the user needs to renew it. Extract the action, not the expiry.
+Note: Implicit task. "expires next month" means the user needs to renew it.
 
 EXAMPLE 5 — "my boss keeps piling things on and I'm losing it"
 
 nodes:
-  - content: "feeling overwhelmed at work", node_type: "emotion"
+  - content: "feeling overwhelmed at work", node_type: "memory", metadata: {entities: [{text: "boss", likely: "person"}], temporal: {tense: "present"}, quantities: [], actionable: false}
 
 edges: []
 
-Note: Venting, not a task. Extract emotion only. Do not create action items from emotional statements.
+Note: Venting, not a task. No action items from emotional statements.
 
 EXAMPLE 6 — "finish report before the presentation on Friday"
-(assuming Current Time is 2026-03-23)
+(assuming Current Time is 2026-03-23T10:00:00Z)
 
 nodes:
-  - content: "finish report", node_type: "action"
-  - content: "presentation", node_type: "action"
-  - content: "OPEN", node_type: "system_status"
+  - content: "finish report", node_type: "memory", metadata: {entities: [{text: "report", likely: "project"}], temporal: {tense: "future", dates: ["2026-03-28T17:00:00Z"]}, quantities: [], actionable: true}
+  - content: "presentation", node_type: "memory", metadata: {entities: [{text: "presentation", likely: "event"}], temporal: {tense: "future", dates: ["2026-03-28T17:00:00Z"]}, quantities: [], actionable: true}
+  - content: "OPEN", node_type: "system_status", metadata: {entities: [], temporal: {}, quantities: [], actionable: false}
 
 edges:
   - source_content: "finish report", target_content: "OPEN", edge_type: "IS_STATUS"
   - source_content: "presentation", target_content: "OPEN", edge_type: "IS_STATUS"
   - source_content: "finish report", target_content: "presentation", edge_type: "DEPENDS_ON"
-  - source_content: "presentation", target_content: "presentation", edge_type: "HAS_DEADLINE", metadata: {"date": "2026-03-27T17:00:00Z"}
+  - source_content: "presentation", target_content: "presentation", edge_type: "HAS_DEADLINE", metadata: {date: "2026-03-28T17:00:00Z", deadline_type: "hard"}
+
+EXAMPLE 7 — "take meds every morning at 8am"
+(assuming Current Time is 2026-03-23T10:00:00Z)
+
+nodes:
+  - content: "take meds", node_type: "memory", metadata: {entities: [{text: "meds", likely: "health"}], temporal: {tense: "future", dates: ["2026-03-24T08:00:00Z"]}, quantities: [], actionable: true}
+  - content: "OPEN", node_type: "system_status", metadata: {entities: [], temporal: {}, quantities: [], actionable: false}
+
+edges:
+  - source_content: "take meds", target_content: "OPEN", edge_type: "IS_STATUS"
+  - source_content: "take meds", target_content: "take meds", edge_type: "HAS_DEADLINE", metadata: {date: "2026-03-24T08:00:00Z", deadline_type: "routine"}
+
+EXAMPLE 8 (NEGATIVE) — "Spent $50 on groceries"
+
+nodes:
+  - content: "spent $50 on groceries", node_type: "memory", metadata: {entities: [{text: "$50", likely: "currency", value: 50, unit: "USD"}, {text: "groceries", likely: "category"}], temporal: {tense: "past"}, quantities: [{value: 50, unit: "USD"}], actionable: false}
+  - content: "spending", node_type: "memory", metadata: {entities: [], temporal: {}, quantities: [], actionable: false}
+
+edges:
+  - source_content: "spent $50 on groceries", target_content: "spending", edge_type: "TRACKS_METRIC", metadata: {value: 50.0, unit: "USD", logged_at: "CURRENT_TIME"}
+
+Note: Past tense + actionable: false. NOT an open task. No IS_STATUS edge.
+
+EXAMPLE 9 (NEGATIVE) — "Done with groceries"
+
+nodes: []
+edges: []
+
+Note: Status update. The hot path handles this via mutate_graph SET_STATUS DONE. Return empty.
+
+EXAMPLE 10 (NEGATIVE) — "Start tracking my spending"
+
+nodes: []
+edges: []
+
+Note: Meta-instruction. The hot path or system handles tracking setup. Return empty.
+
+EXAMPLE 11 (NEGATIVE) — "Remind me at 5pm to take meds"
+
+nodes: []
+edges: []
+
+Note: Reminder request. The hot path schedule_reminder tool handles this. Return empty.
+
+EXAMPLE 12 — Purely conversational: "hey", "thanks", "lol", "👍"
+
+nodes: []
+edges: []
 """
 
 
@@ -138,17 +200,9 @@ async def run_extraction(
 ) -> ExtractionResult:
     """Uses Gemini with structured outputs to parse a brain dump into a Graph.
 
-    Uses EXTRACTION_MODEL (not BACKGROUND_MODEL) because graph quality is the
-    foundation of the entire product — cheap extractions that miss edges or
-    relationships degrade everything downstream.
-
-    Gemini SDK usage follows https://ai.google.dev/gemini-api/docs/structured-output:
-    - system_instruction: separates instructions from user content
-    - response_mime_type: "application/json" for structured output
-    - response_json_schema: Pydantic model's JSON schema
-    - thinking_config: high budget for accurate extraction
-    - temperature: 0 for deterministic output
+    Includes exponential backoff retry for transient 503/UNAVAILABLE errors.
     """
+    import asyncio
     from google.genai import types
 
     settings = get_settings()
@@ -162,36 +216,122 @@ async def run_extraction(
 
     user_content = f"Current Time: {current_time_iso}\nUser Timezone: {timezone}\n\n{context_prefix}{raw_message}"
 
-    response = await client.aio.models.generate_content(
-        model=settings.EXTRACTION_MODEL,
-        contents=user_content,
-        config=types.GenerateContentConfig(
-            system_instruction=_EXTRACTION_SYSTEM_INSTRUCTION,
-            response_mime_type="application/json",
-            response_json_schema=ExtractionResult.model_json_schema(),
-            temperature=0,
-            thinking_config=types.ThinkingConfig(thinking_budget=8192),
-        ),
+    last_error = None
+    for attempt in range(_GEMINI_MAX_RETRIES):
+        try:
+            response = await client.aio.models.generate_content(
+                model=settings.EXTRACTION_MODEL,
+                contents=user_content,
+                config=types.GenerateContentConfig(
+                    system_instruction=_EXTRACTION_SYSTEM_INSTRUCTION,
+                    response_mime_type="application/json",
+                    response_json_schema=ExtractionResult.model_json_schema(),
+                    temperature=0,
+                    thinking_config=types.ThinkingConfig(thinking_budget=8192),
+                ),
+            )
+
+            parsed = json.loads(response.text)
+            return ExtractionResult(**parsed)
+        except Exception as e:
+            last_error = e
+            error_str = str(e).lower()
+            is_transient = "503" in error_str or "unavailable" in error_str or "service_unavailable" in error_str
+            if is_transient and attempt < _GEMINI_MAX_RETRIES - 1:
+                delay = _GEMINI_RETRY_BASE_DELAY * (2 ** attempt)
+                logger.warning(
+                    "cold_path.extraction_retry",
+                    attempt=attempt + 1,
+                    delay=delay,
+                    error=str(e),
+                )
+                await asyncio.sleep(delay)
+            else:
+                raise
+
+    raise last_error  # Should not reach here, but safety net
+
+
+@observe(name="cold_path.session_extraction")
+async def run_session_extraction(
+    messages: list[dict],
+    current_time_iso: str,
+    timezone: str,
+) -> ExtractionResult:
+    """Extract from a full conversation session — sees corrections, full arc, produces net state."""
+    import asyncio
+    from google.genai import types
+
+    settings = get_settings()
+    client = get_gemini_client()
+
+    # Build session transcript
+    lines = []
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if content:
+            lines.append(f"[{role}]: {content}")
+
+    session_text = "\n".join(lines)
+
+    session_preamble = (
+        "You are reviewing a COMPLETE conversation session. "
+        "Extract the NET STATE — what facts, tasks, and information should be remembered after this conversation. "
+        "If something was mentioned then corrected or cancelled, only keep the final version. "
+        "If something was marked done during the conversation, don't create it as an open item.\n\n"
     )
 
-    parsed = json.loads(response.text)
-    return ExtractionResult(**parsed)
+    user_content = f"Current Time: {current_time_iso}\nUser Timezone: {timezone}\n\n{session_preamble}Session transcript:\n{session_text}"
+
+    last_error = None
+    for attempt in range(_GEMINI_MAX_RETRIES):
+        try:
+            response = await client.aio.models.generate_content(
+                model=settings.EXTRACTION_MODEL,
+                contents=user_content,
+                config=types.GenerateContentConfig(
+                    system_instruction=_EXTRACTION_SYSTEM_INSTRUCTION,
+                    response_mime_type="application/json",
+                    response_json_schema=ExtractionResult.model_json_schema(),
+                    temperature=0,
+                    thinking_config=types.ThinkingConfig(thinking_budget=8192),
+                ),
+            )
+
+            parsed = json.loads(response.text)
+            return ExtractionResult(**parsed)
+        except Exception as e:
+            last_error = e
+            error_str = str(e).lower()
+            is_transient = "503" in error_str or "unavailable" in error_str or "service_unavailable" in error_str
+            if is_transient and attempt < _GEMINI_MAX_RETRIES - 1:
+                delay = _GEMINI_RETRY_BASE_DELAY * (2 ** attempt)
+                logger.warning(
+                    "cold_path.session_extraction_retry",
+                    attempt=attempt + 1,
+                    delay=delay,
+                    error=str(e),
+                )
+                await asyncio.sleep(delay)
+            else:
+                raise
+
+    raise last_error
 
 
 async def _find_semantic_match(
     session, user_id: uuid.UUID, content: str, node_type: str,
-) -> GraphNode | None:
+    embedding: list[float] | None = None,
+) -> tuple[GraphNode | None, list[float] | None]:
     """Return an existing node only if cosine similarity >= 0.9.
 
-    Uses pgvector's cosine_distance ordering with an explicit max_distance
-    filter so that dissimilar nodes are never returned, regardless of how
-    small the graph is.
-
-    Uses SEMANTIC_SIMILARITY task_type for dedup comparisons as recommended
-    by https://ai.google.dev/gemini-api/docs/embeddings.
+    Accepts a pre-computed embedding to avoid redundant API calls during
+    cross-type dedup. Returns (match, embedding) so callers can reuse it.
     """
     try:
-        embedding = await get_embedding(content, task_type="SEMANTIC_SIMILARITY")
+        if embedding is None:
+            embedding = await get_embedding(content, task_type="SEMANTIC_SIMILARITY")
         matches = await search_nodes_semantic(
             session,
             user_id,
@@ -201,15 +341,159 @@ async def _find_semantic_match(
             max_distance=_DEDUP_MAX_DISTANCE,
         )
         if matches:
-            return matches[0]
+            return matches[0], embedding
     except Exception:
         logger.warning("cold_path.semantic_match_failed", content=content, exc_info=True)
-    return None
+    return None, embedding
+
+
+async def _node_has_done_status(session, user_id: uuid.UUID, node_id: uuid.UUID) -> bool:
+    """Check if a node already has IS_STATUS→DONE (status lock guard)."""
+    done_node = (await session.execute(
+        select(GraphNode).where(
+            GraphNode.user_id == user_id,
+            GraphNode.content == STATUS_DONE,
+            GraphNode.node_type == "system_status",
+        )
+    )).scalar_one_or_none()
+
+    if not done_node:
+        return False
+
+    existing = (await session.execute(
+        select(GraphEdge).where(
+            and_(
+                GraphEdge.user_id == user_id,
+                GraphEdge.source_node_id == node_id,
+                GraphEdge.target_node_id == done_node.id,
+                GraphEdge.edge_type == "IS_STATUS",
+            )
+        )
+    )).scalar_one_or_none()
+
+    return existing is not None
 
 
 def _idempotency_key(user_id: str, message: str) -> str:
     """Hash of user_id + message for cold path idempotency."""
     return hashlib.sha256(f"{user_id}:{message}".encode()).hexdigest()[:16]
+
+
+def _session_idempotency_key(user_id: str, session_id: str) -> str:
+    """Hash of user_id + session_id for session-level idempotency."""
+    return hashlib.sha256(f"{user_id}:session:{session_id}".encode()).hexdigest()[:16]
+
+
+async def _create_nodes_and_edges(
+    session, user_id: uuid.UUID, extraction: ExtractionResult,
+) -> tuple[int, int]:
+    """Create nodes and edges from extraction result. Returns (node_count, edge_count).
+
+    Includes status lock: skips IS_STATUS→OPEN edges if node already has DONE status.
+    """
+    # Ensure system nodes exist
+    await ensure_status_nodes(session, user_id)
+
+    if not extraction.nodes and not extraction.edges:
+        return 0, 0
+
+    # Create nodes with semantic dedup
+    node_map: dict[str, uuid.UUID] = {}
+    nodes_to_embed: list[str] = []
+    nodes_to_embed_types: list[str] = []
+    nodes_to_embed_metadata: list[dict] = []
+
+    # Types that are semantically equivalent for dedup purposes
+    _EQUIVALENT_TYPES = {"memory", "action", "concept"}
+
+    for enode in extraction.nodes:
+        if not enode.content or not enode.content.strip():
+            continue
+
+        # Search for semantic match — try exact type first, then equivalent types
+        # Reuse the embedding across type checks to avoid redundant API calls
+        existing_node, cached_embedding = await _find_semantic_match(
+            session, user_id, enode.content, enode.node_type,
+        )
+        if not existing_node and enode.node_type in _EQUIVALENT_TYPES:
+            for alt_type in _EQUIVALENT_TYPES - {enode.node_type}:
+                existing_node, cached_embedding = await _find_semantic_match(
+                    session, user_id, enode.content, alt_type,
+                    embedding=cached_embedding,
+                )
+                if existing_node:
+                    break
+        if existing_node:
+            node_map[enode.content] = existing_node.id
+            logger.debug(
+                "cold_path.dedup_match",
+                content=enode.content,
+                matched=existing_node.content,
+            )
+        else:
+            nodes_to_embed.append(enode.content)
+            nodes_to_embed_types.append(enode.node_type)
+            nodes_to_embed_metadata.append(enode.metadata.model_dump() if enode.metadata else {})
+
+    # Batch-embed all new nodes in a single API call
+    embeddings: list[list[float] | None] = []
+    if nodes_to_embed:
+        try:
+            embeddings = await get_embeddings_batch(
+                nodes_to_embed, task_type="RETRIEVAL_DOCUMENT",
+            )
+        except Exception:
+            logger.warning("cold_path.batch_embed_failed", exc_info=True)
+            embeddings = [None] * len(nodes_to_embed)
+
+    for content, node_type, embedding, metadata in zip(
+        nodes_to_embed, nodes_to_embed_types, embeddings, nodes_to_embed_metadata,
+    ):
+        db_node = await get_or_create_node(
+            session, user_id, content, node_type, embedding, metadata=metadata,
+        )
+        node_map[content] = db_node.id
+
+    # Ensure status nodes in map
+    open_node, done_node = await ensure_status_nodes(session, user_id)
+    node_map[STATUS_OPEN] = open_node.id
+    node_map[STATUS_DONE] = done_node.id
+
+    # Create edges with status lock
+    edges_created = 0
+    for edge in extraction.edges:
+        source_id = node_map.get(edge.source_content)
+        target_id = node_map.get(edge.target_content)
+
+        if not source_id or not target_id:
+            logger.warning(
+                "cold_path.edge_skipped",
+                source=edge.source_content,
+                target=edge.target_content,
+            )
+            continue
+
+        # Status lock: don't create IS_STATUS→OPEN if node already has DONE
+        if edge.edge_type == "IS_STATUS" and edge.target_content == STATUS_OPEN:
+            if await _node_has_done_status(session, user_id, source_id):
+                logger.info(
+                    "cold_path.status_lock_skipped",
+                    source=edge.source_content,
+                    reason="node already DONE, hot path wins",
+                )
+                continue
+
+        await upsert_edge(
+            session=session,
+            user_id=user_id,
+            source_id=source_id,
+            target_id=target_id,
+            edge_type=edge.edge_type,
+            metadata=edge.metadata.model_dump(exclude_none=True) if edge.metadata else {},
+        )
+        edges_created += 1
+
+    return len(extraction.nodes), edges_created
 
 
 @observe(name="cold_path.process")
@@ -221,7 +505,7 @@ async def process_brain_dump(
     trace_id: str | None = None,
     recent_messages: list[str] | None = None,
 ) -> None:
-    """The main entry point for the Cold Path Archiver. Idempotent."""
+    """The main entry point for the Cold Path Archiver (single message). Idempotent."""
     idem_key = _idempotency_key(str(user_id), raw_message)
 
     async with AsyncSessionLocal() as session:
@@ -238,9 +522,6 @@ async def process_brain_dump(
             return
 
         logger.info("cold_path.start", user_id=str(user_id), trace_id=trace_id)
-
-        # Ensure system nodes exist
-        await ensure_status_nodes(session, user_id)
 
         # Run LLM extraction
         try:
@@ -266,83 +547,111 @@ async def process_brain_dump(
             edges=len(extraction.edges),
         )
 
-        # Create nodes with semantic dedup
-        node_map: dict[str, uuid.UUID] = {}
-
-        # Separate nodes that need dedup check vs new nodes
-        nodes_to_embed: list[str] = []
-        nodes_to_embed_types: list[str] = []
-
-        for enode in extraction.nodes:
-            if not enode.content or not enode.content.strip():
-                continue
-            existing_node = await _find_semantic_match(
-                session, user_id, enode.content, enode.node_type,
-            )
-            if existing_node:
-                node_map[enode.content] = existing_node.id
-                logger.debug(
-                    "cold_path.dedup_match",
-                    content=enode.content,
-                    matched=existing_node.content,
-                )
-            else:
-                nodes_to_embed.append(enode.content)
-                nodes_to_embed_types.append(enode.node_type)
-
-        # Batch-embed all new nodes in a single API call
-        # Uses RETRIEVAL_DOCUMENT task_type for storage as per Gemini docs
-        embeddings: list[list[float] | None] = []
-        if nodes_to_embed:
-            try:
-                embeddings = await get_embeddings_batch(
-                    nodes_to_embed, task_type="RETRIEVAL_DOCUMENT",
-                )
-            except Exception:
-                logger.warning("cold_path.batch_embed_failed", exc_info=True)
-                embeddings = [None] * len(nodes_to_embed)
-
-        for content, node_type, embedding in zip(
-            nodes_to_embed, nodes_to_embed_types, embeddings,
-        ):
-            db_node = await get_or_create_node(
-                session, user_id, content, node_type, embedding,
-            )
-            node_map[content] = db_node.id
-
-        # Ensure status nodes in map
-        open_node, done_node = await ensure_status_nodes(session, user_id)
-        node_map[STATUS_OPEN] = open_node.id
-        node_map[STATUS_DONE] = done_node.id
-
-        # Create edges
-        for edge in extraction.edges:
-            source_id = node_map.get(edge.source_content)
-            target_id = node_map.get(edge.target_content)
-
-            if not source_id or not target_id:
-                logger.warning(
-                    "cold_path.edge_skipped",
-                    source=edge.source_content,
-                    target=edge.target_content,
-                )
-                continue
-
-            await upsert_edge(
-                session=session,
-                user_id=user_id,
-                source_id=source_id,
-                target_id=target_id,
-                edge_type=edge.edge_type,
-                metadata=edge.metadata.model_dump(exclude_none=True) if edge.metadata else {},
-            )
+        node_count, edge_count = await _create_nodes_and_edges(session, user_id, extraction)
 
         # Mark as processed
         await append_event(session, user_id, "ColdPathProcessed", {
             "idempotency_key": idem_key,
-            "nodes": len(extraction.nodes),
-            "edges": len(extraction.edges),
+            "nodes": node_count,
+            "edges": edge_count,
         })
 
         await session.commit()
         logger.info("cold_path.complete", user_id=str(user_id), trace_id=trace_id)
+
+
+@observe(name="cold_path.process_session")
+async def process_session(
+    user_id: uuid.UUID,
+    session_id: str,
+    trace_id: str | None = None,
+) -> None:
+    """Session-level extraction — processes the full conversation at once. Idempotent."""
+    from datetime import datetime, timezone as tz
+    from src.db.queries import get_messages_from_events, get_profile
+
+    idem_key = _session_idempotency_key(str(user_id), session_id)
+
+    async with AsyncSessionLocal() as db_session:
+        # Check idempotency
+        existing = await db_session.execute(
+            select(EventStream).where(
+                EventStream.user_id == user_id,
+                EventStream.event_type == "SessionConsolidated",
+                EventStream.payload["idempotency_key"].as_string() == idem_key,
+            ).limit(1)
+        )
+        if existing.scalar_one_or_none():
+            logger.info("cold_path.session_skipped_duplicate", user_id=str(user_id), session_id=session_id)
+            return
+
+        logger.info("cold_path.session_start", user_id=str(user_id), session_id=session_id, trace_id=trace_id)
+
+        # Load ALL messages for this session from EventStream
+        result = await db_session.execute(
+            select(EventStream).where(
+                EventStream.user_id == user_id,
+                EventStream.event_type.in_(["MessageReceived", "AgentReplied"]),
+                EventStream.payload["metadata"]["session_id"].as_string() == session_id,
+            ).order_by(EventStream.created_at)
+        )
+        events = result.scalars().all()
+
+        if not events:
+            logger.info("cold_path.session_no_messages", user_id=str(user_id), session_id=session_id)
+            return
+
+        messages = []
+        for evt in events:
+            role = "user" if evt.event_type == "MessageReceived" else "assistant"
+            content = (evt.payload or {}).get("content", "")
+            if content:
+                messages.append({"role": role, "content": content})
+
+        if not messages:
+            return
+
+        # Get user profile for timezone
+        profile = await get_profile(str(user_id))
+        user_tz = (profile.get("timezone") if profile else None) or "UTC"
+        current_time_iso = datetime.now(tz.utc).isoformat()
+
+        # Run session-level extraction
+        try:
+            extraction = await run_session_extraction(messages, current_time_iso, user_tz)
+        except Exception as e:
+            report_error(
+                "cold_path.session_extraction_failed", e,
+                user_id=str(user_id), session_id=session_id, trace_id=trace_id,
+            )
+            return
+
+        if not extraction.nodes and not extraction.edges:
+            logger.info("cold_path.session_no_entities", user_id=str(user_id))
+            await append_event(db_session, user_id, "SessionConsolidated", {
+                "idempotency_key": idem_key,
+                "session_id": session_id,
+                "nodes": 0,
+                "edges": 0,
+            })
+            await db_session.commit()
+            return
+
+        logger.info(
+            "cold_path.session_extracted",
+            nodes=len(extraction.nodes),
+            edges=len(extraction.edges),
+        )
+
+        node_count, edge_count = await _create_nodes_and_edges(db_session, user_id, extraction)
+
+        # Mark session as consolidated
+        await append_event(db_session, user_id, "SessionConsolidated", {
+            "idempotency_key": idem_key,
+            "session_id": session_id,
+            "nodes": node_count,
+            "edges": edge_count,
+        })
+
+        await db_session.commit()
+        logger.info("cold_path.session_complete", user_id=str(user_id), session_id=session_id, trace_id=trace_id)

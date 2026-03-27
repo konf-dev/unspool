@@ -18,5 +18,13 @@
 - [x] 4. the plate pull down thing is hard to access as its small and sometimes goes away as i scroll up or down
 - [x] 5. when does the plate gets updated?
 - [ ] 8. audit the prompt of login demo and see if its correct, it should work for 2-3 prompts and then suggest the user to login, and it should show sign up and log in buttons below that suggestion message box
-- [ ] 11. when i ask for reminders at a specific time, it says 'i can remember but cant set a reminder for specifically 5pm' , is this intended??
+- [x] 11. when i ask for reminders at a specific time, it says 'i can remember but cant set a reminder for specifically 5pm' , is this intended?? — **Fixed in V2**: schedule_reminder tool added, LLM resolves natural language times
 - [ ] 12. i see a lot of errors in langfuse, lets pull all the errors traces and analyze them
+
+## AI issues (V2 Memory System fixes):
+
+- [x] 1. Not associating date/time to memories, tasks, trackers — **Fixed**: Rich metadata extraction (logged_at on TRACKS_METRIC, temporal query_graph with date_from/date_to params)
+- [x] 2. Past spending showing as open tasks on plate ("buy groceries", "buy loofah") — **Fixed**: Extraction now sets actionable=false for past-tense items, vw_actionable filters them out
+- [x] 3. Meta-instructions showing on plate ("track spending"), stale reminders staying — **Fixed**: Meta-instructions return empty extraction, tiered expiry (routine deadlines expire at midnight, undated items expire after 14 days)
+- [x] 4. Past-due time-specific tasks still suggested ("go to office" after morning) — **Fixed**: Agent system prompt instructs to skip items whose time-specific deadline has passed today, tiered expiry handles archival
+- [x] 6. Reminders not working — **Fixed**: schedule_reminder tool using existing ScheduledAction + QStash infrastructure
