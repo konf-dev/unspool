@@ -25,7 +25,7 @@ Copy `.env.example` and fill in your keys — see [docs/DEPLOY.md](docs/DEPLOY.m
 | Layer | Stack |
 |-------|-------|
 | Frontend | React 19 + Vite 6 + Tailwind 4 + Zustand 5 + Framer Motion 12 (PWA) → Vercel |
-| Backend | Python 3.11+ / FastAPI / async → Railway |
+| Backend | Python 3.11+ / FastAPI / async → Vercel (Fluid Compute) |
 | Database | Supabase (Postgres + pgvector + Auth) |
 | Cache | Upstash Redis |
 | Jobs | Upstash QStash (cron + delayed queue) |

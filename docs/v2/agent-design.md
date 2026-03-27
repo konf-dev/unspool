@@ -6,7 +6,7 @@
 **Framework:** LangGraph StateGraph
 **Model:** Gemini 2.5 Flash (configurable via `CHAT_MODEL` env var)
 **Provider:** Configurable via `CHAT_PROVIDER` env var
-**Temperature:** 0.7
+**Temperature:** 0.4
 **Thinking Budget:** 4096 tokens
 **Max Iterations:** 5
 
@@ -37,16 +37,17 @@ START → agent → conditional → (tools → agent loop) → END
 
 ### Tools
 
-#### `query_graph(semantic_query, edge_type_filter?, node_type?)`
+#### `query_graph(semantic_query?, edge_type_filter?, node_type?, date_from?, date_to?)`
 
 Searches the user's knowledge graph. Returns nodes with their edges.
 
-- `semantic_query` is **required** — validated in `call_tools` before dispatch. Missing/empty query returns an explicit error to the LLM (not silent empty results).
-- Generates embedding via `gemini-embedding-001` (768d, L2-normalized, task_type=RETRIEVAL_QUERY)
-- pgvector cosine distance search, limit 8
-- Optional edge_type_filter: only returns nodes that have outgoing edges of that type
-- Optional node_type filter: `action`, `concept`, `person`, etc.
-- Returns up to 3 immediate edges per node for context
+- At least one of `semantic_query`, `edge_type_filter`, or `node_type` must be provided
+- Semantic path: generates embedding via `gemini-embedding-001` (768d, L2-normalized, task_type=RETRIEVAL_QUERY), pgvector cosine distance search, limit 8
+- Structural path (no `semantic_query`): SQL-only query by edge type / node type — no embedding API call
+- Optional `edge_type_filter`: post-filters semantic results to nodes with matching outgoing edges
+- Optional `node_type` filter: `memory`, `action`, `concept`, `person`, etc.
+- Optional `date_from` / `date_to` (ISO8601): temporal filtering on edge metadata dates (deadline, logged_at)
+- Returns up to 5 immediate edges per node for context (fetches 20 internally for post-filtering)
 - On error: returns `"Error: ..."` string (consistent with mutate_graph)
 
 **Response shape:**
@@ -54,15 +55,21 @@ Searches the user's knowledge graph. Returns nodes with their edges.
 [
   {
     "id": "uuid",
-    "content": "Buy groceries",
-    "type": "action",
-    "edges": [
-      {"type": "IS_STATUS", "target": "OPEN", "metadata": {}},
-      {"type": "HAS_DEADLINE", "target": "Buy groceries", "metadata": {"date": "2026-03-25"}}
-    ]
+    "item": "Buy groceries",
+    "kind": "memory",
+    "details": "status: open, due: 2026-03-25T17:00:00Z"
   }
 ]
 ```
+
+#### `schedule_reminder(reminder_text, remind_at)`
+
+Schedules a reminder for the user at a specific time.
+
+- `reminder_text`: What to remind about
+- `remind_at`: ISO8601 timestamp (LLM resolves natural language times using Current time + timezone from system prompt)
+- Uses existing `ScheduledAction` + QStash `dispatch_at()` infrastructure
+- Returns confirmation string with formatted time
 
 #### `mutate_graph(action, node_id, value?, target_node_id?, edge_type?)`
 
@@ -107,14 +114,20 @@ The system prompt instructs the LLM to use **both** graph memory and conversatio
 
 **File:** `src/agents/hot_path/context.py`
 
-`assemble_context()` runs 4 loaders in parallel via `asyncio.gather()`:
+`assemble_context()` runs 3 loaders in parallel via `asyncio.gather()` — **0 API calls, ~100ms total**:
 
 1. **Profile** — User preferences from `user_profiles` table
 2. **Recent Messages** — Last 20 messages from `vw_messages` view (reversed to chronological)
-3. **Graph Context** — Embeds the user's message → semantic search (top 10) → neighborhood expansion (1 hop for top 3) → serialized as bullet list
-4. **Deadlines** — Next 72h from `vw_actionable` (top 5)
+3. **Structured Items** — 5 concurrent SQL queries against graph views:
+   - Overdue items (`get_slipped_items` — past soft/routine deadlines)
+   - Plate items (`get_plate_items` — urgency-ordered, top 7)
+   - Deadline calendar (`get_deadline_calendar` — today/tomorrow/this_week)
+   - Metric summary (`get_metric_summary` — latest values per metric)
+   - Recently done count (last 48h)
 
-Each loader catches its own exceptions — a failure in one doesn't block the others.
+Each query catches its own exceptions — a failure in one doesn't block the others.
+
+**Removed from init:** Semantic graph search (embedding API call + pgvector). Moved to `query_graph` tool only — the LLM calls it explicitly when needed.
 
 Output: `<context>` XML block injected into system prompt.
 
@@ -150,19 +163,28 @@ Variables injected:
 ### Extraction Schema
 
 ```python
+class NodeMetadata:
+    entities: list[dict]   # [{"text": "Mom", "likely": "person"}]
+    temporal: dict         # {"tense": "past"|"present"|"future", "dates": [...]}
+    quantities: list[dict] # [{"value": 5, "unit": "km"}]
+    actionable: bool       # False for past-tense, emotions, facts
+
 class ExtractedNode:
-    content: str       # "Buy milk"
-    node_type: str     # concept, action, metric, person, emotion
+    content: str           # "Buy milk"
+    node_type: str         # Default "memory". Also: "person", "system_status"
+    metadata: NodeMetadata
 
 class EdgeMetadata:
-    date: str | None   # ISO8601 for HAS_DEADLINE
-    value: float | None # Numeric for TRACKS_METRIC
+    date: str | None       # ISO8601 for HAS_DEADLINE
+    value: float | None    # Numeric for TRACKS_METRIC
     unit: str | None
+    logged_at: str | None  # When the metric event happened
+    deadline_type: str | None  # hard, soft, routine
 
 class ExtractedEdge:
     source_content: str
     target_content: str
-    edge_type: str     # HAS_DEADLINE, IS_STATUS, RELATES_TO, TRACKS_METRIC, EXPERIENCED_DURING
+    edge_type: str     # HAS_DEADLINE, IS_STATUS, RELATES_TO, TRACKS_METRIC, EXPERIENCED_DURING, DEPENDS_ON, PART_OF
     metadata: EdgeMetadata | None
 
 class ExtractionResult:
@@ -170,15 +192,22 @@ class ExtractionResult:
     edges: list[ExtractedEdge]
 ```
 
+### Extraction Modes
+
+**Single message** (`process_brain_dump`): Legacy path, still used by `process-message` endpoint.
+
+**Session-level** (`process_session`): Processes full conversation at once. The extraction prompt preamble instructs the LLM to extract the NET STATE — only keep final versions after corrections. Status updates and meta-instructions return empty arrays.
+
 ### Nightly Synthesis
 
 **File:** `src/agents/cold_path/synthesis.py`
 
 Runs per-user during the nightly batch job:
 
-1. **Archive DONE items** — Nodes with IS_STATUS→DONE edge older than 7 days: change `node_type` to `archived_action`
+1. **Archive DONE items** — Nodes with IS_STATUS→DONE edge older than 7 days: change `node_type` to `archived_{type}` (handles memory, action, concept)
 2. **Merge duplicates** — For each node with an embedding, find top-5 similar nodes of same type. If different content, merge: remap all edges from candidate to survivor, delete resulting duplicate edges, delete candidate node. One merge per node per run (conservative).
 3. **Edge decay** — All edges with weight > 0.01: multiply by 0.99 (configurable in `graph.yaml`)
+4. **Recompute actionable flags** — Nodes with `tense=future` but all temporal dates in the past: update to `actionable=false, tense=past`
 
 ## Graph Operations
 

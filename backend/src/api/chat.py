@@ -298,22 +298,39 @@ async def chat(
                 except Exception:
                     _log.error("chat.save_response_failed", trace_id=trace_id, exc_info=True)
 
-                # Dispatch cold path via QStash (not asyncio.create_task)
+                # Dispatch cold path via session-level debounce
                 if stream_state.get("completed") and not stream_state.get("failed"):
                     try:
+                        from src.db.redis import cache_set, cache_get, cache_delete
                         from src.integrations.qstash import dispatch_job
-                        # Include last 3 user messages for anaphora resolution
-                        recent_user_msgs = [
-                            str(m.get("content", ""))
-                            for m in recent_messages[-3:]
-                            if m.get("role") == "user" and m.get("content")
-                        ]
-                        await dispatch_job("process-message", {
+
+                        session_key = f"pending_extraction:{user_id}"
+
+                        # Store session_id and reset TTL (3 min debounce)
+                        await cache_set(session_key, request.session_id, ttl_seconds=180)
+
+                        # Schedule QStash job — new job replaces old via debounce
+                        await dispatch_job("process-session", {
                             "user_id": user_id,
+                            "session_id": request.session_id,
                             "trace_id": trace_id,
-                            "message": request.message,
-                            "recent_messages": recent_user_msgs or None,
-                        }, delay=5)
+                        }, delay=180)
+
+                        # If intent shifted to QUERY, trigger extraction immediately
+                        # Detect query intent from the response (tool calls or context usage)
+                        response_text = full_response.lower()
+                        query_signals = any(phrase in response_text for phrase in [
+                            "here's what", "you have", "coming up", "on your plate",
+                            "nothing matching", "items tracked",
+                        ])
+                        # Also check if query_graph was called (tool_start events in stream)
+                        if query_signals:
+                            await cache_delete(session_key)
+                            await dispatch_job("process-session", {
+                                "user_id": user_id,
+                                "session_id": request.session_id,
+                                "trace_id": trace_id,
+                            }, delay=0)
                     except Exception:
                         _log.error("chat.cold_path_dispatch_failed", trace_id=trace_id, exc_info=True)
 

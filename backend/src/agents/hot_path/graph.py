@@ -20,8 +20,10 @@ from src.agents.hot_path.system_prompt import build_system_prompt
 from src.agents.hot_path.tools import (
     query_graph,
     mutate_graph,
+    schedule_reminder,
     _exec_query_graph,
     _exec_mutate_graph,
+    _exec_schedule_reminder,
 )
 from src.db.queries import save_llm_usage
 from src.telemetry.logger import get_logger
@@ -43,7 +45,7 @@ def _get_llm_with_tools() -> ChatGoogleGenerativeAI:
             temperature=0.4,
             thinking_budget=4096,
         )
-        _llm_with_tools = llm.bind_tools([query_graph, mutate_graph])
+        _llm_with_tools = llm.bind_tools([query_graph, mutate_graph, schedule_reminder])
     return _llm_with_tools
 
 
@@ -96,6 +98,8 @@ async def call_tools(state: HotPathState):
                 semantic_query = args.get("semantic_query")
                 edge_type_filter = args.get("edge_type_filter")
                 node_type = args.get("node_type")
+                date_from = args.get("date_from")
+                date_to = args.get("date_to")
                 # At least one filter must be provided
                 sq = str(semantic_query).strip() if semantic_query else None
                 if not sq and not edge_type_filter and not node_type:
@@ -109,6 +113,8 @@ async def call_tools(state: HotPathState):
                         semantic_query=sq,
                         edge_type_filter=edge_type_filter,
                         node_type=node_type,
+                        date_from=date_from,
+                        date_to=date_to,
                     )
             elif tool_call["name"] == "mutate_graph":
                 args = tool_call["args"]
@@ -132,6 +138,18 @@ async def call_tools(state: HotPathState):
                         value=args.get("value"),
                         target_node_id=args.get("target_node_id"),
                         edge_type=args.get("edge_type"),
+                    )
+            elif tool_call["name"] == "schedule_reminder":
+                args = tool_call["args"]
+                reminder_text = args.get("reminder_text", "")
+                remind_at = args.get("remind_at", "")
+                if not reminder_text or not remind_at:
+                    result = "Error: both reminder_text and remind_at are required."
+                else:
+                    result = await _exec_schedule_reminder(
+                        user_id=user_id,
+                        reminder_text=str(reminder_text).strip(),
+                        remind_at=str(remind_at).strip(),
                     )
             else:
                 result = f"Unknown tool: {tool_call['name']}"
@@ -181,5 +199,3 @@ workflow.add_conditional_edges(
 workflow.add_edge("tools", "agent")
 
 app = workflow.compile()
-
-

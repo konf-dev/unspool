@@ -42,6 +42,7 @@ class GraphNode(Base):
     content = Column(String, nullable=False)
     node_type = Column(String, nullable=False, index=True)
     embedding = Column(Vector(768))
+    metadata_ = Column("metadata", JSONB, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

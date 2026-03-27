@@ -460,14 +460,18 @@ async def delete_user_data(user_id: str) -> dict[str, int]:
 # ──────────────────────────── Proactive Condition Helpers ─────────────
 
 async def get_plate_items(user_id: str) -> list[dict[str, Any]]:
-    """Get all OPEN action items for the plate overlay."""
+    """Get OPEN action items for the plate, urgency-ordered, top 7."""
     async with AsyncSessionLocal() as session:
         result = await session.execute(text("""
             SELECT node_id, content, deadline, deadline_type, created_at
             FROM vw_actionable
             WHERE user_id = :uid
-            ORDER BY created_at DESC
-            LIMIT 20
+            ORDER BY
+                CASE WHEN deadline < NOW() THEN 0
+                     WHEN deadline IS NOT NULL THEN 1
+                     ELSE 2 END,
+                deadline ASC NULLS LAST
+            LIMIT 7
         """), {"uid": user_id})
         return [dict(r) for r in result.mappings().all()]
 
@@ -478,24 +482,26 @@ async def get_proactive_items(user_id: str, hours: int = 24) -> list[dict[str, A
         result = await session.execute(text("""
             SELECT node_id, content, deadline, deadline_type
             FROM vw_actionable
-            WHERE user_id = :uid              AND deadline IS NOT NULL
-              AND deadline::timestamptz <= NOW() + (:hours || ' hours')::interval
-              AND deadline::timestamptz >= NOW()
-            ORDER BY deadline::timestamptz
+            WHERE user_id = :uid
+              AND deadline IS NOT NULL
+              AND deadline <= NOW() + (:hours || ' hours')::interval
+              AND deadline >= NOW()
+            ORDER BY deadline
         """), {"uid": user_id, "hours": str(hours)})
         return [dict(r) for r in result.mappings().all()]
 
 
 async def get_slipped_items(user_id: str) -> list[dict[str, Any]]:
-    """Get OPEN action nodes with past soft deadlines."""
+    """Get OPEN action nodes with past deadlines (soft or routine only, not hard)."""
     async with AsyncSessionLocal() as session:
         result = await session.execute(text("""
             SELECT node_id, content, deadline
             FROM vw_actionable
-            WHERE user_id = :uid              AND deadline IS NOT NULL
-              AND deadline::timestamptz < NOW()
-              AND (deadline_type IS NULL OR deadline_type = 'soft')
-            ORDER BY deadline::timestamptz DESC
+            WHERE user_id = :uid
+              AND deadline IS NOT NULL
+              AND deadline < NOW()
+              AND deadline_type IN ('soft', 'routine')
+            ORDER BY deadline DESC
             LIMIT 10
         """), {"uid": user_id})
         return [dict(r) for r in result.mappings().all()]
@@ -513,3 +519,45 @@ async def get_recently_done_count(user_id: str, hours: int = 24) -> int:
         """), {"uid": user_id, "hours": str(hours)})
         row = result.mappings().first()
         return int(row["cnt"]) if row else 0
+
+
+async def get_deadline_calendar(user_id: str) -> dict[str, list[dict[str, Any]]]:
+    """Get deadline items grouped by today/tomorrow/this_week from vw_timeline."""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(text("""
+            SELECT node_id, content, deadline, deadline_type,
+                CASE
+                    WHEN deadline::date = CURRENT_DATE THEN 'today'
+                    WHEN deadline::date = CURRENT_DATE + 1 THEN 'tomorrow'
+                    ELSE 'this_week'
+                END as period
+            FROM vw_timeline
+            WHERE user_id = :uid
+              AND deadline::timestamptz >= NOW()
+              AND deadline::timestamptz < NOW() + interval '7 days'
+            ORDER BY deadline::timestamptz
+        """), {"uid": user_id})
+        rows = [dict(r) for r in result.mappings().all()]
+
+    calendar: dict[str, list[dict[str, Any]]] = {"today": [], "tomorrow": [], "this_week": []}
+    for row in rows:
+        period = row.pop("period", "this_week")
+        if period in calendar:
+            calendar[period].append(row)
+    return calendar
+
+
+async def get_metric_summary(user_id: str) -> list[dict[str, Any]]:
+    """Get latest metric values grouped by metric name from vw_metrics."""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(text("""
+            SELECT DISTINCT ON (metric_name)
+                metric_name,
+                value AS latest_value,
+                unit,
+                event_time::date::text AS latest_date
+            FROM vw_metrics
+            WHERE user_id = :uid
+            ORDER BY metric_name, event_time DESC
+        """), {"uid": user_id})
+        return [dict(r) for r in result.mappings().all()]

@@ -32,6 +32,7 @@ Immutable append-only event log. Single source of truth for all mutations.
 - `NodeDeleted` — payload: `{node_id, content}`
 - `NodesMerged` — payload: `{kept_id, removed_id, kept_content, removed_content}`
 - `ColdPathProcessed` — payload: `{idempotency_key, nodes, edges}`
+- `SessionConsolidated` — payload: `{idempotency_key, session_id, nodes, edges}`
 
 #### `graph_nodes`
 Entity/concept nodes in the knowledge graph. Downstream projection from events.
@@ -41,10 +42,23 @@ Entity/concept nodes in the knowledge graph. Downstream projection from events.
 | id | UUID PK | |
 | user_id | UUID NOT NULL | |
 | content | TEXT NOT NULL | e.g. "Buy milk", "Thesis", "Mom" |
-| node_type | TEXT NOT NULL | `concept`, `action`, `metric`, `person`, `emotion`, `system_status`, `archived_action` |
+| node_type | TEXT NOT NULL | Default `memory` (catch-all). Also: `person`, `system_status`, `archived_*`. Legacy: `concept`, `action`, `metric`, `emotion` |
 | embedding | vector(768) | Gemini gemini-embedding-001 (L2-normalized) |
+| metadata | JSONB default {} | Rich extraction metadata (see below) |
 | created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | Auto-updated via trigger |
+
+**Node metadata structure** (stored in `metadata` JSONB):
+```json
+{
+  "entities": [{"text": "Mom", "likely": "person"}],
+  "temporal": {"tense": "past|present|future", "dates": ["2026-03-26T16:00:00Z"]},
+  "quantities": [{"value": 5, "unit": "km"}],
+  "actionable": true
+}
+```
+- `actionable: false` for past-tense activities, emotions, facts — filtered out of `vw_actionable`
+- `temporal.tense` used by views and nightly synthesis to auto-expire stale items
 
 **Indexes:** HNSW on embedding (cosine), user_id, node_type
 
@@ -57,9 +71,15 @@ Typed relationships between nodes. Downstream projection from events.
 | user_id | UUID NOT NULL | |
 | source_node_id | UUID FK → graph_nodes | CASCADE delete |
 | target_node_id | UUID FK → graph_nodes | CASCADE delete |
-| edge_type | TEXT NOT NULL | `HAS_DEADLINE`, `IS_STATUS`, `RELATES_TO`, `TRACKS_METRIC`, `EXPERIENCED_DURING` |
+| edge_type | TEXT NOT NULL | `HAS_DEADLINE`, `IS_STATUS`, `RELATES_TO`, `TRACKS_METRIC`, `EXPERIENCED_DURING`, `DEPENDS_ON`, `PART_OF` |
 | weight | FLOAT default 1.0 | Decays nightly by 0.99 |
-| metadata | JSONB | e.g. `{"date": "2026-03-28T00:00:00Z"}` for deadlines |
+| metadata | JSONB | See edge metadata below |
+
+**Edge metadata fields** (varies by edge_type):
+- `date` — ISO8601 timestamp for HAS_DEADLINE edges
+- `deadline_type` — `hard`, `soft`, or `routine` (controls tiered expiry)
+- `value` / `unit` — Numeric data for TRACKS_METRIC edges
+- `logged_at` — When the metric event actually happened (TRACKS_METRIC)
 | created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | Auto-updated via trigger |
 
@@ -188,16 +208,25 @@ SELECT id, user_id, role, content, metadata, created_at FROM vw_messages
 ```
 
 #### `vw_actionable`
-OPEN action nodes with optional deadlines.
+OPEN nodes filtered by `actionable=true` metadata flag and `tense != 'past'`. Backward compatible with legacy `action`/`concept` types.
 ```sql
-SELECT node_id, user_id, content, node_type, deadline, deadline_type FROM vw_actionable
+SELECT node_id, user_id, content, node_type, created_at, deadline, deadline_type, actionable, tense
+FROM vw_actionable
 ```
+- `deadline` is cast to TIMESTAMPTZ in the view (not TEXT)
+- `deadline_type` defaults to `'soft'` via COALESCE
 
 #### `vw_timeline`
 All nodes with `HAS_DEADLINE` edges, ordered by deadline date.
 
 #### `vw_metrics`
-`TRACKS_METRIC` edge aggregation — metric name, entry content, value, unit, logged_at.
+`TRACKS_METRIC` edge aggregation with proper event timing.
+```sql
+SELECT metric_node_id, user_id, metric_name, entry_content, value, unit, event_time
+FROM vw_metrics
+```
+- `event_time` uses `logged_at` from edge metadata with fallback to `entry_node.created_at`
+- `value` is cast to NUMERIC (not TEXT)
 
 ## Row Level Security
 
@@ -225,6 +254,7 @@ No RLS — accessed only by the migration runner script (`scripts/migrate.sh`).
 | 00008 | Fix duplicate items in `vw_actionable` view |
 | 00009 | Composite indexes on `(user_id, node_type)`, optimized view queries |
 | 00010 | Unique constraint on `graph_nodes(user_id, content, node_type)` |
+| 00012 | V2 memory system: metadata JSONB column on graph_nodes, updated vw_actionable (actionable flag + tense filter), updated vw_metrics (event_time with logged_at) |
 
 ## SQLAlchemy Models
 

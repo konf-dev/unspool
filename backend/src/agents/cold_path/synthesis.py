@@ -38,7 +38,12 @@ async def run_nightly_synthesis(user_id: uuid.UUID) -> dict:
 
         await session.commit()
 
-    # 4. Refresh materialized views (if any exist as materialized)
+    # 4. Re-compute actionable flags on stale nodes
+    async with AsyncSessionLocal() as session2:
+        results["actionable_recomputed"] = await _recompute_actionable_flags(session2, user_id)
+        await session2.commit()
+
+    # 5. Refresh materialized views (if any exist as materialized)
     # Currently using regular views, so no refresh needed
     results["views_refreshed"] = True
 
@@ -75,8 +80,8 @@ async def _archive_done_items(session: AsyncSession, user_id: uuid.UUID) -> int:
     archived = 0
     for edge in old_edges:
         source = await session.get(GraphNode, edge.source_node_id)
-        if source and source.node_type == "action":
-            source.node_type = "archived_action"
+        if source and source.node_type in ("action", "memory", "concept"):
+            source.node_type = f"archived_{source.node_type}"
             await append_event(session, user_id, "NodeArchived", {
                 "node_id": str(source.id), "content": source.content,
             })
@@ -157,6 +162,36 @@ async def _merge_duplicates(session: AsyncSession, user_id: uuid.UUID) -> int:
                 break  # Only merge one per iteration to be safe
 
     return merged
+
+
+async def _recompute_actionable_flags(session: AsyncSession, user_id: uuid.UUID) -> int:
+    """Re-compute actionable flags on old nodes whose dates suggest they're stale.
+
+    If a node has temporal.dates that are all in the past and tense is 'future',
+    update tense to 'past' and actionable to false.
+    """
+    from sqlalchemy import text as sa_text
+    result = await session.execute(sa_text("""
+        UPDATE graph_nodes
+        SET metadata = jsonb_set(
+            jsonb_set(
+                COALESCE(metadata, '{}'),
+                '{actionable}', 'false'
+            ),
+            '{temporal,tense}', '"past"'
+        )
+        WHERE user_id = :uid
+          AND node_type IN ('memory', 'action', 'concept')
+          AND COALESCE((metadata->>'actionable')::boolean, true) = true
+          AND metadata->'temporal'->>'tense' = 'future'
+          AND metadata->'temporal'->'dates' IS NOT NULL
+          AND jsonb_array_length(metadata->'temporal'->'dates') > 0
+          AND NOT EXISTS (
+              SELECT 1 FROM jsonb_array_elements_text(metadata->'temporal'->'dates') d
+              WHERE d::timestamptz >= NOW()
+          )
+    """), {"uid": str(user_id)})
+    return result.rowcount
 
 
 async def _decay_edges(session: AsyncSession, user_id: uuid.UUID) -> int:
