@@ -81,17 +81,19 @@ async def execute_single_action(action: dict[str, Any]) -> str:
 
 
 async def _dispatch_action(user_id: str, action_type: str, payload: dict[str, Any]) -> None:
-    message = payload.get("message", "")
+    # Normalize: schedule_reminder uses "text", nudge uses "message"
+    message = payload.get("message", "") or payload.get("text", "")
 
-    if action_type == "nudge":
+    if action_type in ("nudge", "reminder"):
         subs = await db.get_push_subscriptions(user_id)
         if subs:
             from src.integrations.push import send_push_notification
             body = message or "hey — you asked me to remind you about this"
             for sub in subs:
                 await send_push_notification(subscription=sub, title="unspool", body=body, user_id=user_id)
-        else:
-            await db.save_proactive_message(user_id, message or "reminder", action_type)
+        # Always also save as proactive message so it shows in-app on next open
+        if message:
+            await db.save_proactive_message(user_id, message, action_type)
     else:
         await db.save_proactive_message(user_id, message or action_type, action_type)
 
