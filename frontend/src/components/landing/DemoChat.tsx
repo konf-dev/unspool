@@ -34,6 +34,7 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
   const [failCount, setFailCount] = useState(0)
   const [showSignInButtons, setShowSignInButtons] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const playSequence = useCallback((index: number) => {
     const seq = DEMO_SEQUENCES[index]
@@ -64,6 +65,10 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
   }, [isAutoPlaying, sequenceIndex, playSequence])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const handleFocus = () => {
     if (isAutoPlaying) {
@@ -126,6 +131,7 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
               <DemoMessage role={msg.role} content={msg.content} />
             </div>
           ))}
+          <div ref={messagesEndRef} />
         </div>
 
         <div className="pt-4" style={{ borderTop: '1px solid rgba(70, 73, 67, 0.05)' }}>
