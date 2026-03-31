@@ -34,7 +34,7 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
   const [failCount, setFailCount] = useState(0)
   const [showSignInButtons, setShowSignInButtons] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   const playSequence = useCallback((index: number) => {
     const seq = DEMO_SEQUENCES[index]
@@ -67,7 +67,8 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
   }, [isAutoPlaying, sequenceIndex, playSequence])
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = messagesContainerRef.current
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
   }, [messages])
 
   const handleFocus = () => {
@@ -125,13 +126,12 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
         see how it works
       </p>
       <div className="bg-surface-container-high rounded-xl p-4 sm:p-6 shadow-[0_20px_40px_rgba(0,0,0,0.4)] text-left flex flex-col gap-6 ring-1 ring-outline-variant/10">
-        <div className="space-y-3 sm:space-y-6 min-h-[200px] max-h-[200px] sm:max-h-[280px] overflow-y-auto no-scrollbar">
+        <div ref={messagesContainerRef} className="space-y-3 sm:space-y-6 min-h-[200px] max-h-[200px] sm:max-h-[280px] overflow-y-auto no-scrollbar">
           {messages.map((msg, i) => (
             <div key={`${msg.role}-${i}`} className="animate-fade-in">
               <DemoMessage role={msg.role} content={msg.content} />
             </div>
           ))}
-          <div ref={messagesEndRef} />
         </div>
 
         <div className="pt-4" style={{ borderTop: '1px solid rgba(70, 73, 67, 0.05)' }}>
