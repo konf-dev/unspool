@@ -27,6 +27,73 @@ export function LandingPage() {
           <DemoChat onSignIn={() => navigate('login')} />
         </section>
 
+        {/* Why this exists */}
+        <section className="w-full text-left mb-10 sm:mb-14 space-y-6">
+          <h2 className="text-on-surface-variant/50 text-[10px] tracking-[0.15em] uppercase text-center mb-4">
+            why this exists
+          </h2>
+
+          <div className="space-y-5">
+            <div>
+              <p className="text-on-surface text-sm font-medium leading-relaxed">
+                every app asks me to organize first.
+              </p>
+              <p className="text-on-surface-variant text-sm font-light leading-relaxed mt-1">
+                where does this go? what category? what priority? each decision costs energy I don't have. the organizing <em>is</em> the bottleneck.
+              </p>
+            </div>
+
+            <div>
+              <p className="text-on-surface text-sm font-medium leading-relaxed">
+                categories don't match how my brain works.
+              </p>
+              <p className="text-on-surface-variant text-sm font-light leading-relaxed mt-1">
+                when executive dysfunction hits, taking out the garbage and filing taxes are the same difficulty. "work" vs "personal" is meaningless. it's all one wall.
+              </p>
+            </div>
+
+            <div>
+              <p className="text-on-surface text-sm font-medium leading-relaxed">
+                I spend hours setting up systems I'll use for three days.
+              </p>
+              <p className="text-on-surface-variant text-sm font-light leading-relaxed mt-1">
+                beautiful databases, color-coded planners, the perfect template. the setup feels productive. it isn't.
+              </p>
+            </div>
+
+            <div>
+              <p className="text-on-surface text-sm font-medium leading-relaxed">
+                abandoned systems become guilt.
+              </p>
+              <p className="text-on-surface-variant text-sm font-light leading-relaxed mt-1">
+                unchecked boxes, half-filled tables, empty pages. opening the app triggers shame. so I quit and feel worse.
+              </p>
+            </div>
+
+            <div>
+              <p className="text-on-surface text-sm font-medium leading-relaxed">
+                I don't live by the clock.
+              </p>
+              <p className="text-on-surface-variant text-sm font-light leading-relaxed mt-1">
+                my sleep schedule is random. my energy is random. "plan your morning" means nothing when morning is a moving target. unspool doesn't care what time it is — it works when you show up.
+              </p>
+            </div>
+
+            <div>
+              <p className="text-on-surface text-sm font-medium leading-relaxed">
+                every notification is a guilt trip.
+              </p>
+              <p className="text-on-surface-variant text-sm font-light leading-relaxed mt-1">
+                unspool only speaks up when something actually matters. days of silence means nothing is urgent. that's the app working correctly.
+              </p>
+            </div>
+          </div>
+
+          <p className="text-on-surface-variant/70 text-xs leading-relaxed text-center pt-2">
+            this is not a productivity app. it just helps me get by.
+</p>
+        </section>
+
         {/* CTAs */}
         <section className="flex flex-col items-center gap-6 w-full">
           <button
