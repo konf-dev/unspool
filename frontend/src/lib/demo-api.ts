@@ -9,7 +9,7 @@ interface DemoResponse {
 }
 
 const DEMO_COUNT_KEY = 'unspool-demo-count'
-const MAX_DEMO_MESSAGES = 5
+const MAX_DEMO_MESSAGES = 3
 
 export async function sendDemoMessage(messages: DemoMessage[]): Promise<DemoResponse> {
   const count = getDemoMessageCount()

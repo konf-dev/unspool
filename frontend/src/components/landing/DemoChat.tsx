@@ -33,6 +33,7 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
   const [interactiveCount, setInteractiveCount] = useState(0)
   const [failCount, setFailCount] = useState(0)
   const [showSignInButtons, setShowSignInButtons] = useState(false)
+  const [chatDisabled, setChatDisabled] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
@@ -79,17 +80,25 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
   }
 
   const handleSend = async () => {
-    if (!input.trim()) return
-
-    if (interactiveCount >= 5) {
-      onSignIn()
-      return
-    }
+    if (!input.trim() || chatDisabled) return
 
     const userMsg: DemoEntry = { role: 'user', content: input.trim() }
     setMessages((prev) => [...prev, userMsg])
     setInput('')
-    setInteractiveCount((c) => c + 1)
+    const newCount = interactiveCount + 1
+    setInteractiveCount(newCount)
+
+    if (newCount >= 3) {
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: "that's a taste. sign up to keep going." },
+        ])
+        setChatDisabled(true)
+        setShowSignInButtons(true)
+      }, 600)
+      return
+    }
 
     try {
       const { sendDemoMessage } = await import('@/lib/demo-api')
@@ -110,7 +119,8 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
           ...prev,
           { role: 'assistant', content: "demo's having trouble connecting. sign in to chat for real." },
         ])
-        onSignIn()
+        setChatDisabled(true)
+        setShowSignInButtons(true)
       } else {
         setMessages((prev) => [
           ...prev,
@@ -132,10 +142,22 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
               <DemoMessage role={msg.role} content={msg.content} />
             </div>
           ))}
+          {showSignInButtons && (
+            <div className="flex gap-3 pt-2 animate-fade-in justify-center">
+              <button onClick={onSignIn}
+                className="px-4 py-1.5 rounded-full text-sm text-primary font-light tracking-wide ghost-border hover:bg-surface-container-high active:scale-[0.97] transition-all duration-300">
+                sign up
+              </button>
+              <button onClick={onSignIn}
+                className="px-4 py-1.5 rounded-full text-sm text-primary font-light tracking-wide ghost-border hover:bg-surface-container-high active:scale-[0.97] transition-all duration-300">
+                log in
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="pt-4" style={{ borderTop: '1px solid rgba(70, 73, 67, 0.05)' }}>
-          <div className="bg-surface-container-low rounded-lg px-4 py-3 flex items-center justify-between">
+        <div className="pt-4 border-t border-outline-variant/5">
+          <div className={`bg-surface-container-low rounded-lg px-4 py-3 flex items-center justify-between${chatDisabled ? ' opacity-50' : ''}`}>
             <input
               type="text"
               value={input}
@@ -144,12 +166,14 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void handleSend()
               }}
-              placeholder="what's on your mind?"
-              className="bg-transparent text-on-surface placeholder:text-on-surface-variant/40 text-sm font-light w-full focus:outline-none"
+              disabled={chatDisabled}
+              placeholder={chatDisabled ? 'sign up to continue' : "what's on your mind?"}
+              className="bg-transparent text-on-surface placeholder:text-on-surface-variant/40 text-sm font-light w-full focus:outline-none disabled:cursor-not-allowed"
             />
             <button
               onClick={() => void handleSend()}
-              className="text-primary/60 hover:text-primary transition-colors ml-2"
+              disabled={chatDisabled}
+              className="text-primary/60 hover:text-primary transition-colors ml-2 disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Send demo message"
             >
               <svg
@@ -169,18 +193,6 @@ export function DemoChat({ onSignIn }: DemoChatProps) {
           </div>
         </div>
       </div>
-      {showSignInButtons && (
-        <div className="flex gap-3 mt-4 animate-fade-in justify-center">
-          <button onClick={onSignIn}
-            className="px-4 py-1.5 rounded-full text-sm text-primary font-light tracking-wide ghost-border hover:bg-surface-container-high active:scale-[0.97] transition-all duration-300">
-            sign up
-          </button>
-          <button onClick={onSignIn}
-            className="px-4 py-1.5 rounded-full text-sm text-primary font-light tracking-wide ghost-border hover:bg-surface-container-high active:scale-[0.97] transition-all duration-300">
-            log in
-          </button>
-        </div>
-      )}
     </div>
   )
 }
