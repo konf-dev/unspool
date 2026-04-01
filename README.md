@@ -103,3 +103,5 @@ See [docs/v2/deployment.md](docs/v2/deployment.md#migration-protocol) for the fu
 
 All rights reserved. This code is shared publicly for transparency
 but may not be copied, modified, or distributed without permission.
+
+Contact: hello@unspool.life

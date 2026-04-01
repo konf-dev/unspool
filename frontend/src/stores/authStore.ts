@@ -66,6 +66,15 @@ export const useAuthStore = create<AuthStore>((set) => ({
       return () => {}
     }
 
+    // Check localStorage first — if no stored session, skip the network call
+    // so unauthenticated users see the landing page instantly
+    const storageKey = Object.keys(localStorage).find((k) =>
+      k.startsWith('sb-') && k.endsWith('-auth-token'),
+    )
+    if (!storageKey || !localStorage.getItem(storageKey)) {
+      set({ isLoading: false })
+    }
+
     void supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         set({
