@@ -148,6 +148,9 @@ celerybeat.pid
 # Environments
 .env
 .envrc
+
+# Deployment log (contains infrastructure identifiers)
+docs/DEPLOYMENT_LOG.md
 .venv
 env/
 venv/

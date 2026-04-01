@@ -116,7 +116,7 @@ export function LandingPage() {
               no lists. no dashboards. nothing to maintain. ever.
             </p>
             <p className="text-on-surface-variant/50 text-[10px] tracking-[0.1em] uppercase">
-              free &middot; $8/mo unlimited
+              free during early access
             </p>
           </div>
         </section>

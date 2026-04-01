@@ -396,7 +396,7 @@ Single FastAPI server
 
 Frontend and backend are separate codebases but the backend is ONE server. Route groups (/api/* and /jobs/*) are logically separated in code/directories but deployed as a single process. Split into separate services only when scale demands it.
 
-### Existing Infrastructure (konf-dev)
+### Existing Infrastructure
 
 The product is built on top of an existing agentic AI platform. These components are vibe-coded but architecturally sound — to be hardened post-MVP.
 

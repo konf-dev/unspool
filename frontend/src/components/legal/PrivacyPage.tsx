@@ -69,8 +69,8 @@ export function PrivacyPage() {
           <h2 className="text-on-surface font-medium text-base">Contact</h2>
           <p>
             Questions? Reach us at{' '}
-            <a href="mailto:privacy@unspool.life" className="text-primary underline underline-offset-4 decoration-primary/30">
-              privacy@unspool.life
+            <a href="mailto:hello@unspool.life" className="text-primary underline underline-offset-4 decoration-primary/30">
+              hello@unspool.life
             </a>
           </p>
         </section>

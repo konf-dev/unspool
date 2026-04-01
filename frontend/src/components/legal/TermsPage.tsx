@@ -51,9 +51,7 @@ export function TermsPage() {
         <section className="space-y-3">
           <h2 className="text-on-surface font-medium text-base">Subscription</h2>
           <p>
-            Unspool offers a free tier with limited daily messages and a paid tier ($8/month)
-            with unlimited usage. Subscriptions are managed through Stripe and can be cancelled
-            at any time.
+            Unspool is free during early access. Paid plans may be introduced in the future.
           </p>
         </section>
 
