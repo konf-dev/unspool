@@ -87,11 +87,6 @@ cd frontend && npm test && npx tsc --noEmit && npm run build
 cd frontend && npx playwright test
 ```
 
-## License
-
-All rights reserved. This code is shared publicly for transparency
-but may not be copied, modified, or distributed without permission.
-
 ## Database Migrations
 
 Migrations are tracked via `schema_migrations` and applied with the runner:
@@ -106,4 +101,5 @@ See [docs/v2/deployment.md](docs/v2/deployment.md#migration-protocol) for the fu
 
 ## License
 
-All rights reserved.
+All rights reserved. This code is shared publicly for transparency
+but may not be copied, modified, or distributed without permission.
