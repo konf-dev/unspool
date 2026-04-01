@@ -42,10 +42,9 @@ export function PrivacyPage() {
         <section className="space-y-3">
           <h2 className="text-on-surface font-medium text-base">AI processing</h2>
           <p>
-            Your messages are processed by Google's Gemini API to generate responses and extract
-            actionable items. Messages are sent with your user context but no personally
-            identifiable information beyond what you type. We do not use your data to train AI
-            models.
+            Your messages are processed alongside your recent conversation history and extracted
+            context (tasks, deadlines, preferences) to provide relevant responses. This data is
+            sent to our AI provider (Google Gemini) but is not used to train AI models.
           </p>
         </section>
 
@@ -54,6 +53,7 @@ export function PrivacyPage() {
           <p>
             You can delete your account and all associated data at any time. This is a permanent,
             irreversible action that removes all messages, graph data, and profile information.
+            To delete your account, just say "delete my account" in the chat.
           </p>
         </section>
 

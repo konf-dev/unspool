@@ -62,20 +62,22 @@ async def run_check_deadlines() -> dict:
             if not items:
                 continue
 
-            subscriptions = await get_push_subscriptions(user_id)
-            if not subscriptions:
-                continue
-
             if len(items) == 1:
                 body = body_single.format(action=items[0].get("content", "upcoming deadline"))
             else:
                 body = body_multiple.format(count=len(items), hours=deadline_hours)
 
-            from src.integrations.push import send_push_notification
-            for sub in subscriptions:
-                await send_push_notification(subscription=sub, title=title, body=body, user_id=user_id)
+            # Push notification (if subscribed)
+            subscriptions = await get_push_subscriptions(user_id)
+            if subscriptions:
+                from src.integrations.push import send_push_notification
+                for sub in subscriptions:
+                    await send_push_notification(subscription=sub, title=title, body=body, user_id=user_id)
 
-            # Mark notification as sent AFTER successful push delivery
+            # Always save as in-app message so it shows on next open
+            from src.db.queries import save_proactive_message
+            await save_proactive_message(user_id, body, "deadline_imminent")
+
             await update_profile(user_id, notification_sent_today=True)
 
             notified += 1

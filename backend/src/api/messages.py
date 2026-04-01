@@ -70,27 +70,29 @@ async def get_messages(
             except Exception as e:
                 report_error("messages.proactive_failed", e, user_id=user_id)
 
-            # Deliver queued proactive messages — persist to event_stream then mark delivered
-            try:
-                from src.db.queries import (
-                    get_unconsumed_proactive_messages,
-                    mark_proactive_messages_delivered,
-                    append_message_event,
-                )
-                queued = await get_unconsumed_proactive_messages(user_id)
-                if queued:
-                    ids = [q["id"] for q in queued]
-                    async with AsyncSessionLocal() as sess:
-                        for q in queued:
-                            await append_message_event(
-                                sess, user_id, "assistant", q["content"],
-                                metadata={"type": "proactive", "trigger": q["trigger_type"], "is_queued": True},
-                            )
-                        await sess.commit()
-                    await mark_proactive_messages_delivered(user_id, ids)
-                    _log.info("messages.queued_proactive_delivered", count=len(queued), user_id=user_id)
-            except Exception as e:
-                report_error("messages.queued_proactive_failed", e, user_id=user_id)
+        # Always deliver queued proactive messages (reminders, nudges) —
+        # these are already created by QStash callbacks and should not be
+        # gated by the should_run_proactive check.
+        try:
+            from src.db.queries import (
+                get_unconsumed_proactive_messages,
+                mark_proactive_messages_delivered,
+                append_message_event,
+            )
+            queued = await get_unconsumed_proactive_messages(user_id)
+            if queued:
+                ids = [q["id"] for q in queued]
+                async with AsyncSessionLocal() as sess:
+                    for q in queued:
+                        await append_message_event(
+                            sess, user_id, "assistant", q["content"],
+                            metadata={"type": "proactive", "trigger": q["trigger_type"], "is_queued": True},
+                        )
+                    await sess.commit()
+                await mark_proactive_messages_delivered(user_id, ids)
+                _log.info("messages.queued_proactive_delivered", count=len(queued), user_id=user_id)
+        except Exception as e:
+            report_error("messages.queued_proactive_failed", e, user_id=user_id)
 
     # Fetch messages — proactive + queued messages are already committed to event_stream
     async with AsyncSessionLocal() as session:

@@ -105,3 +105,8 @@ All rights reserved. This code is shared publicly for transparency
 but may not be copied, modified, or distributed without permission.
 
 Contact: hello@unspool.life
+
+## Author
+
+[Sourav Sharan](https://souravsharan.com) — Masters in Data Science, Uppsala University.
+Built for my own ADHD brain, sharing to see if it helps yours.

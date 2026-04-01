@@ -137,6 +137,14 @@ export function LandingPage() {
           >
             terms
           </button>
+          <a
+            href="https://souravsharan.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] text-on-surface-variant/60 tracking-widest uppercase hover:text-on-surface transition-colors"
+          >
+            built by sourav
+          </a>
         </div>
       </footer>
     </div>
