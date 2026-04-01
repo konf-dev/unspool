@@ -1,5 +1,7 @@
 # Unspool
 
+**[www.unspool.life](https://www.unspool.life/)**
+
 An AI personal assistant for people with ADHD. One chat interface — brain-dump tasks, ideas, deadlines, and thoughts. The AI handles categorization, prioritization, and scheduling invisibly. No dashboards, no lists, no settings. Just talk.
 
 ## Quick Start
@@ -84,6 +86,11 @@ cd backend && pytest -v
 cd frontend && npm test && npx tsc --noEmit && npm run build
 cd frontend && npx playwright test
 ```
+
+## License
+
+All rights reserved. This code is shared publicly for transparency
+but may not be copied, modified, or distributed without permission.
 
 ## Database Migrations
 
