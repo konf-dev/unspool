@@ -95,11 +95,11 @@ async def get_profile(user_id: str) -> dict[str, Any] | None:
             "uses_emoji": profile.uses_emoji,
             "primary_language": profile.primary_language,
             "patterns": profile.patterns,
-            "last_interaction_at": profile.last_interaction_at,
-            "last_proactive_at": profile.last_proactive_at,
+            "last_interaction_at": profile.last_interaction_at.isoformat() if profile.last_interaction_at else None,
+            "last_proactive_at": profile.last_proactive_at.isoformat() if profile.last_proactive_at else None,
             "notification_sent_today": profile.notification_sent_today,
             "feed_token": profile.feed_token,
-            "created_at": profile.created_at,
+            "created_at": profile.created_at.isoformat() if profile.created_at else None,
         }
 
 
