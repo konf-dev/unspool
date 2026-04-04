@@ -84,7 +84,7 @@ All writes flow through `append_event()`. The hot path's `mutate_graph` tool app
 The hot path handles the conversational experience. It:
 1. Assembles context in parallel (profile, recent messages, structured items from graph views) — **0 API calls, 3-4 SQL queries**
 2. Builds a dynamic system prompt from `agent_system.md` template
-3. Runs a LangGraph state machine with 3 tools: `query_graph`, `mutate_graph`, `schedule_reminder`
+3. Runs a LangGraph state machine with 4 tools: `query_graph`, `mutate_graph`, `schedule_reminder`, `get_metrics`
 4. Streams responses via SSE
 5. Strips `<thought>` blocks from output before sending to client
 
@@ -131,6 +131,6 @@ backend/
     jobs/           router + 5 job implementations
     proactive/      evaluator registry, engine, scheduled actions
     telemetry/      structlog, trace middleware, error reporting, langfuse, PII scrubbing
-  supabase/migrations/  12 SQL migrations
+  supabase/migrations/  13 SQL migrations
   tests/            7 test modules + conftest
 ```

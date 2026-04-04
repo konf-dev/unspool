@@ -101,21 +101,42 @@ cron_jobs:
 ```
 Registered with QStash on startup. Stale `unspool-*` schedules are cleaned up before registration.
 
-### `graph.yaml` — Graph Parameters
+### `hyperparams.yaml` — All Tunables (Single Source of Truth)
+
+Replaces the former `graph.yaml`. Every hardcoded limit, threshold, and LLM parameter is centralized here. Code reads values via `hp(section, key, default)`.
+
 ```yaml
 retrieval:
-  semantic_limit: 15
-  graph_walk_hops: 1
-  max_subgraph_nodes: 100
-evolution:
-  embedding_model: gemini-embedding-001
-  dedup_threshold: 0.9
+  semantic_search_limit: 15       # query_graph semantic path default
+  structural_search_limit: 25     # query_graph structural path default
+  edge_fetch_limit: 30            # edges loaded per node
+  edge_display_limit: 10          # edges shown per node in results
+  graph_walk_hops: 2              # max neighborhood traversal depth
+context:
+  recent_messages_to_llm: 15      # conversation history window
+  recent_mentions_count: 5        # "Just mentioned" entries
+  recent_mention_max_chars: 500   # truncation (not filter)
+  plate_items_limit: 10
+  slipped_items_limit: 15
+  metric_history_entries: 10
+extraction:
+  dedup_max_distance: 0.1         # cosine distance (0.9 similarity)
+  max_retries: 3
+  session_debounce_seconds: 180
+synthesis:
+  archive_done_after_days: 7
+  merge_max_distance: 0.15
   edge_decay_factor: 0.99
-  edge_decay_min: 0.01
-ingest:
-  model: gemini-2.5-flash
-  max_nodes: 10
+agent:
+  max_iterations: 5
+  llm_temperature: 0.4
+  llm_thinking_budget: 4096
+  pipeline_timeout_seconds: 60
+proactive:
+  cooldown_seconds: 21600         # 6 hours
 ```
+
+See `backend/config/hyperparams.yaml` for the complete file with all sections.
 
 ### `proactive.yaml` — Proactive Triggers
 5 triggers evaluated in priority order. Only the first matching trigger fires per session. 6-hour cooldown between proactive messages.

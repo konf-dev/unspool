@@ -37,17 +37,18 @@ START → agent → conditional → (tools → agent loop) → END
 
 ### Tools
 
-#### `query_graph(semantic_query?, edge_type_filter?, node_type?, date_from?, date_to?)`
+#### `query_graph(semantic_query?, edge_type_filter?, node_type?, date_from?, date_to?, depth?)`
 
 Searches the user's knowledge graph. Returns nodes with their edges.
 
 - At least one of `semantic_query`, `edge_type_filter`, or `node_type` must be provided
-- Semantic path: generates embedding via `gemini-embedding-001` (768d, L2-normalized, task_type=RETRIEVAL_QUERY), pgvector cosine distance search, limit 8
+- Semantic path: generates embedding via `gemini-embedding-001` (768d, L2-normalized, task_type=RETRIEVAL_QUERY), pgvector cosine distance search, limit from `hyperparams.yaml` (default 15)
 - Structural path (no `semantic_query`): SQL-only query by edge type / node type — no embedding API call
 - Optional `edge_type_filter`: post-filters semantic results to nodes with matching outgoing edges
 - Optional `node_type` filter: `memory`, `action`, `concept`, `person`, etc.
 - Optional `date_from` / `date_to` (ISO8601): temporal filtering on edge metadata dates (deadline, logged_at)
-- Returns up to 5 immediate edges per node for context (fetches 20 internally for post-filtering)
+- Optional `depth` (default 0): N-hop graph traversal from matched nodes. Use 1-2 for context questions like "what's related to X?"
+- Edges fetched in a single batch query (no N+1), displayed up to configurable limit (default 10)
 - On error: returns `"Error: ..."` string (consistent with mutate_graph)
 
 **Response shape:**
@@ -58,6 +59,32 @@ Searches the user's knowledge graph. Returns nodes with their edges.
     "item": "Buy groceries",
     "kind": "memory",
     "details": "status: open, due: 2026-03-25T17:00:00Z"
+  }
+]
+```
+
+#### `get_metrics(metric_name?, date_from?, date_to?)`
+
+Returns pre-aggregated metric data. Always use this instead of query_graph for total/count/average questions.
+
+- Optional `metric_name`: filter to a specific metric (e.g., "spending", "running")
+- Optional `date_from` / `date_to` (ISO8601): time-scoped aggregation
+- Returns: count, total, min, max, average, latest value, unit, date range per metric
+- Powered by `vw_metrics` SQL view — exact database aggregates, no LLM arithmetic
+
+**Response shape:**
+```json
+[
+  {
+    "metric": "spending",
+    "entry_count": 12,
+    "total": 456.78,
+    "average": 38.07,
+    "min": 5.0,
+    "max": 120.0,
+    "latest_value": 45.5,
+    "unit": "USD",
+    "date_range": "2026-03-15 — 2026-04-02"
   }
 ]
 ```
@@ -120,10 +147,10 @@ The system prompt instructs the LLM to use **both** graph memory and conversatio
 2. **Recent Messages** — Last 20 messages from `vw_messages` view (reversed to chronological)
 3. **Structured Items** — 5 concurrent SQL queries against graph views:
    - Overdue items (`get_slipped_items` — past soft/routine deadlines)
-   - Plate items (`get_plate_items` — urgency-ordered, top 7)
+   - Plate items (`get_plate_items` — urgency-ordered, configurable limit)
    - Deadline calendar (`get_deadline_calendar` — today/tomorrow/this_week)
-   - Metric summary (`get_metric_summary` — latest values per metric)
-   - Recently done count (last 48h)
+   - Metric summary (`get_metric_summary` — aggregates per metric: count, total, range)
+   - Recently done count (configurable lookback, default 48h)
 
 Each query catches its own exceptions — a failure in one doesn't block the others.
 
