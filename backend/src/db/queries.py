@@ -105,16 +105,20 @@ async def get_profile(user_id: str) -> dict[str, Any] | None:
 
 
 async def update_profile(user_id: str, **fields: Any) -> None:
+    """Upsert a user profile — update if exists, create if not.
+
+    Uses INSERT ... ON CONFLICT to avoid race conditions when multiple
+    requests update the same profile concurrently.
+    """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
     async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            update(UserProfile).where(
-                UserProfile.id == uuid.UUID(user_id)
-            ).values(**fields)
+        stmt = pg_insert(UserProfile).values(id=uuid.UUID(user_id), **fields)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["id"],
+            set_=fields,
         )
-        if result.rowcount == 0:
-            # Profile doesn't exist yet — create it with the given fields
-            profile = UserProfile(id=uuid.UUID(user_id), **fields)
-            session.add(profile)
+        await session.execute(stmt)
         await session.commit()
 
 
