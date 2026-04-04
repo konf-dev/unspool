@@ -17,6 +17,7 @@ from src.agents.hot_path.graph import app as hot_path_app
 from src.agents.hot_path.state import HotPathState
 from src.api.gate import check_gate
 from src.auth.supabase_auth import get_current_user
+from src.core.config_loader import hp
 from src.core.database import AsyncSessionLocal
 from src.db.queries import append_message_event, update_profile
 from src.telemetry.error_reporting import report_error
@@ -32,7 +33,8 @@ _log = get_logger("api.chat")
 
 router = APIRouter()
 
-_PIPELINE_TIMEOUT_SECONDS = 60
+def _pipeline_timeout() -> int:
+    return int(hp("agent", "pipeline_timeout_seconds", 60))
 
 
 def _token_event(text: str) -> str:
@@ -99,7 +101,7 @@ async def _stream_response(
 
         # Build conversation history from recent messages
         history_messages = []
-        for msg in recent_messages[-10:]:
+        for msg in recent_messages[-hp("context", "recent_messages_to_llm", 15):]:
             if msg.get("role") == "user":
                 history_messages.append(HumanMessage(content=msg.get("content", "")))
             elif msg.get("role") == "assistant":
@@ -123,7 +125,7 @@ async def _stream_response(
 
         in_thought = False  # Track whether we're inside a <thought> block
 
-        async with asyncio.timeout(_PIPELINE_TIMEOUT_SECONDS):
+        async with asyncio.timeout(_pipeline_timeout()):
             async for event in hot_path_app.astream_events(
                 initial_state, version="v2", config=langfuse_config,
             ):
@@ -160,7 +162,7 @@ async def _stream_response(
                     if tool_name:
                         yield f"data: {json.dumps({'type': 'tool_end', 'name': tool_name})}\n\n"
 
-            # Send plate data inline before done to avoid race condition
+            # Send plate data inline before done
             try:
                 from src.db.queries import get_plate_items
                 plate_items = await get_plate_items(user_id)
@@ -196,31 +198,30 @@ async def chat(
 
     await check_gate(user_id)
 
-    # Sync browser timezone to profile
-    if request.timezone:
+    # Persist message + sync timezone in parallel (independent DB tables)
+    async def _save_message():
+        async with AsyncSessionLocal() as session:
+            await append_message_event(
+                session, user_id, "user", request.message,
+                metadata={"trace_id": trace_id, "session_id": request.session_id},
+            )
+            await session.commit()
+
+    async def _sync_profile():
         try:
-            await update_profile(user_id, timezone=request.timezone)
+            updates: dict[str, Any] = {"last_interaction_at": datetime.now(timezone.utc)}
+            if request.timezone:
+                updates["timezone"] = request.timezone
+            await update_profile(user_id, **updates)
         except Exception as e:
-            report_error("chat.timezone_sync_failed", e, user_id=user_id)
+            report_error("chat.profile_sync_failed", e, user_id=user_id)
 
-    # Persist user message as event
-    async with AsyncSessionLocal() as session:
-        user_event = await append_message_event(
-            session, user_id, "user", request.message,
-            metadata={"trace_id": trace_id, "session_id": request.session_id},
-        )
-        await session.commit()
+    await asyncio.gather(_save_message(), _sync_profile())
 
-    # Assemble context in parallel
+    # Assemble context (reads from views + event_stream)
     context_block, profile, recent_messages = await assemble_context(
         user_id, request.message, trace_id,
     )
-
-    # Update last interaction
-    try:
-        await update_profile(user_id, last_interaction_at=datetime.now(timezone.utc))
-    except Exception:
-        pass
 
     collected_tokens: list[str] = []
     stream_state: dict[str, bool] = {"failed": False, "completed": False}
@@ -272,9 +273,9 @@ async def chat(
                 if not stream_state.get("completed"):
                     metadata["partial"] = True
 
-                try:
-                    from src.db.queries import get_plate_items
-                    plate_items = await get_plate_items(user_id)
+                # Reuse plate items fetched during streaming (avoid duplicate DB call)
+                plate_items = stream_state.get("plate_items") or []
+                if plate_items:
                     metadata["plate"] = {
                         "items": [
                             {
@@ -286,8 +287,6 @@ async def chat(
                             for p in plate_items
                         ]
                     }
-                except Exception:
-                    pass  # Plate failure should never break chat
 
                 try:
                     async with AsyncSessionLocal() as session:
@@ -307,14 +306,14 @@ async def chat(
                         session_key = f"pending_extraction:{user_id}"
 
                         # Store session_id and reset TTL (3 min debounce)
-                        await cache_set(session_key, request.session_id, ttl_seconds=180)
+                        await cache_set(session_key, request.session_id, ttl_seconds=int(hp("extraction", "session_debounce_seconds", 180)))
 
                         # Schedule QStash job — new job replaces old via debounce
                         await dispatch_job("process-session", {
                             "user_id": user_id,
                             "session_id": request.session_id,
                             "trace_id": trace_id,
-                        }, delay=180)
+                        }, delay=int(hp("extraction", "session_debounce_seconds", 180)))
 
                         # If intent shifted to QUERY, trigger extraction immediately
                         # Detect query intent from the response (tool calls or context usage)

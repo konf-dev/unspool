@@ -4,7 +4,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from src.core.config_loader import load_config
+from src.core.config_loader import hp, load_config
 from src.core.prompt_renderer import render_prompt
 from src.core.settings import get_settings
 from src.core.database import AsyncSessionLocal
@@ -40,11 +40,12 @@ async def check_proactive(user_id: str) -> dict[str, Any] | None:
             last_dt = last_dt.replace(tzinfo=timezone.utc)
 
         diff = datetime.now(timezone.utc) - last_dt
-        if diff.total_seconds() < 6 * 3600:
+        cooldown = hp("proactive", "cooldown_seconds", 21600)
+        if diff.total_seconds() < cooldown:
             _log.info(
                 "proactive.cooldown_active",
                 user_id=user_id,
-                seconds_remaining=6 * 3600 - diff.total_seconds(),
+                seconds_remaining=cooldown - diff.total_seconds(),
             )
             return None
 
@@ -101,15 +102,15 @@ async def check_proactive(user_id: str) -> dict[str, Any] | None:
                 contents="Generate the proactive message.",
                 config=types.GenerateContentConfig(
                     system_instruction=rendered,
-                    temperature=0.8,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    temperature=hp("proactive", "llm_temperature", 0.8),
+                    thinking_config=types.ThinkingConfig(thinking_budget=hp("proactive", "llm_thinking_budget", 0)),
                 ),
             )
             latency_ms = round((time.perf_counter() - start) * 1000)
             content = response.text.strip()
 
             update_current_observation(
-                input=[{"role": "system", "content": rendered[:200]}],
+                input=[{"role": "system", "content": rendered}],
                 output=content,
             )
 

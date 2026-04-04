@@ -5,12 +5,11 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from icalendar import Calendar, Event
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from src.core.database import AsyncSessionLocal
 from src.core.models import UserProfile
 from src.telemetry.logger import get_logger
-from sqlalchemy import select
 
 _log = get_logger("api.feed")
 

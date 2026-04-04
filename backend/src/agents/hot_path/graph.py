@@ -21,9 +21,11 @@ from src.agents.hot_path.tools import (
     query_graph,
     mutate_graph,
     schedule_reminder,
+    get_metrics,
     _exec_query_graph,
     _exec_mutate_graph,
     _exec_schedule_reminder,
+    _exec_get_metrics,
 )
 from src.db.queries import save_llm_usage
 from src.telemetry.logger import get_logger
@@ -39,13 +41,14 @@ def _get_llm_with_tools() -> ChatGoogleGenerativeAI:
     if _llm_with_tools is None:
         from src.core.settings import get_settings
         settings = get_settings()
+        from src.core.config_loader import hp
         llm = ChatGoogleGenerativeAI(
             google_api_key=settings.api_key_for(settings.CHAT_PROVIDER),
             model=settings.CHAT_MODEL,
-            temperature=0.4,
-            thinking_budget=4096,
+            temperature=hp("agent", "llm_temperature", 0.4),
+            thinking_budget=hp("agent", "llm_thinking_budget", 4096),
         )
-        _llm_with_tools = llm.bind_tools([query_graph, mutate_graph, schedule_reminder])
+        _llm_with_tools = llm.bind_tools([query_graph, mutate_graph, schedule_reminder, get_metrics])
     return _llm_with_tools
 
 
@@ -115,6 +118,7 @@ async def call_tools(state: HotPathState):
                         node_type=node_type,
                         date_from=date_from,
                         date_to=date_to,
+                        depth=int(args.get("depth", 0)),
                     )
             elif tool_call["name"] == "mutate_graph":
                 args = tool_call["args"]
@@ -151,6 +155,14 @@ async def call_tools(state: HotPathState):
                         reminder_text=str(reminder_text).strip(),
                         remind_at=str(remind_at).strip(),
                     )
+            elif tool_call["name"] == "get_metrics":
+                args = tool_call["args"]
+                result = await _exec_get_metrics(
+                    user_id=user_id,
+                    metric_name=args.get("metric_name"),
+                    date_from=args.get("date_from"),
+                    date_to=args.get("date_to"),
+                )
             else:
                 result = f"Unknown tool: {tool_call['name']}"
 
@@ -173,7 +185,8 @@ async def call_tools(state: HotPathState):
 
 def route_logic(state: HotPathState) -> Literal["tools", "END"]:
     """Determines whether to execute tools or end the loop."""
-    if state["iteration"] >= 5:
+    from src.core.config_loader import hp
+    if state["iteration"] >= int(hp("agent", "max_iterations", 5)):
         logger.warning("hot_path.iteration_limit_reached")
         return "END"
 

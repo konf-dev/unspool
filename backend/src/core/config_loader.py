@@ -53,3 +53,13 @@ def get_config_hash(key: str) -> str | None:
 
 def get_all_config_hashes() -> dict[str, str]:
     return dict(_config_hashes)
+
+
+# ── Convenience accessor for hyperparams.yaml ──
+
+def hp(section: str, key: str, default: Any = None) -> Any:
+    """Read a value from hyperparams.yaml (cached, hot-reloads in dev).
+
+    Usage: ``hp("retrieval", "semantic_search_limit", 15)``
+    """
+    return load_config("hyperparams").get(section, {}).get(key, default)
