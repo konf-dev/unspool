@@ -1,6 +1,7 @@
 """Graph operations — event-first writes with projection, read queries on projection tables."""
 
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select, and_, delete, func
@@ -151,6 +152,44 @@ async def create_edge_event(
 ) -> GraphEdge:
     """Alias for upsert_edge — always event-first."""
     return await upsert_edge(session, user_id, source_id, target_id, edge_type, metadata, weight)
+
+
+async def append_edge(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    source_id: uuid.UUID,
+    target_id: uuid.UUID,
+    edge_type: str,
+    metadata: dict[str, Any] | None = None,
+    weight: float = 1.0,
+) -> GraphEdge:
+    """Always INSERT a new edge row (never upsert). Use for metric/event data
+    where each occurrence must be preserved as a separate row.
+
+    A server-generated ``logged_at`` timestamp is injected into metadata so
+    every row is unique even when source/target/type are identical.
+    """
+    meta = dict(metadata or {})
+    meta.setdefault("logged_at", datetime.now(timezone.utc).isoformat())
+
+    edge = GraphEdge(
+        user_id=user_id,
+        source_node_id=source_id,
+        target_node_id=target_id,
+        edge_type=edge_type,
+        weight=weight,
+        metadata_=meta,
+    )
+    session.add(edge)
+    await session.flush()
+    await append_event(session, user_id, "EdgeAdded", {
+        "edge_id": str(edge.id),
+        "source_id": str(source_id),
+        "target_id": str(target_id),
+        "edge_type": edge_type,
+        "metadata": meta,
+    })
+    return edge
 
 
 async def update_status_event(

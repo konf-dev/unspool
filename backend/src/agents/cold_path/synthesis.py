@@ -14,7 +14,7 @@ from src.core.graph import (
     search_nodes_semantic,
 )
 from src.core.models import GraphNode, GraphEdge
-from src.core.config_loader import load_config
+from src.core.config_loader import hp
 from src.telemetry.error_reporting import report_error
 from src.telemetry.logger import get_logger
 
@@ -52,8 +52,9 @@ async def run_nightly_synthesis(user_id: uuid.UUID) -> dict:
 
 
 async def _archive_done_items(session: AsyncSession, user_id: uuid.UUID) -> int:
-    """Archive action nodes marked DONE for >7 days."""
-    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    """Archive action nodes marked DONE for longer than the configured threshold."""
+    archive_days = int(hp("synthesis", "archive_done_after_days", 7))
+    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=archive_days)
 
     # Find DONE system node
     done_node = (await session.execute(
@@ -109,14 +110,26 @@ async def _merge_duplicates(session: AsyncSession, user_id: uuid.UUID) -> int:
         if node.id in merged_ids:
             continue
 
-        # Find similar nodes (max_distance=0.15 ≈ cosine similarity >= 0.85)
         similar = await search_nodes_semantic(
-            session, user_id, node.embedding, limit=5, node_type=node.node_type,
-            max_distance=0.15,
+            session, user_id, node.embedding,
+            limit=int(hp("synthesis", "merge_candidates_limit", 5)),
+            node_type=node.node_type,
+            max_distance=float(hp("synthesis", "merge_max_distance", 0.15)),
         )
 
         for candidate in similar:
             if candidate.id == node.id or candidate.id in merged_ids:
+                continue
+
+            # A4: never merge nodes that source TRACKS_METRIC edges (metric data points)
+            metric_count = (await session.execute(
+                select(func.count(GraphEdge.id)).where(
+                    GraphEdge.user_id == user_id,
+                    GraphEdge.source_node_id.in_([node.id, candidate.id]),
+                    GraphEdge.edge_type == "TRACKS_METRIC",
+                )
+            )).scalar()
+            if metric_count:
                 continue
 
             # Check if same type and very similar (using position as proxy for similarity)
@@ -195,15 +208,9 @@ async def _recompute_actionable_flags(session: AsyncSession, user_id: uuid.UUID)
 
 
 async def _decay_edges(session: AsyncSession, user_id: uuid.UUID) -> int:
-    """Apply edge weight decay from graph.yaml config."""
-    try:
-        config = load_config("graph")
-    except FileNotFoundError:
-        return 0
-
-    evolution = config.get("evolution", {})
-    decay_factor = evolution.get("edge_decay_factor", 0.99)
-    decay_min = evolution.get("edge_decay_min", 0.01)
+    """Apply edge weight decay using centralized config."""
+    decay_factor = float(hp("synthesis", "edge_decay_factor", 0.99))
+    decay_min = float(hp("synthesis", "edge_decay_min", 0.01))
 
     result = await session.execute(
         update(GraphEdge).where(

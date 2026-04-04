@@ -1,4 +1,3 @@
-from typing import List, Optional, Any
 from pydantic import BaseModel, Field
 
 
@@ -31,11 +30,12 @@ class ExtractedNode(BaseModel):
 
 
 class EdgeMetadata(BaseModel):
-    date: Optional[str] = Field(None, description="ISO8601 timestamp for HAS_DEADLINE or EXPERIENCED_DURING edges.")
-    value: Optional[float] = Field(None, description="Numeric value for TRACKS_METRIC edges.")
-    unit: Optional[str] = Field(None, description="Unit for the numeric value.")
-    logged_at: Optional[str] = Field(None, description="When the metric event actually happened (ISO8601). For TRACKS_METRIC edges.")
-    deadline_type: Optional[str] = Field(None, description="hard/soft/routine. For HAS_DEADLINE edges.")
+    date: str | None = Field(None, description="ISO8601 timestamp for HAS_DEADLINE or EXPERIENCED_DURING edges.")
+    value: float | None = Field(None, description="Numeric value for TRACKS_METRIC edges.")
+    unit: str | None = Field(None, description="Unit for the numeric value.")
+    logged_at: str | None = Field(None, description="When the metric event actually happened (ISO8601). For TRACKS_METRIC edges.")
+    deadline_type: str | None = Field(None, description="hard/soft/routine. For HAS_DEADLINE edges.")
+
 
 class ExtractedEdge(BaseModel):
     source_content: str = Field(..., description="The content of the source node. MUST match a node's content exactly.")
@@ -44,11 +44,12 @@ class ExtractedEdge(BaseModel):
         ...,
         description="The relationship. Must be one of: 'HAS_DEADLINE', 'IS_STATUS', 'RELATES_TO', 'TRACKS_METRIC', 'EXPERIENCED_DURING', 'DEPENDS_ON', 'PART_OF'"
     )
-    metadata: Optional[EdgeMetadata] = Field(
-        default=None, 
+    metadata: EdgeMetadata | None = Field(
+        default=None,
         description="Optional metadata for the edge."
     )
 
+
 class ExtractionResult(BaseModel):
-    nodes: List[ExtractedNode] = Field(..., description="A list of all entities/concepts found in the text.")
-    edges: List[ExtractedEdge] = Field(..., description="A list of relationships connecting the extracted nodes.")
+    nodes: list[ExtractedNode] = Field(..., description="A list of all entities/concepts found in the text.")
+    edges: list[ExtractedEdge] = Field(..., description="A list of relationships connecting the extracted nodes.")

@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import select, text, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.config_loader import hp
 from src.core.database import AsyncSessionLocal
 from src.core.models import (
     EventStream,
@@ -254,13 +255,16 @@ async def get_unconsumed_proactive_messages(user_id: str) -> list[dict[str, Any]
 
 
 async def mark_proactive_messages_delivered(user_id: str, ids: list[str]) -> None:
+    if not ids:
+        return
+    uuids = [uuid.UUID(i) for i in ids]
     async with AsyncSessionLocal() as session:
-        for msg_id in ids:
-            stmt = update(ProactiveMessage).where(
-                ProactiveMessage.id == uuid.UUID(msg_id),
+        await session.execute(
+            update(ProactiveMessage).where(
                 ProactiveMessage.user_id == uuid.UUID(user_id),
+                ProactiveMessage.id.in_(uuids),
             ).values(status="delivered", delivered_at=datetime.now(timezone.utc))
-            await session.execute(stmt)
+        )
         await session.commit()
 
 
@@ -471,8 +475,8 @@ async def get_plate_items(user_id: str) -> list[dict[str, Any]]:
                      WHEN deadline IS NOT NULL THEN 1
                      ELSE 2 END,
                 deadline ASC NULLS LAST
-            LIMIT 7
-        """), {"uid": user_id})
+            LIMIT :lim
+        """), {"uid": user_id, "lim": hp("context", "plate_items_limit", 10)})
         return [dict(r) for r in result.mappings().all()]
 
 
@@ -502,8 +506,8 @@ async def get_slipped_items(user_id: str) -> list[dict[str, Any]]:
               AND deadline < NOW()
               AND deadline_type IN ('soft', 'routine')
             ORDER BY deadline DESC
-            LIMIT 10
-        """), {"uid": user_id})
+            LIMIT :lim
+        """), {"uid": user_id, "lim": hp("context", "slipped_items_limit", 15)})
         return [dict(r) for r in result.mappings().all()]
 
 
@@ -547,17 +551,67 @@ async def get_deadline_calendar(user_id: str) -> dict[str, list[dict[str, Any]]]
     return calendar
 
 
-async def get_metric_summary(user_id: str) -> list[dict[str, Any]]:
-    """Get latest metric values grouped by metric name from vw_metrics."""
+async def get_metric_aggregates(
+    user_id: str,
+    metric_name: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> list[dict[str, Any]]:
+    """Get pre-aggregated metric data with optional filters.
+
+    Returns per metric: count, sum, min, max, avg, latest value, unit, date range,
+    and the most recent individual entries for context.
+    """
     async with AsyncSessionLocal() as session:
         result = await session.execute(text("""
-            SELECT DISTINCT ON (metric_name)
+            SELECT
                 metric_name,
-                value AS latest_value,
-                unit,
-                event_time::date::text AS latest_date
+                COUNT(*)::int AS entry_count,
+                ROUND(SUM(value)::numeric, 2) AS total,
+                ROUND(MIN(value)::numeric, 2) AS min_value,
+                ROUND(MAX(value)::numeric, 2) AS max_value,
+                ROUND(AVG(value)::numeric, 2) AS avg_value,
+                (ARRAY_AGG(value ORDER BY event_time DESC))[1] AS latest_value,
+                (ARRAY_AGG(unit ORDER BY event_time DESC))[1] AS unit,
+                MAX(event_time)::date::text AS latest_date,
+                MIN(event_time)::date::text AS earliest_date
             FROM vw_metrics
             WHERE user_id = :uid
-            ORDER BY metric_name, event_time DESC
-        """), {"uid": user_id})
+              AND (:metric_name IS NULL OR metric_name = :metric_name)
+              AND (:date_from IS NULL OR event_time >= :date_from::timestamptz)
+              AND (:date_to IS NULL OR event_time <= :date_to::timestamptz)
+            GROUP BY metric_name
+            ORDER BY MAX(event_time) DESC
+        """), {
+            "uid": user_id,
+            "metric_name": metric_name,
+            "date_from": date_from,
+            "date_to": date_to,
+        })
+        return [dict(r) for r in result.mappings().all()]
+
+
+async def get_metric_summary(user_id: str) -> list[dict[str, Any]]:
+    """Get metric history with aggregates per metric name (B1 fix).
+
+    Returns per metric: count, total, latest value, unit, date range.
+    """
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(text("""
+            SELECT
+                metric_name,
+                COUNT(*)::int AS entry_count,
+                SUM(value) AS total,
+                MAX(value) AS max_value,
+                MIN(value) AS min_value,
+                (ARRAY_AGG(value ORDER BY event_time DESC))[1] AS latest_value,
+                (ARRAY_AGG(unit ORDER BY event_time DESC))[1] AS unit,
+                MAX(event_time)::date::text AS latest_date,
+                MIN(event_time)::date::text AS earliest_date
+            FROM vw_metrics
+            WHERE user_id = :uid
+            GROUP BY metric_name
+            ORDER BY MAX(event_time) DESC
+            LIMIT :lim
+        """), {"uid": user_id, "lim": hp("context", "metric_history_entries", 10)})
         return [dict(r) for r in result.mappings().all()]

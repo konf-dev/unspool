@@ -7,6 +7,7 @@ Semantic graph search moved to query_graph tool only.
 import asyncio
 from typing import Any
 
+from src.core.config_loader import hp
 from src.core.database import AsyncSessionLocal
 from src.db.queries import (
     get_messages_from_events,
@@ -30,9 +31,11 @@ def _extract_recent_mentions(messages: list[dict[str, Any]]) -> str:
     for msg in messages:
         if msg.get("role") == "user" and msg.get("content"):
             content = str(msg["content"]).strip()
-            if content and len(content) < 200:
-                lines.append(f"  - {content}")
-    return "\n".join(lines[-3:]) if lines else ""
+            if content:
+                max_chars = int(hp("context", "recent_mention_max_chars", 500))
+                lines.append(f"  - {content[:max_chars]}")
+    mention_count = int(hp("context", "recent_mentions_count", 5))
+    return "\n".join(lines[-mention_count:]) if lines else ""
 
 
 @observe(name="agent.assemble_context")
@@ -83,7 +86,7 @@ async def assemble_context(
                 get_plate_items(user_id),
                 get_deadline_calendar(user_id),
                 get_metric_summary(user_id),
-                get_recently_done_count(user_id, hours=48),
+                get_recently_done_count(user_id, hours=int(hp("context", "done_count_lookback_hours", 48))),
                 return_exceptions=True,
             )
 
@@ -134,10 +137,17 @@ async def assemble_context(
             if metrics:
                 lines = []
                 for m in metrics:
-                    val = m.get('latest_value') or '?'
+                    name = m['metric_name']
+                    count = m.get('entry_count', 1)
+                    total = m.get('total')
                     unit = m.get('unit') or ''
-                    date = m.get('latest_date') or ''
-                    lines.append(f"  - {m['metric_name']}: {val} {unit} ({date})".rstrip())
+                    latest = m.get('latest_value') or '?'
+                    earliest = m.get('earliest_date') or ''
+                    latest_date = m.get('latest_date') or ''
+                    if count > 1 and total is not None:
+                        lines.append(f"  - {name}: {count} entries ({earliest} — {latest_date}), total {total} {unit}, latest {latest} {unit}".rstrip())
+                    else:
+                        lines.append(f"  - {name}: {latest} {unit} ({latest_date})".rstrip())
                 sections.append("Tracking:\n" + "\n".join(lines))
 
             if done_count > 0:
@@ -164,7 +174,8 @@ async def assemble_context(
         sections.append(structured_context)
 
     # Tier 2: Temporal (conversation continuity — recent mentions not yet in graph)
-    recent_mentions = _extract_recent_mentions(recent_messages[-3:])
+    mention_window = int(hp("context", "recent_mentions_count", 5))
+    recent_mentions = _extract_recent_mentions(recent_messages[-mention_window:])
     if recent_mentions:
         sections.append("Just mentioned:\n" + recent_mentions)
 

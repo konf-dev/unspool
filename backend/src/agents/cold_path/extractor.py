@@ -1,5 +1,6 @@
 """Cold path extractor — with idempotency, semantic dedup, session-level extraction, and status lock."""
 
+import asyncio
 import hashlib
 import json
 import uuid
@@ -7,9 +8,12 @@ import uuid
 from sqlalchemy import select, and_
 
 from src.agents.cold_path.schemas import ExtractionResult
+from src.core.config_loader import hp
 from src.core.database import AsyncSessionLocal
 from src.core.graph import (
+    append_edge,
     append_event,
+    create_node_event,
     get_or_create_node,
     search_nodes_semantic,
     upsert_edge,
@@ -30,14 +34,6 @@ logger = get_logger("cold_path.extractor")
 STATUS_OPEN = "OPEN"
 STATUS_DONE = "DONE"
 
-# Cosine distance threshold for semantic dedup.
-# pgvector cosine_distance = 1 - cosine_similarity, so a distance of 0.1
-# means similarity >= 0.9.
-_DEDUP_MAX_DISTANCE = 0.1
-
-# Retry config for transient Gemini errors (503/UNAVAILABLE)
-_GEMINI_MAX_RETRIES = 3
-_GEMINI_RETRY_BASE_DELAY = 1.0  # seconds
 
 _EXTRACTION_SYSTEM_INSTRUCTION = """You are the Unspool Archiver. You translate unstructured human messages into a structured Knowledge Graph of nodes and edges.
 
@@ -56,7 +52,7 @@ RULES — follow every one precisely:
 11. Related entities get a RELATES_TO edge.
 12. Nodes: source_content and target_content in edges MUST exactly match a node's content string.
 13. If the message is purely conversational ("hey", "thanks", "lol", "👍"), return empty nodes and edges arrays.
-14. When processing a FULL SESSION, extract the NET STATE — only keep final versions after corrections. If something was marked done, don't create it as open.
+14. When processing a FULL SESSION, extract the final state — only keep final versions after corrections. If something was marked done, don't create it as open. EXCEPTION: for metrics (spending, exercise, measurements), extract EVERY individual entry as a separate node with its own TRACKS_METRIC edge — never consolidate or summarize metric data points.
 
 EXAMPLE 1 — "I need to finish my thesis by next Friday and call Mom tomorrow"
 (assuming Current Time is 2026-03-23T10:00:00Z)
@@ -202,7 +198,6 @@ async def run_extraction(
 
     Includes exponential backoff retry for transient 503/UNAVAILABLE errors.
     """
-    import asyncio
     from google.genai import types
 
     settings = get_settings()
@@ -217,7 +212,7 @@ async def run_extraction(
     user_content = f"Current Time: {current_time_iso}\nUser Timezone: {timezone}\n\n{context_prefix}{raw_message}"
 
     last_error = None
-    for attempt in range(_GEMINI_MAX_RETRIES):
+    for attempt in range(int(hp("extraction", "max_retries", 3))):
         try:
             response = await client.aio.models.generate_content(
                 model=settings.EXTRACTION_MODEL,
@@ -226,8 +221,8 @@ async def run_extraction(
                     system_instruction=_EXTRACTION_SYSTEM_INSTRUCTION,
                     response_mime_type="application/json",
                     response_json_schema=ExtractionResult.model_json_schema(),
-                    temperature=0,
-                    thinking_config=types.ThinkingConfig(thinking_budget=8192),
+                    temperature=hp("extraction", "llm_temperature", 0),
+                    thinking_config=types.ThinkingConfig(thinking_budget=hp("extraction", "llm_thinking_budget", 8192)),
                 ),
             )
 
@@ -237,8 +232,8 @@ async def run_extraction(
             last_error = e
             error_str = str(e).lower()
             is_transient = "503" in error_str or "unavailable" in error_str or "service_unavailable" in error_str
-            if is_transient and attempt < _GEMINI_MAX_RETRIES - 1:
-                delay = _GEMINI_RETRY_BASE_DELAY * (2 ** attempt)
+            if is_transient and attempt < int(hp("extraction", "max_retries", 3)) - 1:
+                delay = float(hp("extraction", "retry_base_delay", 1.0)) * (2 ** attempt)
                 logger.warning(
                     "cold_path.extraction_retry",
                     attempt=attempt + 1,
@@ -259,7 +254,6 @@ async def run_session_extraction(
     timezone: str,
 ) -> ExtractionResult:
     """Extract from a full conversation session — sees corrections, full arc, produces net state."""
-    import asyncio
     from google.genai import types
 
     settings = get_settings()
@@ -277,15 +271,19 @@ async def run_session_extraction(
 
     session_preamble = (
         "You are reviewing a COMPLETE conversation session. "
-        "Extract the NET STATE — what facts, tasks, and information should be remembered after this conversation. "
+        "Extract what facts, tasks, and information should be remembered after this conversation. "
         "If something was mentioned then corrected or cancelled, only keep the final version. "
         "If something was marked done during the conversation, don't create it as an open item.\n\n"
+        "IMPORTANT — metrics and tracked quantities (spending, exercise, measurements, etc.): "
+        "extract EVERY individual entry as a separate node with its own TRACKS_METRIC edge. "
+        "Do NOT consolidate or summarize multiple metric entries. "
+        "For example, if the user mentioned '$50 on groceries' and '$30 on gas', those are TWO separate nodes, not one summary.\n\n"
     )
 
     user_content = f"Current Time: {current_time_iso}\nUser Timezone: {timezone}\n\n{session_preamble}Session transcript:\n{session_text}"
 
     last_error = None
-    for attempt in range(_GEMINI_MAX_RETRIES):
+    for attempt in range(int(hp("extraction", "max_retries", 3))):
         try:
             response = await client.aio.models.generate_content(
                 model=settings.EXTRACTION_MODEL,
@@ -294,8 +292,8 @@ async def run_session_extraction(
                     system_instruction=_EXTRACTION_SYSTEM_INSTRUCTION,
                     response_mime_type="application/json",
                     response_json_schema=ExtractionResult.model_json_schema(),
-                    temperature=0,
-                    thinking_config=types.ThinkingConfig(thinking_budget=8192),
+                    temperature=hp("extraction", "llm_temperature", 0),
+                    thinking_config=types.ThinkingConfig(thinking_budget=hp("extraction", "llm_thinking_budget", 8192)),
                 ),
             )
 
@@ -305,8 +303,8 @@ async def run_session_extraction(
             last_error = e
             error_str = str(e).lower()
             is_transient = "503" in error_str or "unavailable" in error_str or "service_unavailable" in error_str
-            if is_transient and attempt < _GEMINI_MAX_RETRIES - 1:
-                delay = _GEMINI_RETRY_BASE_DELAY * (2 ** attempt)
+            if is_transient and attempt < int(hp("extraction", "max_retries", 3)) - 1:
+                delay = float(hp("extraction", "retry_base_delay", 1.0)) * (2 ** attempt)
                 logger.warning(
                     "cold_path.session_extraction_retry",
                     attempt=attempt + 1,
@@ -338,7 +336,7 @@ async def _find_semantic_match(
             embedding,
             limit=1,
             node_type=node_type,
-            max_distance=_DEDUP_MAX_DISTANCE,
+            max_distance=float(hp("extraction", "dedup_max_distance", 0.1)),
         )
         if matches:
             return matches[0], embedding
@@ -347,25 +345,33 @@ async def _find_semantic_match(
     return None, embedding
 
 
-async def _node_has_done_status(session, user_id: uuid.UUID, node_id: uuid.UUID) -> bool:
-    """Check if a node already has IS_STATUS→DONE (status lock guard)."""
-    done_node = (await session.execute(
-        select(GraphNode).where(
-            GraphNode.user_id == user_id,
-            GraphNode.content == STATUS_DONE,
-            GraphNode.node_type == "system_status",
-        )
-    )).scalar_one_or_none()
+async def _node_has_done_status(
+    session, user_id: uuid.UUID, node_id: uuid.UUID,
+    done_node_id: uuid.UUID | None = None,
+) -> bool:
+    """Check if a node already has IS_STATUS→DONE (status lock guard).
 
-    if not done_node:
-        return False
+    Accepts a pre-fetched ``done_node_id`` to avoid redundant lookups when
+    called in a loop.
+    """
+    if done_node_id is None:
+        done_node = (await session.execute(
+            select(GraphNode).where(
+                GraphNode.user_id == user_id,
+                GraphNode.content == STATUS_DONE,
+                GraphNode.node_type == "system_status",
+            )
+        )).scalar_one_or_none()
+        if not done_node:
+            return False
+        done_node_id = done_node.id
 
     existing = (await session.execute(
         select(GraphEdge).where(
             and_(
                 GraphEdge.user_id == user_id,
                 GraphEdge.source_node_id == node_id,
-                GraphEdge.target_node_id == done_node.id,
+                GraphEdge.target_node_id == done_node_id,
                 GraphEdge.edge_type == "IS_STATUS",
             )
         )
@@ -397,21 +403,52 @@ async def _create_nodes_and_edges(
     if not extraction.nodes and not extraction.edges:
         return 0, 0
 
-    # Create nodes with semantic dedup
+    # Maps content string → node UUID.  For metric source nodes that may have
+    # identical content (e.g. "spent $50 on groceries" twice), we use indexed
+    # keys like "content\x00#1" to avoid collision.  The edge loop below uses
+    # _resolve_node_id() to look up the correct key for each edge.
     node_map: dict[str, uuid.UUID] = {}
+
+    # Track how many times each metric-source content has been seen, so we can
+    # assign unique keys and later match edges to the right node.
+    _metric_content_counter: dict[str, int] = {}
+
     nodes_to_embed: list[str] = []
     nodes_to_embed_types: list[str] = []
     nodes_to_embed_metadata: list[dict] = []
+    nodes_force_create: list[bool] = []
+    # Parallel list: the key under which each new node will be stored in node_map
+    nodes_map_keys: list[str] = []
 
     # Types that are semantically equivalent for dedup purposes
     _EQUIVALENT_TYPES = {"memory", "action", "concept"}
+
+    # Identify nodes that source TRACKS_METRIC edges — never dedup these
+    _metric_source_contents = {
+        edge.source_content
+        for edge in extraction.edges
+        if edge.edge_type == "TRACKS_METRIC"
+    }
 
     for enode in extraction.nodes:
         if not enode.content or not enode.content.strip():
             continue
 
-        # Search for semantic match — try exact type first, then equivalent types
-        # Reuse the embedding across type checks to avoid redundant API calls
+        # Metric source nodes: always create new, use indexed key to avoid collision
+        if enode.content in _metric_source_contents:
+            idx = _metric_content_counter.get(enode.content, 0)
+            _metric_content_counter[enode.content] = idx + 1
+            map_key = f"{enode.content}\x00#{idx}"
+            logger.debug("cold_path.skip_dedup_metric", content=enode.content, index=idx)
+            nodes_to_embed.append(enode.content)
+            nodes_to_embed_types.append(enode.node_type)
+            nodes_to_embed_metadata.append(enode.metadata.model_dump() if enode.metadata else {})
+            nodes_force_create.append(True)
+            nodes_map_keys.append(map_key)
+            continue
+
+        # Search for semantic match — try exact type first, then equivalent types.
+        # Reuse the embedding across type checks to avoid redundant API calls.
         existing_node, cached_embedding = await _find_semantic_match(
             session, user_id, enode.content, enode.node_type,
         )
@@ -434,35 +471,71 @@ async def _create_nodes_and_edges(
             nodes_to_embed.append(enode.content)
             nodes_to_embed_types.append(enode.node_type)
             nodes_to_embed_metadata.append(enode.metadata.model_dump() if enode.metadata else {})
+            nodes_force_create.append(False)
+            nodes_map_keys.append(enode.content)
 
-    # Batch-embed all new nodes in a single API call
+    # Batch-embed all new nodes — retry with backoff on transient failures
     embeddings: list[list[float] | None] = []
     if nodes_to_embed:
-        try:
-            embeddings = await get_embeddings_batch(
-                nodes_to_embed, task_type="RETRIEVAL_DOCUMENT",
-            )
-        except Exception:
-            logger.warning("cold_path.batch_embed_failed", exc_info=True)
-            embeddings = [None] * len(nodes_to_embed)
+        for attempt in range(int(hp("embedding", "retry_max_attempts", 3))):
+            try:
+                embeddings = await get_embeddings_batch(
+                    nodes_to_embed, task_type="RETRIEVAL_DOCUMENT",
+                )
+                break
+            except Exception:
+                if attempt < int(hp("embedding", "retry_max_attempts", 3)) - 1:
+                    delay = float(hp("embedding", "retry_backoff_base", 2.0)) ** attempt
+                    logger.warning(
+                        "cold_path.batch_embed_retry",
+                        attempt=attempt + 1,
+                        delay=delay,
+                        exc_info=True,
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.warning("cold_path.batch_embed_failed", exc_info=True)
+                    embeddings = [None] * len(nodes_to_embed)
 
-    for content, node_type, embedding, metadata in zip(
-        nodes_to_embed, nodes_to_embed_types, embeddings, nodes_to_embed_metadata,
+    for map_key, content, node_type, embedding, metadata, force_new in zip(
+        nodes_map_keys, nodes_to_embed, nodes_to_embed_types,
+        embeddings, nodes_to_embed_metadata, nodes_force_create,
     ):
-        db_node = await get_or_create_node(
-            session, user_id, content, node_type, embedding, metadata=metadata,
-        )
-        node_map[content] = db_node.id
+        if force_new:
+            db_node = await create_node_event(
+                session, user_id, content, node_type, embedding,
+            )
+            if metadata:
+                db_node.metadata_ = metadata
+        else:
+            db_node = await get_or_create_node(
+                session, user_id, content, node_type, embedding, metadata=metadata,
+            )
+        node_map[map_key] = db_node.id
 
     # Ensure status nodes in map
     open_node, done_node = await ensure_status_nodes(session, user_id)
     node_map[STATUS_OPEN] = open_node.id
     node_map[STATUS_DONE] = done_node.id
 
+    # Build a counter to assign each TRACKS_METRIC edge to its corresponding
+    # indexed source node.  The N-th TRACKS_METRIC edge with source_content X
+    # maps to node_map["X\x00#N"].
+    _edge_metric_counter: dict[str, int] = {}
+
+    def _resolve_id(content: str, is_metric_source: bool) -> uuid.UUID | None:
+        """Look up a node UUID, handling indexed keys for metric sources."""
+        if is_metric_source:
+            idx = _edge_metric_counter.get(content, 0)
+            _edge_metric_counter[content] = idx + 1
+            return node_map.get(f"{content}\x00#{idx}")
+        return node_map.get(content)
+
     # Create edges with status lock
     edges_created = 0
     for edge in extraction.edges:
-        source_id = node_map.get(edge.source_content)
+        is_metric_edge = edge.edge_type == "TRACKS_METRIC"
+        source_id = _resolve_id(edge.source_content, is_metric_edge)
         target_id = node_map.get(edge.target_content)
 
         if not source_id or not target_id:
@@ -475,7 +548,7 @@ async def _create_nodes_and_edges(
 
         # Status lock: don't create IS_STATUS→OPEN if node already has DONE
         if edge.edge_type == "IS_STATUS" and edge.target_content == STATUS_OPEN:
-            if await _node_has_done_status(session, user_id, source_id):
+            if await _node_has_done_status(session, user_id, source_id, done_node_id=done_node.id):
                 logger.info(
                     "cold_path.status_lock_skipped",
                     source=edge.source_content,
@@ -483,14 +556,27 @@ async def _create_nodes_and_edges(
                 )
                 continue
 
-        await upsert_edge(
-            session=session,
-            user_id=user_id,
-            source_id=source_id,
-            target_id=target_id,
-            edge_type=edge.edge_type,
-            metadata=edge.metadata.model_dump(exclude_none=True) if edge.metadata else {},
-        )
+        edge_meta = edge.metadata.model_dump(exclude_none=True) if edge.metadata else {}
+
+        if edge.edge_type == "TRACKS_METRIC":
+            # A1: always INSERT for metrics — never overwrite previous entries
+            await append_edge(
+                session=session,
+                user_id=user_id,
+                source_id=source_id,
+                target_id=target_id,
+                edge_type=edge.edge_type,
+                metadata=edge_meta,
+            )
+        else:
+            await upsert_edge(
+                session=session,
+                user_id=user_id,
+                source_id=source_id,
+                target_id=target_id,
+                edge_type=edge.edge_type,
+                metadata=edge_meta,
+            )
         edges_created += 1
 
     return len(extraction.nodes), edges_created
@@ -504,11 +590,20 @@ async def process_brain_dump(
     timezone: str,
     trace_id: str | None = None,
     recent_messages: list[str] | None = None,
+    retry_count: int = 0,
 ) -> None:
     """The main entry point for the Cold Path Archiver (single message). Idempotent."""
     idem_key = _idempotency_key(str(user_id), raw_message)
 
+    # Convert idempotency key to a stable int for pg_advisory_xact_lock
+    idem_lock_id = int(idem_key, 16) % (2**63)
+
     async with AsyncSessionLocal() as session:
+        # Acquire a transaction-scoped advisory lock to prevent concurrent
+        # processing of the same message (e.g., QStash retry racing the original)
+        from sqlalchemy import text
+        await session.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": idem_lock_id})
+
         # Check idempotency — skip if already processed
         existing = await session.execute(
             select(EventStream).where(
@@ -523,7 +618,7 @@ async def process_brain_dump(
 
         logger.info("cold_path.start", user_id=str(user_id), trace_id=trace_id)
 
-        # Run LLM extraction
+        # Run LLM extraction (A6: retry via QStash on failure)
         try:
             extraction = await run_extraction(raw_message, current_time_iso, timezone, recent_messages)
         except Exception as e:
@@ -531,6 +626,33 @@ async def process_brain_dump(
                 "cold_path.extraction_failed", e,
                 user_id=str(user_id), trace_id=trace_id,
             )
+            # Dispatch retry with exponential backoff via QStash
+            max_retries = int(hp("extraction", "max_retries", 3))
+            if retry_count < max_retries:
+                try:
+                    from src.integrations.qstash import dispatch_job
+                    delay = int(60 * (2 ** retry_count))  # 60s, 120s, 240s
+                    await dispatch_job("process-message", {
+                        "user_id": str(user_id),
+                        "message": raw_message,
+                        "trace_id": trace_id,
+                        "retry_count": retry_count + 1,
+                    }, delay=delay)
+                    logger.info(
+                        "cold_path.extraction_retry_queued",
+                        user_id=str(user_id),
+                        retry_count=retry_count + 1,
+                        delay=delay,
+                    )
+                except Exception:
+                    logger.error("cold_path.retry_dispatch_failed", exc_info=True)
+            else:
+                logger.error(
+                    "cold_path.extraction_retries_exhausted",
+                    user_id=str(user_id),
+                    trace_id=trace_id,
+                    retry_count=retry_count,
+                )
             return
 
         if not extraction.nodes and not extraction.edges:
@@ -568,11 +690,16 @@ async def process_session(
 ) -> None:
     """Session-level extraction — processes the full conversation at once. Idempotent."""
     from datetime import datetime, timezone as tz
-    from src.db.queries import get_messages_from_events, get_profile
+    from src.db.queries import get_profile
 
     idem_key = _session_idempotency_key(str(user_id), session_id)
+    idem_lock_id = int(idem_key, 16) % (2**63)
 
     async with AsyncSessionLocal() as db_session:
+        # Advisory lock to prevent concurrent session processing
+        from sqlalchemy import text as sa_text
+        await db_session.execute(sa_text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": idem_lock_id})
+
         # Check idempotency
         existing = await db_session.execute(
             select(EventStream).where(

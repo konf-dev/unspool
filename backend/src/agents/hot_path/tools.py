@@ -3,14 +3,17 @@
 user_id is NOT a tool parameter — it's injected from LangGraph state in call_tools.
 """
 
+import asyncio
 import uuid
+from collections import defaultdict
 from datetime import datetime, timezone as tz
 from typing import Any
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, func
 
 from src.core.database import AsyncSessionLocal
 from src.core.graph import (
+    get_node_neighborhood,
     search_nodes_semantic,
     search_nodes_by_edge_structure,
     upsert_edge,
@@ -18,9 +21,9 @@ from src.core.graph import (
     update_content_event,
     archive_node_event,
     remove_edge_event,
-    get_or_create_node,
 )
 from src.core.models import GraphNode, GraphEdge
+from src.core.config_loader import hp
 from src.integrations.gemini import get_embedding
 from src.telemetry.logger import get_logger
 
@@ -48,6 +51,7 @@ async def query_graph(
     node_type: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    depth: int = 0,
 ) -> list[dict[str, Any]]:
     """Searches the user's memory graph.
 
@@ -57,6 +61,8 @@ async def query_graph(
         node_type: Filter by node type (e.g. 'action', 'concept', 'person', 'memory').
         date_from: Optional ISO8601 date. Filter results to items with edge dates >= this.
         date_to: Optional ISO8601 date. Filter results to items with edge dates <= this.
+        depth: Number of hops to traverse from matched nodes (default 0 = flat search).
+               Use 1-2 for context questions like "what's related to X?" or "tell me about project Y".
 
     At least one of semantic_query, edge_type_filter, or node_type must be provided.
     """
@@ -100,6 +106,27 @@ async def schedule_reminder(
     raise RuntimeError("schedule_reminder must be called via call_tools with user_id injection")
 
 
+@tool
+async def get_metrics(
+    metric_name: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> list[dict[str, Any]] | str:
+    """Get aggregated metric data (totals, counts, averages). Use this instead of
+    query_graph for questions like "how much did I spend?" or "how many km did I run?"
+
+    Args:
+        metric_name: Optional filter for a specific metric (e.g. "spending", "running").
+                     Omit to get summaries of all tracked metrics.
+        date_from: Optional ISO8601 date. Only include entries on or after this date.
+        date_to: Optional ISO8601 date. Only include entries on or before this date.
+
+    Returns a list of metric summaries, each with: metric name, entry count, total,
+    min, max, average, latest value, unit, and date range.
+    """
+    raise RuntimeError("get_metrics must be called via call_tools with user_id injection")
+
+
 # Actual implementations called by call_tools with user_id injected
 
 async def _exec_query_graph(
@@ -109,6 +136,7 @@ async def _exec_query_graph(
     node_type: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    depth: int = 0,
 ) -> list[dict[str, Any]] | str:
     """Returns list of node dicts on success, or an error string on failure."""
     try:
@@ -122,7 +150,9 @@ async def _exec_query_graph(
                 # Semantic search path
                 embedding = await get_embedding(semantic_query, task_type="RETRIEVAL_QUERY")
                 nodes = await search_nodes_semantic(
-                    session, user_uuid, embedding, limit=8, node_type=node_type,
+                    session, user_uuid, embedding,
+                    limit=hp("retrieval", "semantic_search_limit", 15),
+                    node_type=node_type,
                 )
             else:
                 # Structural query — no embedding API call needed
@@ -130,64 +160,84 @@ async def _exec_query_graph(
                     session, user_uuid,
                     edge_type=edge_type_filter,
                     node_type=node_type,
+                    limit=hp("retrieval", "structural_search_limit", 25),
                 )
+
+            # Graph walk: expand results by traversing N hops from matched nodes
+            max_depth = int(hp("retrieval", "graph_walk_hops", 2))
+            effective_depth = min(depth, max_depth)
+            if effective_depth > 0:
+                seen_ids = {n.id for n in nodes}
+                neighborhoods = await asyncio.gather(*[
+                    get_node_neighborhood(session, n.id, user_id=user_uuid, hops=effective_depth)
+                    for n in list(nodes)
+                ])
+                for neighborhood_nodes, _ in neighborhoods:
+                    for n in neighborhood_nodes:
+                        if n.id not in seen_ids:
+                            nodes.append(n)
+                            seen_ids.add(n.id)
+
+            # Batch-fetch all edges for all matched nodes in one query (avoids N+1)
+            all_node_ids = [n.id for n in nodes]
+            edge_fetch_limit = int(hp("retrieval", "edge_fetch_limit", 30))
+            all_edges_result = (await session.execute(
+                select(GraphEdge).where(
+                    GraphEdge.user_id == user_uuid,
+                    GraphEdge.source_node_id.in_(all_node_ids),
+                )
+            )).scalars().all()
+
+            # Group edges by source node, respecting per-node limit
+            edges_by_source: dict[uuid.UUID, list[GraphEdge]] = defaultdict(list)
+            for e in all_edges_result:
+                if len(edges_by_source[e.source_node_id]) < edge_fetch_limit:
+                    edges_by_source[e.source_node_id].append(e)
+
+            # Batch-fetch all target nodes referenced by any edge
+            all_target_ids = {e.target_node_id for e in all_edges_result}
+            target_map: dict[uuid.UUID, str] = {}
+            if all_target_ids:
+                target_nodes = (await session.execute(
+                    select(GraphNode).where(GraphNode.id.in_(all_target_ids))
+                )).scalars().all()
+                target_map = {t.id: t.content for t in target_nodes}
+
+            # Parse date filters once, not per-node
+            from_dt = datetime.fromisoformat(date_from.replace("Z", "+00:00")) if date_from else None
+            to_dt = datetime.fromisoformat(date_to.replace("Z", "+00:00")) if date_to else None
 
             results = []
             for node in nodes:
+                node_edges = edges_by_source.get(node.id, [])
+
+                # Post-filter by edge type when both semantic + structural filters are active
                 if semantic_query and edge_type_filter:
-                    # Post-filter semantic results by edge type
-                    stmt = select(GraphEdge).where(
-                        and_(
-                            GraphEdge.user_id == user_uuid,
-                            GraphEdge.source_node_id == node.id,
-                            GraphEdge.edge_type == edge_type_filter,
-                        )
-                    )
-                    edges = (await session.execute(stmt)).scalars().all()
-                    if not edges:
+                    if not any(e.edge_type == edge_type_filter for e in node_edges):
                         continue
 
-                # Get immediate edges (up to 20 for post-filtering) for context
-                edge_stmt = select(GraphEdge).where(
-                    GraphEdge.user_id == user_uuid,
-                    GraphEdge.source_node_id == node.id,
-                ).limit(20)
-                node_edges = (await session.execute(edge_stmt)).scalars().all()
-
-                # Apply temporal filtering if date params provided
-                if date_from or date_to:
+                # Apply temporal filtering
+                if from_dt or to_dt:
                     has_matching_date = False
                     for e in node_edges:
                         edge_date = (e.metadata_ or {}).get("date") or (e.metadata_ or {}).get("logged_at")
                         if edge_date:
                             try:
                                 edge_dt = datetime.fromisoformat(edge_date.replace("Z", "+00:00"))
-                                if date_from:
-                                    from_dt = datetime.fromisoformat(date_from.replace("Z", "+00:00"))
-                                    if edge_dt < from_dt:
-                                        continue
-                                if date_to:
-                                    to_dt = datetime.fromisoformat(date_to.replace("Z", "+00:00"))
-                                    if edge_dt > to_dt:
-                                        continue
+                                if from_dt and edge_dt < from_dt:
+                                    continue
+                                if to_dt and edge_dt > to_dt:
+                                    continue
                                 has_matching_date = True
                             except (ValueError, TypeError):
                                 pass
                     if not has_matching_date:
                         continue
 
-                # Batch-fetch all target nodes to avoid N+1
-                target_ids = [e.target_node_id for e in node_edges]
-                target_map: dict[uuid.UUID, str] = {}
-                if target_ids:
-                    target_nodes = (await session.execute(
-                        select(GraphNode).where(GraphNode.id.in_(target_ids))
-                    )).scalars().all()
-                    target_map = {t.id: t.content for t in target_nodes}
-
-                # Build humanized edge descriptions (limit display to 5)
+                # Build humanized edge descriptions
+                edge_display_limit = int(hp("retrieval", "edge_display_limit", 10))
                 edge_details = []
-                for e in node_edges[:5]:
+                for e in node_edges[:edge_display_limit]:
                     target_content = target_map.get(e.target_node_id, "")
                     if e.edge_type == "IS_STATUS" and target_content:
                         edge_details.append(f"status: {target_content.lower()}")
@@ -332,4 +382,47 @@ async def _exec_schedule_reminder(
         return f"Error: invalid time format — {e}"
     except Exception as e:
         logger.error("schedule_reminder.failed", error=str(e), exc_info=True)
+        return _sanitize_error(e)
+
+
+async def _exec_get_metrics(
+    user_id: str,
+    metric_name: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> list[dict[str, Any]] | str:
+    """Pre-aggregated metric query — returns totals, counts, averages."""
+    try:
+        from src.db.queries import get_metric_aggregates
+
+        rows = await get_metric_aggregates(
+            user_id=user_id,
+            metric_name=metric_name,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+        if not rows:
+            if metric_name:
+                return f"No entries found for metric '{metric_name}' in the specified date range."
+            return "No metrics tracked yet."
+
+        results = []
+        for row in rows:
+            entry = {
+                "metric": row["metric_name"],
+                "entry_count": row["entry_count"],
+                "total": row["total"],
+                "average": row["avg_value"],
+                "min": row["min_value"],
+                "max": row["max_value"],
+                "latest_value": row["latest_value"],
+                "unit": row["unit"] or "",
+                "date_range": f"{row['earliest_date']} — {row['latest_date']}",
+            }
+            results.append(entry)
+
+        return results
+    except Exception as e:
+        logger.error("get_metrics.failed", error=str(e), exc_info=True)
         return _sanitize_error(e)

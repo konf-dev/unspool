@@ -1,0 +1,72 @@
+# Unspool hyperparameters — single source of truth for all tunables.
+# See improvements/7_memory_audit_and_remediation.md for rationale.
+
+# ── Retrieval ──
+retrieval:
+  semantic_search_limit: 15          # default for query_graph semantic path
+  structural_search_limit: 25        # default for query_graph structural path
+  max_safety_cap: 100                # absolute max results (prevents runaway)
+  edge_fetch_limit: 30               # edges loaded per node
+  edge_display_limit: 10             # edges shown per node in results
+  graph_walk_hops: 2                 # neighborhood traversal depth
+
+# ── Context Assembly ──
+context:
+  recent_messages_loaded: 20         # messages fetched from event_stream
+  recent_messages_to_llm: 15         # messages in conversation history
+  recent_mentions_count: 5           # "Just mentioned" entries
+  recent_mention_max_chars: 500      # truncation, not filter
+  done_count_lookback_hours: 48
+  plate_items_limit: 10
+  slipped_items_limit: 15
+  metric_history_entries: 10         # per-metric recent entries in context
+  max_context_tokens: 4000
+
+# ── Extraction (Cold Path) ──
+extraction:
+  dedup_max_distance: 0.1            # cosine distance (0.1 = 90% similarity)
+  skip_dedup_for_edge_types:         # never dedup nodes with these outgoing edges
+    - TRACKS_METRIC
+  session_debounce_seconds: 180
+  max_retries: 3
+  retry_base_delay: 1.0
+  llm_temperature: 0
+  llm_thinking_budget: 8192
+
+# ── Synthesis (Nightly) ──
+synthesis:
+  archive_done_after_days: 7
+  merge_max_distance: 0.15           # cosine distance for duplicate merge
+  merge_candidates_limit: 5
+  skip_merge_for_edge_types:         # never merge nodes with these edges
+    - TRACKS_METRIC
+  edge_decay_factor: 0.99
+  edge_decay_min: 0.01
+
+# ── Hot Path Agent ──
+agent:
+  max_iterations: 5
+  llm_temperature: 0.4
+  llm_thinking_budget: 4096
+  pipeline_timeout_seconds: 60
+
+# ── Proactive ──
+proactive:
+  cooldown_seconds: 21600            # 6 hours
+  llm_temperature: 0.8
+  llm_thinking_budget: 0
+
+# ── Rate Limiting ──
+rate_limit:
+  free_daily_messages: 1000
+
+# ── Expiration ──
+expiration:
+  soft_deadline_grace_hours: 48
+  undated_stale_days: 14
+  batch_limit: 100
+
+# ── Embedding ──
+embedding:
+  retry_max_attempts: 3
+  retry_backoff_base: 2.0
